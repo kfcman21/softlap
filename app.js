@@ -84,6 +84,16 @@ async function checkCentralDbStatus() {
       }
     } catch (e) {}
 
+    // 로그인 화면의 연동 상태 뱃지 업데이트
+    const authStatus = document.getElementById("auth-db-status");
+    if (authStatus) {
+      authStatus.style.display = "inline-block";
+      authStatus.style.backgroundColor = "rgba(46, 204, 113, 0.15)";
+      authStatus.style.color = "var(--success-color)";
+      authStatus.style.border = "1px solid rgba(46, 204, 113, 0.4)";
+      authStatus.innerHTML = `🟢 중앙 집중형 DB 연동 완료`;
+    }
+
     if (statusContainer) {
       statusContainer.style.display = "block";
       statusContainer.style.backgroundColor = "rgba(46, 204, 113, 0.1)";
@@ -95,6 +105,16 @@ async function checkCentralDbStatus() {
   } else {
     isCentralDbActive = false;
     console.log("💾 로컬 저장소(LocalStorage) 모드로 구동됩니다.");
+
+    // 로그인 화면의 연동 상태 뱃지 업데이트
+    const authStatus = document.getElementById("auth-db-status");
+    if (authStatus) {
+      authStatus.style.display = "inline-block";
+      authStatus.style.backgroundColor = "rgba(230, 126, 34, 0.15)";
+      authStatus.style.color = "var(--warning-color)";
+      authStatus.style.border = "1px solid rgba(230, 126, 34, 0.4)";
+      authStatus.innerHTML = `💾 로컬 단독 저장소 모드 (기기간 동기화 꺼짐)`;
+    }
 
     if (statusContainer) {
       statusContainer.style.display = "block";
