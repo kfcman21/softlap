@@ -2692,4 +2692,8 @@ function closeLightbox() {
 window.closeLightbox = closeLightbox;
 
 // 초기 로딩 바인딩
-window.addEventListener("DOMContentLoaded", initApp);
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
+}
