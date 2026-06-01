@@ -314,7 +314,7 @@ async function renderAdminUsersList() {
     }
   } catch (e) {
     console.error("원격 사용자 목록 로딩 실패:", e);
-    showToast("⚠️ 데이터베이스에서 교사 정보를 로드하지 못했습니다.");
+    showToast("⚠️ 데이터베이스에서 회원 정보를 로드하지 못했습니다.");
   }
   
   const actualUsersCount = userEmails.filter(email => email !== "admin").length;
@@ -334,7 +334,7 @@ async function renderAdminUsersList() {
     tbody.innerHTML = `
       <tr>
         <td colspan="5" style="text-align:center; padding:35px; color:var(--text-tertiary); font-weight:500;">
-          검색 및 등록된 교사 회원 계정이 없습니다.
+          검색 및 등록된 회원 계정이 없습니다.
         </td>
       </tr>
     `;
@@ -360,7 +360,7 @@ async function renderAdminUsersList() {
 }
 
 async function adminChangePassword(email) {
-  const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n교사 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
+  const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n회원 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
   if (newPw === null) return;
   const pwTrimmed = newPw.trim();
   if (pwTrimmed.length < 4) {
@@ -376,7 +376,7 @@ async function adminChangePassword(email) {
     });
     if (response.ok) {
       await renderAdminUsersList();
-      showToast(`교사 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
+      showToast(`회원 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
     } else {
       alert("원격 서버 비밀번호 변경 실패");
     }
@@ -387,14 +387,14 @@ async function adminChangePassword(email) {
 window.adminChangePassword = adminChangePassword;
 
 async function adminDeleteUser(email) {
-  if (confirm(`⚠️ [경고 - 계정 영구 강제 삭제]\n\n정말 교사 계정 (${email})을 강제 탈퇴시키고,\n해당 교사 소유의 보관함 및 모든 실증 데이터를 영구히 데이터베이스에서 삭제하시겠습니까?`)) {
+  if (confirm(`⚠️ [경고 - 계정 영구 강제 삭제]\n\n정말 회원 계정 (${email})을 강제 탈퇴시키고,\n해당 계정 소유의 보관함 및 모든 실증 데이터를 영구히 데이터베이스에서 삭제하시겠습니까?`)) {
     try {
       const response = await fetch(`${centralDbUrl}/api/admin/users/${encodeURIComponent(email)}`, {
         method: "DELETE"
       });
       if (response.ok) {
         await renderAdminUsersList();
-        showToast(`교사 (${email}) 계정 및 관련 실증 보관함 데이터가 완벽히 파쇄되었습니다.`);
+        showToast(`회원 (${email}) 계정 및 관련 실증 보관함 데이터가 완벽히 파쇄되었습니다.`);
       } else {
         alert("원격 서버 회원 삭제 실패");
       }
