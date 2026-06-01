@@ -1864,7 +1864,7 @@ function switchTab(tabId) {
     previewArea.style.display = "none";
   } else {
     editorArea.style.display = "none";
-    previewArea.style.display = "flex";
+    previewArea.style.display = "block";
     renderA4Preview();
   }
 }
