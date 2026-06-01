@@ -12,6 +12,38 @@ let oracleConfig = {
   enabled: true
 };
 
+let isCentralDbActive = false;
+let centralDbUrl = "";
+
+async function checkCentralDbStatus() {
+  const configuredUrl = localStorage.getItem("softlap_central_db_url");
+  if (configuredUrl) {
+    centralDbUrl = configuredUrl;
+  } else {
+    centralDbUrl = window.location.origin;
+  }
+
+  try {
+    const res = await fetch(`${centralDbUrl}/api/health`, { method: 'GET' });
+    if (res.ok) {
+      const data = await res.json();
+      isCentralDbActive = true;
+      console.log(`🌐 중앙 집중형 원격 데이터베이스 연결 활성화! 엔진: ${data.engine}`);
+      try {
+        const regRes = await fetch(`${centralDbUrl}/api/registry`);
+        if (regRes.ok) {
+          state.edutechRegistry = await regRes.json();
+        }
+      } catch (e) {}
+      return;
+    }
+  } catch (err) {
+    // Fail silently
+  }
+  isCentralDbActive = false;
+  console.log("💾 로컬 저장소(LocalStorage) 모드로 구동됩니다.");
+}
+
 // 글로벌 애플리케이션 상태
 let state = {
   currentUser: null,       // 현재 로그인된 사용자 객체 { email, name, school }
@@ -19,6 +51,7 @@ let state = {
   filterElement: "전체",    // 대분류 필터 값
   activeProjectId: null,   // 현재 편집 중인 보관함 내 프로젝트 ID
   projects: [],            // 현재 사용자의 프로젝트 리스트
+  edutechRegistry: [],     // 중앙 원격 데이터베이스 마스터 명부 캐시
   activeProject: {         // 현재 활성화된 프로젝트 모델
     meta: {
       targetProduct: "",
@@ -38,7 +71,8 @@ let state = {
 };
 
 // 앱 최초 로드 시 실행되는 초기화 라이프사이클
-function initApp() {
+async function initApp() {
+  await checkCentralDbStatus();
   setupEventListeners();
   applyTheme();
   renderPresetGuideTree();
@@ -144,37 +178,68 @@ function showAdminDashboard() {
   document.getElementById("app-container").style.display = "none";
   document.getElementById("admin-container").style.display = "flex";
   
+  const dbUrlInput = document.getElementById("admin-central-db-url-input");
+  if (dbUrlInput) {
+    dbUrlInput.value = localStorage.getItem("softlap_central_db_url") || "";
+  }
+  
   updateOracleSyncCardVisibility();
   renderAdminUsersList();
 }
 
-function renderAdminUsersList() {
+async function renderAdminUsersList() {
   const tbody = document.getElementById("admin-users-tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
   
   const searchVal = document.getElementById("admin-search-input").value.trim().toLowerCase();
-  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
   
-  const userEmails = Object.keys(usersDB);
-  
-  // 관리자 통계 카드 수치 업데이트
-  document.getElementById("admin-stat-users").textContent = `${userEmails.length}명`;
-  
+  let usersDB = {};
+  let userEmails = [];
   let totalProjectsCount = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith("softlap_projects_")) {
-      try {
-        const projs = JSON.parse(localStorage.getItem(key) || "[]");
-        totalProjectsCount += projs.length;
-      } catch (e) {}
+
+  if (isCentralDbActive) {
+    try {
+      const res = await fetch(`${centralDbUrl}/api/admin/users`);
+      if (res.ok) {
+        usersDB = await res.json();
+        userEmails = Object.keys(usersDB);
+        
+        userEmails.forEach(email => {
+          if (email !== "admin") {
+            totalProjectsCount += (usersDB[email].projectCount || 0);
+          }
+        });
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      console.error("원격 사용자 목록 로딩 실패:", e);
+      usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+      userEmails = Object.keys(usersDB);
+    }
+  } else {
+    usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+    userEmails = Object.keys(usersDB);
+    
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("softlap_projects_")) {
+        try {
+          const projs = JSON.parse(localStorage.getItem(key) || "[]");
+          totalProjectsCount += projs.length;
+        } catch (e) {}
+      }
     }
   }
+  
+  const actualUsersCount = userEmails.filter(email => email !== "admin").length;
+  document.getElementById("admin-stat-users").textContent = `${actualUsersCount}명`;
   document.getElementById("admin-stat-projects").textContent = `${totalProjectsCount}개`;
 
   // 검색어 필터링
   const filteredEmails = userEmails.filter(email => {
+    if (email === "admin") return false; // 관리자 계정은 가입자 리스트에서 제외
     const user = usersDB[email];
     return email.toLowerCase().includes(searchVal) || 
            (user.name && user.name.toLowerCase().includes(searchVal)) ||
@@ -210,7 +275,7 @@ function renderAdminUsersList() {
   });
 }
 
-function adminChangePassword(email) {
+async function adminChangePassword(email) {
   const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n교사 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
   if (newPw === null) return;
   const pwTrimmed = newPw.trim();
@@ -219,28 +284,62 @@ function adminChangePassword(email) {
     return;
   }
   
-  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
-  if (usersDB[email]) {
-    usersDB[email].password = pwTrimmed;
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
-    renderAdminUsersList();
-    showToast(`교사 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
+  if (isCentralDbActive) {
+    try {
+      const response = await fetch(`${centralDbUrl}/api/admin/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, newPassword: pwTrimmed })
+      });
+      if (response.ok) {
+        await renderAdminUsersList();
+        showToast(`교사 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
+      } else {
+        alert("원격 서버 비밀번호 변경 실패");
+      }
+    } catch (err) {
+      alert("서버 연결 실패: " + err.message);
+    }
+  } else {
+    const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+    if (usersDB[email]) {
+      usersDB[email].password = pwTrimmed;
+      localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+      await renderAdminUsersList();
+      showToast(`교사 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
+    }
   }
 }
 window.adminChangePassword = adminChangePassword;
 
-function adminDeleteUser(email) {
+async function adminDeleteUser(email) {
   if (confirm(`⚠️ [경고 - 계정 영구 강제 삭제]\n\n정말 교사 계정 (${email})을 강제 탈퇴시키고,\n해당 교사 소유의 보관함 및 모든 실증 데이터를 영구히 데이터베이스에서 삭제하시겠습니까?`)) {
-    const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
-    delete usersDB[email];
-    localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
     
-    // 해당 사용자의 프로젝트 보관함도 로컬스토리지에서 동시 제거
-    const userStorageKey = `softlap_projects_${email.replace(/[@.]/g, '_')}`;
-    localStorage.removeItem(userStorageKey);
-    
-    renderAdminUsersList();
-    showToast(`교사 (${email}) 계정 및 관련 실증 보관함 데이터가 완벽히 파쇄되었습니다.`);
+    if (isCentralDbActive) {
+      try {
+        const response = await fetch(`${centralDbUrl}/api/admin/users/${encodeURIComponent(email)}`, {
+          method: "DELETE"
+        });
+        if (response.ok) {
+          await renderAdminUsersList();
+          showToast(`교사 (${email}) 계정 및 관련 실증 보관함 데이터가 완벽히 파쇄되었습니다.`);
+        } else {
+          alert("원격 서버 회원 삭제 실패");
+        }
+      } catch (err) {
+        alert("서버 연결 실패: " + err.message);
+      }
+    } else {
+      const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+      delete usersDB[email];
+      localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+      
+      const userStorageKey = `softlap_projects_${email.replace(/[@.]/g, '_')}`;
+      localStorage.removeItem(userStorageKey);
+      
+      await renderAdminUsersList();
+      showToast(`교사 (${email}) 계정 및 관련 실증 보관함 데이터가 완벽히 파쇄되었습니다.`);
+    }
   }
 }
 window.adminDeleteUser = adminDeleteUser;
@@ -254,26 +353,41 @@ function getUserStorageKey() {
 }
 
 // 프로젝트 보관함 로딩
-function loadUserProjects() {
+async function loadUserProjects() {
   const key = getUserStorageKey();
-  const saved = localStorage.getItem(key);
   
-  if (saved) {
+  if (isCentralDbActive && state.currentUser) {
     try {
-      state.projects = JSON.parse(saved);
+      const res = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(state.currentUser.email)}`);
+      if (res.ok) {
+        state.projects = await res.json();
+      } else {
+        throw new Error();
+      }
     } catch (e) {
-      console.error("보관함 분석 에러", e);
-      state.projects = [];
+      console.error("원격 서버로부터 프로젝트 로딩 실패, 로컬로 대체합니다.", e);
+      const saved = localStorage.getItem(key);
+      state.projects = saved ? JSON.parse(saved) : [];
     }
   } else {
-    // 신규 교사의 경우 기본 웰컴 샘플 프로젝트를 자동으로 복제 매핑 탑재
-    const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
-    welcomeProj.id = "welcome_" + Date.now();
-    welcomeProj.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
-    welcomeProj.meta.schoolName = state.currentUser.team || state.currentUser.school || "";
-    
-    state.projects = [welcomeProj];
-    localStorage.setItem(key, JSON.stringify(state.projects));
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        state.projects = JSON.parse(saved);
+      } catch (e) {
+        console.error("보관함 분석 에러", e);
+        state.projects = [];
+      }
+    } else {
+      // 신규 교사의 경우 기본 웰컴 샘플 프로젝트를 자동으로 복제 매핑 탑재
+      const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
+      welcomeProj.id = "welcome_" + Date.now();
+      welcomeProj.meta.teacherName = (state.currentUser && state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : ((state.currentUser && state.currentUser.name) || "");
+      welcomeProj.meta.schoolName = state.currentUser ? (state.currentUser.team || state.currentUser.school || "") : "";
+      
+      state.projects = [welcomeProj];
+      localStorage.setItem(key, JSON.stringify(state.projects));
+    }
   }
 
   // 보관함 목록 그리기 및 첫 프로젝트 로딩
@@ -289,7 +403,7 @@ function loadUserProjects() {
 }
 
 // 프로젝트 저장
-function saveActiveProject() {
+async function saveActiveProject() {
   if (!state.activeProjectId) return;
 
   const key = getUserStorageKey();
@@ -301,6 +415,18 @@ function saveActiveProject() {
   }
   
   localStorage.setItem(key, JSON.stringify(state.projects));
+  
+  if (isCentralDbActive && state.currentUser) {
+    try {
+      await fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
+      });
+    } catch (e) {
+      console.error("원격 서버에 저장 동기화 실패:", e);
+    }
+  }
   
   // 사이드바 목록 리프레시 (제품명 연동 반영용)
   renderCabinetList();
@@ -466,6 +592,14 @@ function deleteProject(projId, e) {
     
     const key = getUserStorageKey();
     localStorage.setItem(key, JSON.stringify(state.projects));
+
+    if (isCentralDbActive && state.currentUser) {
+      fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
+      }).catch(err => console.error("원격 서버 삭제 동기화 실패:", err));
+    }
 
     if (state.activeProjectId === projId) {
       state.activeProjectId = state.projects.length > 0 ? state.projects[0].id : null;
@@ -699,12 +833,123 @@ function updateAuthUI() {
   }
 }
 
-function handleAuthSubmit() {
+async function handleAuthSubmit() {
   const email = document.getElementById("auth-email").value.trim();
   const password = document.getElementById("auth-password").value.trim();
   const code = document.getElementById("auth-code").value.trim();
   const newPassword = document.getElementById("group-new-password").querySelector("input").value.trim();
 
+  // 1. 중앙 원격 데이터베이스 인증 분기
+  if (isCentralDbActive) {
+    if (state.authMode === "login") {
+      if (!email || !password) {
+        alert("이메일 주소와 비밀번호를 모두 입력해 주십시오.");
+        return;
+      }
+      try {
+        const response = await fetch(`${centralDbUrl}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+        if (response.ok) {
+          const resData = await response.json();
+          const session = resData.user;
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+          state.currentUser = session;
+          
+          if (session.isAdmin) {
+            showAdminDashboard();
+            showToast("관리자 권한으로 시스템 제어 센터에 접근했습니다.");
+          } else if (session.isEnterprise) {
+            showEnterpriseDashboard();
+            showToast("에듀테크 기업 피드백 센터에 연동 진입했습니다.");
+          } else {
+            showMainDashboard();
+            showToast("반갑습니다! 에듀테크 실증 보관함에 연결되었습니다.");
+          }
+        } else {
+          const errData = await response.json();
+          alert(errData.error || "아이디 또는 비밀번호가 일치하지 않습니다.");
+        }
+      } catch (err) {
+        alert("로그인 서버 통신 오류: " + err.message);
+      }
+      return;
+    }
+    else if (state.authMode === "signup") {
+      if (!email || !password) {
+        alert("가입할 이메일 주소와 비밀번호를 모두 입력해 주십시오.");
+        return;
+      }
+      if (email.toLowerCase() === "admin" || email.toLowerCase() === "company") {
+        alert("해당 계정명은 시스템 예약어 권한용으로 등록/가입이 불가능합니다.");
+        return;
+      }
+      if (password.length < 4) {
+        alert("안전을 위해 비밀번호는 최소 4자리 이상으로 설정해 주십시오.");
+        return;
+      }
+
+      const roleElement = document.querySelector('input[name="auth-role"]:checked');
+      const selectedRole = roleElement ? roleElement.value : "teacher";
+
+      let displayName = email.split("@")[0];
+      let defaultSchool = "서울에듀테크소프트랩";
+      let defaultTeam = "서울에듀테크소프트랩";
+
+      if (selectedRole === "teacher") {
+        const authName = document.getElementById("auth-name").value.trim();
+        const authSchool = document.getElementById("auth-school").value.trim();
+        const authTeam = document.getElementById("auth-team").value.trim();
+
+        if (!authName || !authSchool || !authTeam) {
+          alert("교사 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.");
+          return;
+        }
+        displayName = authName;
+        defaultSchool = authSchool;
+        defaultTeam = authTeam;
+      } else {
+        defaultSchool = "협력 에듀테크 기업";
+        defaultTeam = "협력 에듀테크 기업";
+      }
+
+      try {
+        const response = await fetch(`${centralDbUrl}/api/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name: displayName, school: defaultSchool, team: defaultTeam, role: selectedRole })
+        });
+        if (response.ok) {
+          const session = { 
+            email, 
+            name: displayName, 
+            school: defaultSchool,
+            team: defaultTeam,
+            isEnterprise: selectedRole === "enterprise"
+          };
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+          state.currentUser = session;
+          
+          if (session.isEnterprise) {
+            showEnterpriseDashboard();
+          } else {
+            showMainDashboard();
+          }
+          showToast("서울에듀테크소프트랩 회원 가입이 완료되어 웰컴 프로젝트가 배포되었습니다!");
+        } else {
+          const errData = await response.json();
+          alert(errData.error || "회원 가입에 실패했습니다.");
+        }
+      } catch (err) {
+        alert("회원가입 서버 통신 오류: " + err.message);
+      }
+      return;
+    }
+  }
+
+  // 2. 오프라인 로컬 저장소 모드 분기 (기존 보존용)
   const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
 
   // 1. 로그인 단계
@@ -959,6 +1204,21 @@ function setupEventListeners() {
   document.getElementById("admin-search-input").addEventListener("input", () => {
     renderAdminUsersList();
   });
+
+  const btnSaveCentral = document.getElementById("btn-save-central-db-url");
+  if (btnSaveCentral) {
+    btnSaveCentral.addEventListener("click", async () => {
+      const urlVal = document.getElementById("admin-central-db-url-input").value.trim();
+      if (urlVal) {
+        localStorage.setItem("softlap_central_db_url", urlVal);
+      } else {
+        localStorage.removeItem("softlap_central_db_url");
+      }
+      showToast("🔌 중앙 DB 설정이 저장되었습니다. 시스템을 재연동합니다...");
+      await checkCentralDbStatus();
+      await renderAdminUsersList();
+    });
+  }
 
   // 보관함 플러스 클릭
   document.getElementById("btn-new-project").addEventListener("click", () => createNewProject(true));
@@ -2086,6 +2346,9 @@ const SUBMITTED_PROJECTS_KEY = "softlap_submitted_projects";
 
 // A. 마스터 명부 데이터 라이프사이클 관리
 function loadEdutechRegistry() {
+  if (isCentralDbActive && state.edutechRegistry && state.edutechRegistry.length > 0) {
+    return state.edutechRegistry;
+  }
   const saved = localStorage.getItem(EDUTECH_REGISTRY_KEY);
   if (saved) {
     try {
@@ -2098,7 +2361,15 @@ function loadEdutechRegistry() {
 }
 
 function saveEdutechRegistry(data) {
+  state.edutechRegistry = data;
   localStorage.setItem(EDUTECH_REGISTRY_KEY, JSON.stringify(data));
+  if (isCentralDbActive) {
+    fetch(`${centralDbUrl}/api/registry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    }).catch(err => console.error("원격 서버 레지스트리 저장 실패:", err));
+  }
 }
 
 // 교사용 드롭다운 옵션 로딩 및 동기화
@@ -2341,6 +2612,14 @@ function submitProjectToEnterprise() {
   }
   localStorage.setItem(submittedKey, JSON.stringify(submittedList));
 
+  if (isCentralDbActive) {
+    fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList })
+    }).catch(err => console.error("원격 서버 제출 동기화 실패:", err));
+  }
+
   // OCI 클라우드 백업 자동 실행
   if (oracleConfig.enabled && oracleConfig.endpoint) {
     syncToOracleCloud();
@@ -2363,7 +2642,7 @@ function showEnterpriseDashboard() {
   renderEnterpriseDashboard();
 }
 
-function renderEnterpriseDashboard() {
+async function renderEnterpriseDashboard() {
   const tbody = document.getElementById("company-submitted-tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
@@ -2372,7 +2651,22 @@ function renderEnterpriseDashboard() {
   const filterStatus = document.getElementById("company-filter-status").value;
 
   // 공용 제출 저장소에서 덤프
-  const submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+  let submittedList = [];
+  if (isCentralDbActive) {
+    try {
+      const res = await fetch(`${centralDbUrl}/api/submitted`);
+      if (res.ok) {
+        submittedList = await res.json();
+        localStorage.setItem(SUBMITTED_PROJECTS_KEY, JSON.stringify(submittedList));
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+    }
+  } else {
+    submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+  }
 
   // 통계 업데이트
   const pendingCount = submittedList.filter(p => p.status !== "피드백 완료").length;
@@ -2530,6 +2824,14 @@ function submitEnterpriseFeedback() {
   submittedList[pIdx].status = "피드백 완료";
   submittedList[pIdx].feedback = feedbackObj;
   localStorage.setItem(SUBMITTED_PROJECTS_KEY, JSON.stringify(submittedList));
+
+  if (isCentralDbActive) {
+    fetch(`${centralDbUrl}/api/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: activeReviewProjectId, feedbackContent: feedbackObj })
+    }).catch(err => console.error("원격 서버 피드백 반영 실패:", err));
+  }
 
   // 2. 해당 교사의 로컬 프로젝트 DB 갱신 동기화 (오프라인/로컬 테넌트 동기화 바인딩)
   // 기업 피드백은 교사 계정의 로컬스토리지 프로젝트에도 융합되어야 합니다.
