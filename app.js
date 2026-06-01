@@ -2754,7 +2754,7 @@ function viewSubmittedProject(projectId) {
   tbody.innerHTML = "";
   
   if (items.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-tertiary);">점검 리스트가 비어 있습니다.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-tertiary); padding: 20px;">점검 리스트가 비어 있습니다.</td></tr>`;
   } else {
     items.forEach(item => {
       const tr = document.createElement("tr");
@@ -2783,6 +2783,18 @@ function viewSubmittedProject(projectId) {
         <td style="text-align:center; vertical-align:middle;">${severityBadge}</td>
         <td style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
           ${item.selected !== false ? "🟢 기재" : "🔴 미인쇄"}
+        </td>
+        <td style="text-align:center; vertical-align:middle; font-size:0.72rem; color:var(--text-tertiary);">
+          ${item.screenshot ? `
+            <div class="evidence-thumb-container" style="display: inline-block; position: relative;">
+              <img src="${item.screenshot}" class="evidence-thumb" style="max-width: 50px; max-height: 50px; border-radius: 4px; cursor: pointer; object-fit: cover; border: 1px solid var(--border-color);" title="클릭하여 원본 크기 증빙 검토" onclick="openLightbox('${item.screenshot}')">
+            </div>
+          ` : "사진 없음"}
+        </td>
+        <td style="text-align:center; vertical-align:middle; font-size:0.75rem;">
+          ${item.videoLink ? `
+            <a href="${item.videoLink}" target="_blank" style="color:var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
+          ` : "<span style='color:var(--text-tertiary); font-size:0.72rem;'>없음</span>"}
         </td>
       `;
       tbody.appendChild(tr);
