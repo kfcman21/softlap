@@ -2055,8 +2055,6 @@ async function testOracleConnection() {
   }
 }
 
-}
-
 // ==================== 🏢 에듀테크 마스터 리스트 및 교사-기업 피드백 통합 협업 모듈 ====================
 const EDUTECH_REGISTRY_KEY = "softlap_edutech_registry";
 const SUBMITTED_PROJECTS_KEY = "softlap_submitted_projects";
