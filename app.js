@@ -451,29 +451,51 @@ function getUserStorageKey() {
 async function loadUserProjects() {
   const key = getUserStorageKey();
   
+  // 1. 로컬 저장소 데이터 로드
+  const saved = localStorage.getItem(key);
+  let localProjects = [];
+  if (saved) {
+    try {
+      localProjects = JSON.parse(saved);
+    } catch (e) {
+      console.error("보관함 분석 에러", e);
+    }
+  }
+  
   if (isCentralDbActive && state.currentUser) {
     try {
       const res = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(state.currentUser.email)}`);
       if (res.ok) {
-        state.projects = await res.json();
+        const remoteProjects = await res.json();
+        // 원격 서버에 데이터가 존재할 경우 우선 적용
+        if (remoteProjects && remoteProjects.length > 0) {
+          state.projects = remoteProjects;
+          localStorage.setItem(key, JSON.stringify(state.projects));
+        } 
+        // 원격 서버는 비어있는데 로컬에는 데이터가 존재할 경우: 로컬 데이터를 원격 서버로 역동기화 업로드 진행!
+        else if (localProjects && localProjects.length > 0) {
+          state.projects = localProjects;
+          console.log("☁️ 원격 서버가 비어있고 로컬에 데이터가 확인되어, 로컬 데이터를 원격 서버로 즉시 업로드 동기화합니다.");
+          await fetch(`${centralDbUrl}/api/projects`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
+          });
+        } 
+        // 양쪽 다 데이터가 전혀 없을 때
+        else {
+          state.projects = [];
+        }
       } else {
         throw new Error();
       }
     } catch (e) {
       console.error("원격 서버로부터 프로젝트 로딩 실패, 로컬로 대체합니다.", e);
-      const saved = localStorage.getItem(key);
-      state.projects = saved ? JSON.parse(saved) : [];
+      state.projects = localProjects;
     }
   } else {
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        state.projects = JSON.parse(saved);
-      } catch (e) {
-        console.error("보관함 분석 에러", e);
-        state.projects = [];
-      }
-    } else {
+    state.projects = localProjects;
+    if (state.projects.length === 0) {
       // 신규 교사의 경우 기본 웰컴 샘플 프로젝트를 자동으로 복제 매핑 탑재
       const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
       welcomeProj.id = "welcome_" + Date.now();
