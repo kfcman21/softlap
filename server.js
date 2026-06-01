@@ -172,7 +172,15 @@ async function seedDefaultOracleRegistry(conn) {
     { name: "똑똑 수학탐험대", company: "교육부 / 한국교육학술정보원" },
     { name: "리딩앤", company: "아이포트폴리오" },
     { name: "호두잉글리시", company: "호두랩스" },
-    { name: "스마트올 초등", company: "웅진씽크빅" }
+    { name: "스마트올 초등", company: "웅진씽크빅" },
+    { name: "AI 나누미", company: "(주)인텔리콘연구소" },
+    { name: "AI 헬피챗", company: "(주)엘리스그룹" },
+    { name: "꾸럼e", company: "(주)추론" },
+    { name: "스픽마스터", company: "(주)에듀템" },
+    { name: "알콩", company: "(주)AI DATA" },
+    { name: "클래스사티", company: "태그하이브" },
+    { name: "클래시파이", company: "클래시파이랩스" },
+    { name: "투닝", company: "(주)툰스퀘어" }
   ];
 
   for (const item of defaultRegistry) {
@@ -201,7 +209,15 @@ async function seedDefaultOracleAccounts(conn) {
     { name: "똑똑 수학탐험대", company: "교육부 / 한국교육학술정보원" },
     { name: "리딩앤", company: "아이포트폴리오" },
     { name: "호두잉글리시", company: "호두랩스" },
-    { name: "스마트올 초등", company: "웅진씽크빅" }
+    { name: "스마트올 초등", company: "웅진씽크빅" },
+    { name: "AI 나누미", company: "(주)인텔리콘연구소" },
+    { name: "AI 헬피챗", company: "(주)엘리스그룹" },
+    { name: "꾸럼e", company: "(주)추론" },
+    { name: "스픽마스터", company: "(주)에듀템" },
+    { name: "알콩", company: "(주)AI DATA" },
+    { name: "클래스사티", company: "태그하이브" },
+    { name: "클래시파이", company: "클래시파이랩스" },
+    { name: "투닝", company: "(주)툰스퀘어" }
   ];
 
   for (const item of defaultRegistry) {
@@ -233,7 +249,15 @@ function readLocalDb() {
       { name: "똑똑 수학탐험대", company: "교육부 / 한국교육학술정보원" },
       { name: "리딩앤", company: "아이포트폴리오" },
       { name: "호두잉글리시", company: "호두랩스" },
-      { name: "스마트올 초등", company: "웅진씽크빅" }
+      { name: "스마트올 초등", company: "웅진씽크빅" },
+      { name: "AI 나누미", company: "(주)인텔리콘연구소" },
+      { name: "AI 헬피챗", company: "(주)엘리스그룹" },
+      { name: "꾸럼e", company: "(주)추론" },
+      { name: "스픽마스터", company: "(주)에듀템" },
+      { name: "알콩", company: "(주)AI DATA" },
+      { name: "클래스사티", company: "태그하이브" },
+      { name: "클래시파이", company: "클래시파이랩스" },
+      { name: "투닝", company: "(주)툰스퀘어" }
     ];
     initialDb.registry = defaultRegistry;
     defaultRegistry.forEach(item => {
