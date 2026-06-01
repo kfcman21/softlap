@@ -1,0 +1,16 @@
+{
+  "name": "softlap-central-backend",
+  "version": "1.0.0",
+  "description": "Centralized Node.js backend for Seoul Edutech Softlap validation system with Oracle Cloud DB support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "oracledb": "^6.5.0"
+  },
+  "private": true
+}

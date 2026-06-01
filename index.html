@@ -430,6 +430,19 @@
       </div>
     </div>
 
+    <!-- ⚙️ 중앙 집중형 원격 데이터베이스 연결 설정 -->
+    <div class="form-header-box" style="padding: 20px; display:flex; flex-direction:column; gap:12px;">
+      <h3 style="font-size:0.95rem; font-weight:800; display:flex; align-items:center; gap:8px; color:var(--accent-color);">🔌 중앙 집중형 원격 DB 연결 설정 (선택)</h3>
+      <p style="font-size:0.72rem; color:var(--text-secondary); line-height:1.4; margin:0;">
+        * 본 웹 애플리케이션을 외부 Node.js Express 백엔드 서버(오라클 Autonomous DB 연동)와 연동하고자 할 때 설정합니다.<br>
+        * 비워두거나 기본값 상태일 경우, 현재 웹 브라우저가 접속하고 있는 웹 서버 주소를 자동으로 탐색하여 실시간 연동을 진행합니다.
+      </p>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px;">
+        <input type="text" id="admin-central-db-url-input" class="input-control" style="flex:1; max-width:500px; padding:6px 12px; font-size:0.8rem;" placeholder="예: http://localhost:3000 또는 http://your-server-ip">
+        <button id="btn-save-central-db-url" class="btn btn-primary" style="padding:6px 16px; font-size:0.8rem; font-weight:700;">💾 설정 저장 및 즉시 재연동</button>
+      </div>
+    </div>
+
     <!-- 회원 검색 및 관리 목록 -->
     <div class="form-header-box" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
