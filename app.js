@@ -2024,26 +2024,44 @@ function renderA4Preview() {
       </td>
     `;
 
+    // 측정전 일시적으로 자동 높이/오버플로우 표시로 풀어서 정확한 scrollHeight 측정 (A4 297mm의 픽셀 환산 규격 대응)
+    currentPage.style.height = "auto";
+    currentPage.style.overflow = "visible";
+
     currentTbody.appendChild(tr);
 
-    // 1120px를 초과할 경우 실시간 레이아웃 계산에 의해 즉시 다음 페이지로 이월
-    if (currentPage.scrollHeight > 1120) {
+    // 1115px를 초과할 경우 실시간 레이아웃 계산에 의해 즉시 다음 페이지로 이월
+    if (currentPage.scrollHeight > 1115) {
       // 1. 현재 오버플로우 페이지에서 해당 tr 노드 제거
       currentTbody.removeChild(tr);
 
-      // 2. 신규 페이지 껍데기 개설 및 컨테이너 삽입
+      // 2. 현재 페이지 규격 최종 고정 (A4 297mm 고정 적용)
+      currentPage.style.height = "";
+      currentPage.style.overflow = "";
+
+      // 3. 신규 페이지 껍데기 개설 및 컨테이너 삽입
       currentPageNum++;
       currentPage = createPageRest(currentPageNum);
       container.appendChild(currentPage);
 
-      // 3. 신규 페이지 전용 테이블 및 tbody 개설
+      // 4. 신규 페이지 전용 테이블 및 tbody 개설
       currentTable = createTableWrapper();
       currentPage.appendChild(currentTable);
       currentTbody = currentTable.querySelector("tbody");
 
-      // 4. 새 페이지의 tbody로 노드 이관 이월
+      // 5. 새 페이지도 높이 측정을 위해 임시 해제
+      currentPage.style.height = "auto";
+      currentPage.style.overflow = "visible";
+
+      // 6. 새 페이지의 tbody로 노드 이관 이월
       currentTbody.appendChild(tr);
     }
+  }
+
+  // 최종 조립 후 마지막 남은 페이지의 인쇄용 A4 높이 고정 규격 복원
+  if (currentPage) {
+    currentPage.style.height = "";
+    currentPage.style.overflow = "";
   }
 }
 
