@@ -2465,7 +2465,7 @@ function handleChangePassword() {
   showToast("비밀번호가 정상적으로 변경되었습니다. 다음 로그인부터 새 비밀번호가 적용됩니다.");
 }
 
-// 🏢 [신규] 동일 기관(소속 팀) 내 중복 에듀테크 실증 방지 검증 모듈
+// 🏢 [신규] 동일 실증 팀 내 중복 에듀테크 실증 방지 검증 모듈
 function checkTeamDuplication() {
   const warningBanner = document.getElementById("team-duplicate-warning-banner");
   const warningText = document.getElementById("txt-team-duplicate-warning");
@@ -2497,7 +2497,7 @@ function checkTeamDuplication() {
 
   if (duplicateReport) {
     warningBanner.style.display = "flex";
-    warningText.textContent = `동일 소속 기관 [${duplicateReport.schoolName}]의 다른 교사 [${duplicateReport.teacherName}]님이 본 제품 '${duplicateReport.meta.targetProduct}'에 대해 실증지 작성을 마쳤습니다. 중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
+    warningText.textContent = `동일 실증 팀 [${duplicateReport.schoolName}]의 다른 교사 [${duplicateReport.teacherName}]님이 본 제품 '${duplicateReport.meta.targetProduct}'에 대해 실증지 작성을 마쳤습니다. 중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
   } else {
     warningBanner.style.display = "none";
   }
