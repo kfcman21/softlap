@@ -466,6 +466,13 @@ function renderCabinetList() {
   const container = document.getElementById("project-cabinet-list");
   container.innerHTML = "";
 
+  // 작성(실증) 일자 내림차순(최신순) 정렬
+  state.projects.sort((a, b) => {
+    const dateA = a.meta.reportDate || "";
+    const dateB = b.meta.reportDate || "";
+    return dateB.localeCompare(dateA);
+  });
+
   state.projects.forEach(p => {
     const item = document.createElement("div");
     item.className = `project-cabinet-item ${state.activeProjectId === p.id ? 'active' : ''}`;
@@ -475,7 +482,10 @@ function renderCabinetList() {
     titleSpan.style.overflow = "hidden";
     titleSpan.style.textOverflow = "ellipsis";
     titleSpan.style.maxWidth = "160px";
-    titleSpan.textContent = p.meta.targetProduct || "이름 없는 제품";
+    
+    // 일자별 보고서 구분을 위해 제품명 옆에 [날짜]를 작게 콤팩트하게 붙여 시인성 강화
+    const shortDate = p.meta.reportDate ? ` [${p.meta.reportDate.substring(5)}]` : "";
+    titleSpan.textContent = `${p.meta.targetProduct || "이름 없는 제품"}${shortDate}`;
     item.appendChild(titleSpan);
 
     const btnGroup = document.createElement("div");
@@ -1465,6 +1475,29 @@ function renderChecklistGrid() {
     }
     tr.appendChild(tdEvidence);
 
+    // 8-B. [신규] 동영상 링크 입력 공간 (유튜브 등 링크)
+    const tdVideo = document.createElement("td");
+    tdVideo.style.textAlign = "center";
+    tdVideo.style.verticalAlign = "middle";
+
+    const videoInput = document.createElement("input");
+    videoInput.type = "url";
+    videoInput.className = "input-control";
+    videoInput.style.fontSize = "0.72rem";
+    videoInput.style.padding = "4px 6px";
+    videoInput.style.width = "95%";
+    videoInput.placeholder = "유튜브 동영상 링크...";
+    videoInput.value = rowData.videoLink || "";
+    if (isSubmitted) videoInput.disabled = true;
+
+    videoInput.addEventListener("input", (e) => {
+      rowData.videoLink = e.target.value;
+      saveActiveProject();
+    });
+
+    tdVideo.appendChild(videoInput);
+    tr.appendChild(tdVideo);
+
     // 9. 행 삭제
     const tdDelete = document.createElement("td");
     const delBtn = document.createElement("button");
@@ -1667,34 +1700,34 @@ function createMetaTableA4(meta) {
   metaTable.className = "report-meta-table";
   metaTable.innerHTML = `
     <tr>
+      <td class="label-td">작성 일자</td>
+      <td><strong>${meta.reportDate}</strong></td>
+      <td class="label-td">실증 팀명</td>
+      <td><strong>${meta.schoolName || "미기재"}</strong></td>
+    </tr>
+    <tr>
+      <td class="label-td">실증 수행 교사명(소속)</td>
+      <td><strong>${meta.teacherName || "미기재"}</strong></td>
       <td class="label-td">실증 대상 제품</td>
       <td><strong>${meta.targetProduct || "미기재"}</strong></td>
+    </tr>
+    <tr>
       <td class="label-td">제조사/기업</td>
       <td>${meta.developer || "미기재"}</td>
-    </tr>
-    <tr>
       <td class="label-td">OS 종류 (대표적)</td>
       <td>${meta.osType || "미기재"}</td>
+    </tr>
+    <tr>
       <td class="label-td">OS 버전</td>
       <td>${meta.osVersion || "미기재"}</td>
-    </tr>
-    <tr>
       <td class="label-td">사용 기기 모델명</td>
       <td>${meta.modelName || "미기재"}</td>
+    </tr>
+    <tr>
       <td class="label-td">네트워크 환경</td>
       <td>${meta.network || "미기재"}</td>
-    </tr>
-    <tr>
       <td class="label-td">적용(활용) 교과</td>
       <td>${meta.usageEnv || "미기재"}</td>
-      <td class="label-td">소속 학교명</td>
-      <td>${meta.schoolName || "미기재"}</td>
-    </tr>
-    <tr>
-      <td class="label-td">실증 담당 교사</td>
-      <td><strong>${meta.teacherName || "미기재"}</strong></td>
-      <td class="label-td">작성 일자</td>
-      <td>${meta.reportDate}</td>
     </tr>
   `;
   return metaTable;
@@ -1707,13 +1740,15 @@ function renderTableForPage(pageElement, pageItems) {
   table.innerHTML = `
     <thead>
       <tr>
-        <th style="width: 12%">대분류 (요소)</th>
-        <th style="width: 14%">중분류 (실증항목)</th>
-        <th style="width: 25%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
-        <th style="width: 8%">구분</th>
-        <th style="width: 24%">실제 교실 분석내용 및 현상</th>
-        <th style="width: 7%">심각성</th>
+        <th style="width: 10%">대분류 (요소)</th>
+        <th style="width: 12%">중분류 (실증항목)</th>
+        <th style="width: 22%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
+        <th style="width: 6%">구분</th>
+        <th style="width: 20%">실제 교실 분석내용 및 현상</th>
+        <th style="width: 6%">심각성</th>
         <th style="width: 10%">개선 요청사항</th>
+        <th style="width: 7%">상황설명 사진</th>
+        <th style="width: 7%">유튜브 동영상</th>
       </tr>
     </thead>
     <tbody>
@@ -1729,16 +1764,23 @@ function renderTableForPage(pageElement, pageItems) {
           <td style="text-align:center;">${r.type}</td>
           <td style="white-space: pre-wrap; vertical-align: top;">
             <div>${r.analysis || "<span style='color:#94a3b8'>현상분석 없음</span>"}</div>
-            ${r.screenshot ? `
-              <div class="print-evidence-img-box">
-                <img src="${r.screenshot}" class="print-evidence-img">
-              </div>
-            ` : ""}
           </td>
           <td style="text-align:center;">
             <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
           </td>
           <td style="white-space: pre-wrap; vertical-align: top;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
+          <td style="text-align:center; vertical-align: middle;">
+            ${r.screenshot ? `
+              <div class="print-evidence-img-box" style="margin-top: 4px;">
+                <img src="${r.screenshot}" class="print-evidence-img" style="max-width: 50px; max-height: 50px; border-radius: 4px;">
+              </div>
+            ` : "<span style='color:#94a3b8; font-size:0.7rem;'>없음</span>"}
+          </td>
+          <td style="text-align:center; vertical-align: middle; font-size:0.7rem;">
+            ${r.videoLink ? `
+              <a href="${r.videoLink}" target="_blank" style="color: var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
+            ` : "<span style='color:#94a3b8;'>없음</span>"}
+          </td>
         </tr>
       `).join("")}
     </tbody>
