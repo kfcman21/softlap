@@ -685,58 +685,103 @@ function renderCabinetList() {
   const container = document.getElementById("project-cabinet-list");
   container.innerHTML = "";
 
-  // 작성(실증) 일자 내림차순(최신순) 정렬
+  if (!state.projects || state.projects.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:20px; font-size:0.72rem; color:var(--text-tertiary); font-weight:500;">
+        보관된 실증 보고서가 없습니다.
+      </div>
+    `;
+    return;
+  }
+
+  // 1. 작성(실증) 일자 내림차순(최신순) 정렬
   state.projects.sort((a, b) => {
-    const dateA = a.meta.reportDate || "";
-    const dateB = b.meta.reportDate || "";
+    const dateA = a.meta.reportDate || "0000-00-00";
+    const dateB = b.meta.reportDate || "0000-00-00";
     return dateB.localeCompare(dateA);
   });
 
+  // 2. 날짜별로 그룹화
+  const groups = {};
   state.projects.forEach(p => {
-    const item = document.createElement("div");
-    item.className = `project-cabinet-item ${state.activeProjectId === p.id ? 'active' : ''}`;
-    
-    const titleSpan = document.createElement("span");
-    titleSpan.style.whiteSpace = "nowrap";
-    titleSpan.style.overflow = "hidden";
-    titleSpan.style.textOverflow = "ellipsis";
-    titleSpan.style.maxWidth = "160px";
-    
-    // 일자별 보고서 구분을 위해 제품명 옆에 [날짜]를 작게 콤팩트하게 붙여 시인성 강화
-    const shortDate = p.meta.reportDate ? ` [${p.meta.reportDate.substring(5)}]` : "";
-    titleSpan.textContent = `${p.meta.targetProduct || "이름 없는 제품"}${shortDate}`;
-    item.appendChild(titleSpan);
+    const dateStr = p.meta.reportDate || "날짜 미지정";
+    if (!groups[dateStr]) {
+      groups[dateStr] = [];
+    }
+    groups[dateStr].push(p);
+  });
 
-    const btnGroup = document.createElement("div");
-    btnGroup.className = "cabinet-btn-group";
+  // 3. 정렬된 날짜 그룹 순서대로 렌더링
+  const sortedDates = Object.keys(groups).sort((a, b) => {
+    if (a === "날짜 미지정") return 1; // 날짜 미지정을 맨 밑으로
+    if (b === "날짜 미지정") return -1;
+    return b.localeCompare(a);
+  });
 
-    // 1. 복제 아이콘
-    const dupBtn = document.createElement("button");
-    dupBtn.className = "cabinet-action-btn";
-    dupBtn.innerHTML = "📋";
-    dupBtn.title = "보고서 파일 그대로 복제";
-    dupBtn.addEventListener("click", (e) => duplicateProject(p.id, e));
-    btnGroup.appendChild(dupBtn);
+  sortedDates.forEach(dateStr => {
+    // 📅 날짜 그룹 헤더
+    const groupHeader = document.createElement("div");
+    groupHeader.style.fontSize = "0.7rem";
+    groupHeader.style.fontWeight = "800";
+    groupHeader.style.color = "var(--accent-color)";
+    groupHeader.style.padding = "4px 8px 2px 4px";
+    groupHeader.style.display = "flex";
+    groupHeader.style.alignItems = "center";
+    groupHeader.style.gap = "4px";
+    groupHeader.style.marginTop = "6px";
+    groupHeader.style.borderBottom = "1px dashed var(--border-color)";
+    groupHeader.style.marginBottom = "4px";
+    groupHeader.innerHTML = `📅 <span>${dateStr}</span>`;
+    container.appendChild(groupHeader);
 
-    // 2. 삭제 아이콘
-    const delBtn = document.createElement("button");
-    delBtn.className = "cabinet-action-btn";
-    delBtn.innerHTML = "❌";
-    delBtn.title = "보고서 파일 삭제";
-    delBtn.addEventListener("click", (e) => deleteProject(p.id, e));
-    btnGroup.appendChild(delBtn);
+    // 날짜 그룹 내 개별 항목들 렌더링
+    groups[dateStr].forEach(p => {
+      const item = document.createElement("div");
+      item.className = `project-cabinet-item ${state.activeProjectId === p.id ? 'active' : ''}`;
+      item.style.padding = "8px 10px";
+      item.style.marginLeft = "4px";
+      item.style.marginBottom = "4px";
+      item.style.fontSize = "0.75rem";
+      
+      const titleSpan = document.createElement("span");
+      titleSpan.style.whiteSpace = "nowrap";
+      titleSpan.style.overflow = "hidden";
+      titleSpan.style.textOverflow = "ellipsis";
+      titleSpan.style.maxWidth = "140px";
+      titleSpan.textContent = p.meta.targetProduct || "이름 없는 제품";
+      item.appendChild(titleSpan);
 
-    item.appendChild(btnGroup);
+      const btnGroup = document.createElement("div");
+      btnGroup.className = "cabinet-btn-group";
 
-    // 클릭 시 해당 보관함 열기
-    item.addEventListener("click", () => {
-      state.activeProjectId = p.id;
-      renderCabinetList();
-      loadActiveProject();
-      if (state.currentTab === "preview") renderA4Preview();
+      // 1. 복제 아이콘
+      const dupBtn = document.createElement("button");
+      dupBtn.className = "cabinet-action-btn";
+      dupBtn.innerHTML = "📋";
+      dupBtn.title = "보고서 파일 그대로 복제";
+      dupBtn.addEventListener("click", (e) => duplicateProject(p.id, e));
+      btnGroup.appendChild(dupBtn);
+
+      // 2. 삭제 아이콘
+      const delBtn = document.createElement("button");
+      delBtn.className = "cabinet-action-btn";
+      delBtn.innerHTML = "❌";
+      delBtn.title = "보고서 파일 삭제";
+      delBtn.addEventListener("click", (e) => deleteProject(p.id, e));
+      btnGroup.appendChild(delBtn);
+
+      item.appendChild(btnGroup);
+
+      // 클릭 시 해당 보관함 열기
+      item.addEventListener("click", () => {
+        state.activeProjectId = p.id;
+        renderCabinetList();
+        loadActiveProject();
+        if (state.currentTab === "preview") renderA4Preview();
+      });
+
+      container.appendChild(item);
     });
-
-    container.appendChild(item);
   });
 }
 
