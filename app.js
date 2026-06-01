@@ -17,31 +17,105 @@ let centralDbUrl = "";
 
 async function checkCentralDbStatus() {
   const configuredUrl = localStorage.getItem("softlap_central_db_url");
+  
+  const tryUrl = async (url) => {
+    if (!url) return null;
+    const targetUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2초 타임아웃
+      
+      const res = await fetch(`${targetUrl}/api/health`, { 
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (res.ok) {
+        const data = await res.json();
+        return { success: true, url: targetUrl, engine: data.engine };
+      }
+    } catch (e) {
+      // Fail silently
+    }
+    return null;
+  };
+
+  let connection = null;
+
   if (configuredUrl) {
-    centralDbUrl = configuredUrl;
+    // 1. 관리자가 수동으로 기입한 외부 연동 서버 주소가 있을 때 우선 시도
+    connection = await tryUrl(configuredUrl);
+    if (connection) {
+      centralDbUrl = connection.url;
+    }
   } else {
-    centralDbUrl = window.location.origin;
+    // 2. 입력값이 없는 경우: 지능형 서버 자동 추적 시퀀스 가동
+    // A. 현재 브라우저의 도메인(Origin)을 기본 백엔드로 시도
+    connection = await tryUrl(window.location.origin);
+    
+    // B. 로컬 서버(localhost:3000) 자동 스캐닝 시도 (정적 호스팅 사이트에서 로컬 서버 켰을 때 자동 연결용)
+    if (!connection && window.location.origin !== "http://localhost:3000" && window.location.origin !== "http://127.0.0.1:3000") {
+      connection = await tryUrl("http://localhost:3000");
+    }
+    
+    // C. OCI 대표 주소(kfcman.link) 자동 폴백 시도
+    if (!connection) {
+      connection = await tryUrl("https://kfcman.link");
+    }
+
+    if (connection) {
+      centralDbUrl = connection.url;
+    } else {
+      centralDbUrl = window.location.origin;
+    }
   }
 
-  try {
-    const res = await fetch(`${centralDbUrl}/api/health`, { method: 'GET' });
-    if (res.ok) {
-      const data = await res.json();
-      isCentralDbActive = true;
-      console.log(`🌐 중앙 집중형 원격 데이터베이스 연결 활성화! 엔진: ${data.engine}`);
-      try {
-        const regRes = await fetch(`${centralDbUrl}/api/registry`);
-        if (regRes.ok) {
-          state.edutechRegistry = await regRes.json();
-        }
-      } catch (e) {}
-      return;
+  const statusContainer = document.getElementById("admin-db-status-container");
+
+  if (connection) {
+    isCentralDbActive = true;
+    console.log(`🌐 중앙 집중형 원격 데이터베이스 연결 활성화! 주소: ${centralDbUrl} | 엔진: ${connection.engine}`);
+    
+    try {
+      const regRes = await fetch(`${centralDbUrl}/api/registry`);
+      if (regRes.ok) {
+        state.edutechRegistry = await regRes.json();
+      }
+    } catch (e) {}
+
+    if (statusContainer) {
+      statusContainer.style.display = "block";
+      statusContainer.style.backgroundColor = "rgba(46, 204, 113, 0.1)";
+      statusContainer.style.color = "var(--success-color)";
+      statusContainer.style.border = "1px solid rgba(46, 204, 113, 0.4)";
+      statusContainer.innerHTML = `🟢 원격 중앙 데이터베이스 연결 성공!<br>
+        <span style="font-weight:normal; font-size:0.72rem; color:var(--text-secondary);">📍 연동 API 서버 주소: <strong>${centralDbUrl}</strong> | ⚡ 데이터베이스 모드: <strong>${connection.engine}</strong></span>`;
     }
-  } catch (err) {
-    // Fail silently
+  } else {
+    isCentralDbActive = false;
+    console.log("💾 로컬 저장소(LocalStorage) 모드로 구동됩니다.");
+
+    if (statusContainer) {
+      statusContainer.style.display = "block";
+      statusContainer.style.backgroundColor = "rgba(230, 126, 34, 0.1)";
+      statusContainer.style.color = "var(--warning-color)";
+      statusContainer.style.border = "1px solid rgba(230, 126, 34, 0.4)";
+      
+      let htmlContent = `🟡 원격 서버 오프라인 (로컬 브라우저 저장소 모드로 안전하게 자동 다운그레이드)<br>
+        <span style="font-weight:normal; font-size:0.72rem; color:var(--text-secondary);">📍 기기/브라우저가 다를 경우 각각 별개의 로컬 보관함(LocalStorage)을 사용하므로 데이터가 동기화되지 않고 다르게 보입니다.</span>`;
+      
+      // HTTPS 로드 하에서의 Mixed Content 차단에 대한 친절한 경보 경고
+      if (window.location.protocol === "https:") {
+        htmlContent += `<br><span style="color:var(--danger-color); font-size:0.72rem; font-weight:800; display:block; margin-top:8px; line-height:1.4;">
+          ⚠️ [브라우저 보안 주의] 현재 HTTPS 보안 접속 중입니다. 크롬/사파리 등의 브라우저는 보안 규칙에 의해 HTTPS 사이트에서 HTTP 로컬 서버(http://localhost:3000)를 연결하는 것을 차단(Mixed Content)합니다.<br>
+          👉 해결 방법:<br>
+          1. 브라우저 주소창에 'http://softlap.seoul.kr' (HTTP 방식)으로 입력하여 강제 우회 접속해 주십시오.<br>
+          2. 또는 양쪽 브라우저 주소창에 'http://localhost:3000' 주소로 직접 입력해 접속해 주십시오. (서버 자동 연동 활성화)</span>`;
+      }
+      statusContainer.innerHTML = htmlContent;
+    }
   }
-  isCentralDbActive = false;
-  console.log("💾 로컬 저장소(LocalStorage) 모드로 구동됩니다.");
 }
 
 // 글로벌 애플리케이션 상태
@@ -173,7 +247,7 @@ function updateOracleSyncCardVisibility() {
 }
 
 // 1-A. 관리자 대시보드 출력 및 사용자 관리 코어 엔진
-function showAdminDashboard() {
+async function showAdminDashboard() {
   document.getElementById("auth-container").style.display = "none";
   document.getElementById("app-container").style.display = "none";
   document.getElementById("admin-container").style.display = "flex";
@@ -183,6 +257,7 @@ function showAdminDashboard() {
     dbUrlInput.value = localStorage.getItem("softlap_central_db_url") || "";
   }
   
+  await checkCentralDbStatus();
   updateOracleSyncCardVisibility();
   renderAdminUsersList();
 }
