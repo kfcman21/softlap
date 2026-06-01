@@ -7,9 +7,9 @@ const SESSION_KEY = "softlap_active_session";
 const THEME_KEY = "softlap_theme";
 const ORACLE_CONFIG_KEY = "softlap_oracle_config";
 let oracleConfig = {
-  endpoint: "",
+  endpoint: "https://kfcman.link/api/softlap",
   token: "",
-  enabled: false
+  enabled: true
 };
 
 // 글로벌 애플리케이션 상태
@@ -64,6 +64,12 @@ function loadOracleConfig() {
         badge.style.backgroundColor = "var(--text-tertiary)";
       }
     } catch(e) {}
+  } else {
+    // 저장된 설정이 없을 때 기본 kfcman.link OCI 커넥터를 폼에 매핑하고 기본 활성화
+    document.getElementById("oracle-endpoint-input").value = oracleConfig.endpoint;
+    const badge = document.getElementById("oracle-sync-badge");
+    badge.textContent = "구름 연동";
+    badge.style.backgroundColor = "var(--success-color)";
   }
 }
 
