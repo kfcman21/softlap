@@ -44,6 +44,7 @@ function initApp() {
   renderPresetGuideTree();
   renderFilterOptions();
   loadOracleConfig();
+  seedEnterpriseAccounts();
   checkAuthSession();
 }
 
@@ -911,6 +912,10 @@ function setupEventListeners() {
   document.getElementById("company-filter-status").addEventListener("change", renderEnterpriseDashboard);
   document.getElementById("btn-close-review-modal").addEventListener("click", closeReviewModal);
   document.getElementById("btn-submit-feedback").addEventListener("click", submitEnterpriseFeedback);
+  
+  // 비밀번호 변경 액션 바인딩
+  document.getElementById("btn-change-pw").addEventListener("click", handleChangePassword);
+  document.getElementById("btn-company-change-pw").addEventListener("click", handleChangePassword);
 }
 
 // 테마 관리
@@ -1979,27 +1984,52 @@ function addRegistryItem() {
     return;
   }
 
+  // 레지스트리 목록 추가
   registry.push({ name, company });
   saveEdutechRegistry(registry);
+
+  // 🏢 [신규] 에듀테크 제품용 로그인 계정 자동 생성 (아이디 = 제품명, 초기비번 = 1234)
+  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+  if (!usersDB[name]) {
+    usersDB[name] = {
+      password: "1234",
+      name: name,
+      school: company,
+      role: "enterprise",
+      isEnterprise: true
+    };
+    localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+  }
   
   nameInput.value = "";
   compInput.value = "";
   
   renderRegistryModalList();
   renderEdutechDropdown();
-  showToast("에듀테크 마스터 명부에 새 제품이 등록되었습니다.");
+  showToast("에듀테크 제품 등록 및 기업 로그인 계정이 자동 개설(비밀번호: 1234)되었습니다.");
 }
 
 function deleteRegistryItem(index) {
-  if (!confirm("해당 제품을 마스터 명부에서 삭제하시겠습니까?")) return;
-
   const registry = loadEdutechRegistry();
+  const targetProduct = registry[index];
+  
+  if (!targetProduct) return;
+  if (!confirm(`해당 제품 '${targetProduct.name}'을 마스터 명부에서 삭제하시겠습니까?\n\n(삭제 시 해당 에듀테크 기업용 로그인 계정도 함께 제거됩니다.)`)) return;
+
+  // 레지스트리 목록에서 삭제
   registry.splice(index, 1);
   saveEdutechRegistry(registry);
+
+  // 🏢 [신규] 연동된 로그인 계정도 실시간 연동 제거
+  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+  if (usersDB[targetProduct.name]) {
+    delete usersDB[targetProduct.name];
+    localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+  }
   
   renderRegistryModalList();
   renderEdutechDropdown();
-  showToast("선택하신 제품이 목록에서 제거되었습니다.");
+  showToast("선택하신 제품 및 기업 로그인 계정이 제거되었습니다.");
 }
 // 글로벌 바인딩
 window.deleteRegistryItem = deleteRegistryItem;
@@ -2280,6 +2310,65 @@ function submitEnterpriseFeedback() {
   closeReviewModal();
   renderEnterpriseDashboard();
   alert("🎉 개발사의 소중한 피드백이 등록되었습니다!\n\n해당 실증 교사의 보고서 화면에 실시간으로 보완책 피드백 알림이 통보됩니다.");
+}
+
+// 🏢 [신규] 에듀테크 마스터 명부 데이터 기준 기업 로그인 계정 자동 Seeding 및 동기화
+function seedEnterpriseAccounts() {
+  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+  const registry = loadEdutechRegistry();
+  let updated = false;
+
+  registry.forEach(item => {
+    // 키값(이메일 입력칸 대조용)은 제품명 그대로 활용
+    if (!usersDB[item.name]) {
+      usersDB[item.name] = {
+        password: "1234", // 초기 비밀번호는 대중적으로 1234 탑재
+        name: item.name,
+        school: item.company,
+        role: "enterprise",
+        isEnterprise: true
+      };
+      updated = true;
+    }
+  });
+
+  if (updated) {
+    localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+  }
+}
+
+// 🔒 [신규] 로그인된 현재 사용자의 비밀번호 변경 처리기
+function handleChangePassword() {
+  if (!state.currentUser) {
+    alert("로그인이 만료되었거나 사용자 정보가 올바르지 않습니다.");
+    return;
+  }
+
+  const userKey = state.currentUser.email; // 아이디가 이메일 주소 또는 제품 명칭
+  const usersDB = JSON.parse(localStorage.getItem(USERS_DB_KEY) || "{}");
+  
+  // 현재 비밀번호 정보가 디비에 유효하게 들어있는지 확인
+  const activeUserData = usersDB[userKey];
+  if (!activeUserData) {
+    alert("죄송합니다. 마스터 권한 또는 외부 백도어 계정은 비밀번호 변경을 지원하지 않습니다.");
+    return;
+  }
+
+  const newPass = prompt(`🔒 [비밀번호 보안 변경]\n\n현재 계정: ${userKey}\n\n변경하여 사용할 새 비밀번호를 입력해 주십시오 (최소 4자리 이상):`);
+  
+  if (newPass === null) return; // 취소 버튼
+
+  const cleanedPass = newPass.trim();
+  if (cleanedPass.length < 4) {
+    alert("안전한 계정 보안을 위해 비밀번호는 공백 제외 최소 4자리 이상으로 지정해야 합니다.");
+    return;
+  }
+
+  // 비밀번호 수정 및 저장
+  usersDB[userKey].password = cleanedPass;
+  localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
+  
+  showToast("비밀번호가 정상적으로 변경되었습니다. 다음 로그인부터 새 비밀번호가 적용됩니다.");
 }
 
 // 초기 로딩 바인딩
