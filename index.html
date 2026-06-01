@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>개별 교사용 에듀테크 실증 평가 보고서 작성기 (회원용)</title>
+  
+  <!-- SEO 메타 태그 -->
+  <meta name="description" content="교사 개인이 특정 에듀테크 제품을 6대 요소 30대 항목 가이드에 입각해 실증 평가하고, 자기 표현의 점검 기준으로 재설계하여 수려한 A4 보고서로 인쇄해내는 개별 교사 실증 특화 도구">
+  <meta name="keywords" content="에듀테크, 소프트랩, 실증보고서, 개별 교사 실증, 공교육적합도, 30대항목, 로그인, 데이터베이스">
+  <meta name="author" content="Antigravity WebLab">
+  
+  <!-- 스타일시트 연동 -->
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- ==================== A. 회원가입 및 로그인 오버레이 스크린 ==================== -->
+  <div id="auth-container">
+    <!-- 비주얼 애니메이션용 블러 원들 -->
+    <div class="bg-circle bg-circle-1" aria-hidden="true"></div>
+    <div class="bg-circle bg-circle-2" aria-hidden="true"></div>
+
+    <!-- 인증 조작용 카드 뷰 -->
+    <div class="auth-card" id="auth-card">
+      <div class="auth-header">
+        <div style="font-size: 0.85rem; font-weight: 800; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">🏫 서울에듀테크소프트랩</div>
+        <h2 id="auth-title">교사 회원 로그인</h2>
+        <p id="auth-desc">에듀테크 개별 실증 보고서 작성기</p>
+      </div>
+
+      <div class="auth-form" id="auth-form">
+        <!-- 이메일 입력 -->
+        <div class="auth-input-group" id="group-email">
+          <label for="auth-email">이메일 주소</label>
+          <input type="email" id="auth-email" class="auth-input" placeholder="teacher@school.edu">
+        </div>
+
+        <!-- 비밀번호 입력 -->
+        <div class="auth-input-group" id="group-password">
+          <label for="auth-password">비밀번호</label>
+          <div style="position: relative; width: 100%;">
+            <input type="password" id="auth-password" class="auth-input" style="padding-right: 40px;" placeholder="••••••••">
+            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; padding: 0; outline: none; z-index: 10;" title="비밀번호 보이기">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 20px; height: 20px; pointer-events: none;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 인증 번호 입력 (비밀번호 분실 시 노출) -->
+        <div class="auth-input-group" id="group-code" style="display: none;">
+          <label for="auth-code">이메일 인증 번호 (6자리)</label>
+          <input type="text" id="auth-code" class="auth-input" placeholder="000000" maxlength="6">
+        </div>
+
+        <!-- 새 비밀번호 입력 (비밀번호 분실 시 노출) -->
+        <div class="auth-input-group" id="group-new-password" style="display: none;">
+          <label for="auth-new-password">새 비밀번호 설정</label>
+          <div style="position: relative; width: 100%;">
+            <input type="password" id="auth-new-password" class="auth-input" style="padding-right: 40px;" placeholder="••••••••">
+            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-new-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; padding: 0; outline: none; z-index: 10;" title="비밀번호 보이기">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 20px; height: 20px; pointer-events: none;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 비밀번호 잊음 링크 -->
+        <div class="auth-input-group" id="group-forgot-link" style="text-align: right; margin-top: -6px;">
+          <span class="auth-switch-link" id="link-forgot-password" style="font-size: 0.78rem; color: var(--text-secondary); cursor: pointer;">비밀번호를 잊으셨나요?</span>
+        </div>
+
+        <button type="button" id="btn-auth-submit" class="auth-btn">로그인</button>
+      </div>
+
+      <div class="auth-switch-text" id="auth-switch-box">
+        아직 계정이 없으신가요? 
+        <span class="auth-switch-link" id="link-switch-auth">회원 가입</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==================== B. 메인 대시보드 뷰 ==================== -->
+  <div id="app-container" style="display: none;">
+    
+    <!-- 1. 좌측 제어 및 가이드 사이드바 -->
+    <aside id="sidebar" aria-label="메뉴 및 가이드">
+      
+      <!-- 브랜딩 헤더 -->
+      <div class="brand-section">
+        <div class="brand-logo" aria-hidden="true">ET</div>
+        <div class="brand-info">
+          <h1>개별 실증 보고서</h1>
+          <p>공교육 적합성 개별 평가 도구</p>
+        </div>
+      </div>
+
+      <!-- 실증 진행 상황 요약 패널 -->
+      <div style="padding: 12px 20px; border-bottom: 1px solid var(--border-color); background-color: var(--bg-primary);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:0.75rem; font-weight:700; color:var(--text-secondary);">총 평가 항목 개수</span>
+          <span id="progress-percentage" style="font-size:0.82rem; font-weight:800; color:var(--accent-color);">0개</span>
+        </div>
+        <div style="display:flex; gap:10px; font-size:0.68rem; color:var(--text-tertiary);">
+          <span id="count-high">🚨 (상): 0건</span>
+          <span id="count-mid">⚠️ (중): 0건</span>
+          <span id="count-low">✅ (하): 0건</span>
+        </div>
+      </div>
+
+      <!-- 다중 실증 프로젝트 관리 보관함 (📁 나의 실증 보관함) -->
+      <div class="project-cabinet-header">
+        <span>📁 나의 실증 보관함</span>
+        <button id="btn-new-project" class="cabinet-action-btn" style="color:var(--accent-color); font-weight:bold; font-size:1.1rem;" title="새 실증 보고서 추가">➕</button>
+      </div>
+      <div class="project-cabinet-list" id="project-cabinet-list">
+        <!-- 로그인된 사용자의 다중 프로젝트 목록 카드 슬롯 -->
+      </div>
+
+      <!-- 실증 가이드 라이브러리 트리 (30대 세부항목 즉시 추가 버튼 역할) -->
+      <div style="padding: 10px 16px 4px 16px; font-size:0.75rem; font-weight:800; color:var(--text-tertiary); background-color:var(--bg-tertiary); border-bottom:1px solid var(--border-color);">
+        🎯 클릭 시 보관함에 추가 (30대 기준)
+      </div>
+      
+      <nav class="nav-scroll-area" aria-label="점검 기준 퀵 로더" id="preset-tree-nav">
+        <!-- Javascript에 의해 6대 요소와 30개 상세 항목 추가 버튼 트리뷰가 생성됩니다 -->
+      </nav>
+
+      <!-- 사이드바 하단 리셋 및 백업 컨트롤 -->
+      <div class="sidebar-footer" style="background-color: var(--bg-secondary);">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button id="btn-load-sample" class="btn btn-primary" style="width:100%; justify-content:center; font-size:0.78rem;" title="에듀테크 실증 개별 교사 샘플 데이터를 자동 탑재">
+            💡 가이드 샘플 프로젝트 로드
+          </button>
+          <div style="display:flex; gap:6px;">
+            <button id="btn-export-json" class="btn" style="flex:1; justify-content:center; padding:6px; font-size:0.74rem;" title="오프라인 파일 백업">📥 백업</button>
+            <button id="btn-import-json" class="btn" style="flex:1; justify-content:center; padding:6px; font-size:0.74rem;" title="백업 복원">📤 복원</button>
+          </div>
+          <input type="file" id="import-file-input" style="display: none;" accept=".json">
+          <button id="btn-clear-all" class="btn" style="width:100%; justify-content:center; border-color:var(--danger-color); color:var(--danger-color); font-size:0.74rem;" title="모든 실증 내역 지우기">
+            🧹 모든 저장 데이터 지우기
+          </button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- 2. 우측 메인 리포트 작업판 -->
+    <main id="main-content">
+      
+      <!-- 상단 액션 바 -->
+      <header id="topbar">
+        
+        <div class="topbar-left">
+          <div class="tab-group" role="tablist">
+            <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true">📝 개별 실증지 작성</button>
+            <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false">👁️ A4 보고서 프리뷰</button>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- 프로필 아바타 & 로그아웃 영역 -->
+          <div class="user-profile-badge" id="user-profile-badge">
+            <div class="user-avatar" id="profile-avatar">👨‍🏫</div>
+            <div style="display:flex; flex-direction:column; line-height:1.2;">
+              <span id="profile-name" style="font-weight:700;">로그인 필요</span>
+              <span id="profile-school" style="font-size:0.65rem; color:var(--text-secondary);">기관 없음</span>
+            </div>
+            <button type="button" id="btn-logout" class="logout-btn">로그아웃</button>
+          </div>
+
+          <button id="btn-copy-markdown" class="btn" title="전체 실증 결과를 Markdown 텍스트로 복사">
+            📋 마크다운 복사
+          </button>
+          <button id="btn-print" class="btn btn-success" title="격자식 깔끔한 개별 실증 보고서 인쇄 (PDF 저장)">
+            🖨️ 보고서 인쇄 / PDF 저장
+          </button>
+          <button id="btn-theme-switch" class="theme-switch-btn" aria-label="테마 스위치" title="화면 색상 모드 전환">
+            <span>🌙</span>
+          </button>
+        </div>
+
+      </header>
+
+      <!-- 핵심 레이아웃 영역 -->
+      <div class="content-body" aria-label="작업 영역">
+        
+        <!-- A. 개별 실증지 작성 워크스페이스 -->
+        <div id="editor-area" class="editor-panel" style="max-width: 100%; padding: 20px;">
+          
+          <!-- 실증 대상 & 환경 메타데이터 카드 -->
+          <div class="form-header-box" style="margin-bottom:16px; padding: 14px 20px;">
+            <h2 style="font-size:1.15rem; margin-bottom:10px;">📊 에듀테크 실증 대상 및 환경 정보 입력</h2>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+              <div class="form-item">
+                <label style="font-size:0.75rem;">실증 대상 제품명</label>
+                <input type="text" id="in-target-product" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 엔트리봇 AI 코딩">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">개발사/제조기업</label>
+                <input type="text" id="in-developer" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 에듀테크랩(주)">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">OS 종류 (대표적)</label>
+                <input type="text" id="in-os-type" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: ChromeOS / iPadOS">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">OS 버전 정보</label>
+                <input type="text" id="in-os-version" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: v120 / iOS 17">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">사용 기기 모델명</label>
+                <input type="text" id="in-model-name" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 크롬북 Duet">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">학교 네트워크 환경</label>
+                <input type="text" id="in-network" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 학내 무선 AP">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">적용(활용) 교과 환경</label>
+                <input type="text" id="in-usage-env" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 5학년 실과 코딩">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">실증 수행 교사명</label>
+                <input type="text" id="in-teacher-name" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 교사 박찬규">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">소속 학교명</label>
+                <input type="text" id="in-school-name" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 서울미래초등학교">
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">작성(실증) 일자</label>
+                <input type="date" id="in-report-date" class="input-control" style="padding:6px 10px; font-size:0.78rem;">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 실증 개별 시트 입력 격자판 -->
+          <div id="checklist-editor-container">
+            <div class="checklist-control-bar" style="padding:8px 12px; margin-bottom:10px;">
+              <div class="checklist-filter-group">
+                <select id="editor-filter-select" class="table-select" style="width:180px; padding:5px 8px;">
+                  <option value="전체">🔍 모든 요소 필터</option>
+                </select>
+                <button id="btn-add-row" class="btn" style="padding:5px 12px; font-size:0.78rem;">➕ 신규 점검 평가 추가</button>
+              </div>
+              <div style="font-size:0.74rem; color:var(--text-secondary); font-weight:500;">
+                💡 각 행의 <strong>[점검 기준/내용 정의]</strong> 칸을 클릭하여 <u>자기 표현 문장</u>으로 자유롭게 재수정할 수 있습니다.
+              </div>
+            </div>
+
+            <!-- 격자 테이블 -->
+            <div class="checklist-table-wrapper">
+              <table class="checklist-table">
+                <thead>
+                  <tr>
+                    <th style="width: 4%">인쇄</th>
+                    <th style="width: 10%">대분류(요소)</th>
+                    <th style="width: 11%">중분류(항목)</th>
+                    <th style="width: 23%">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
+                    <th style="width: 7%">구분</th>
+                    <th style="width: 22%">분석 내용 (실제결과/현상)</th>
+                    <th style="width: 7%">심각성</th>
+                    <th style="width: 11%">개선 사항 (기대결과)</th>
+                    <th style="width: 5%">삭제</th>
+                  </tr>
+                </thead>
+                <tbody id="checklist-tbody">
+                  <!-- 동적 작성 행 탑재 영역 -->
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- B. 개별 A4 실증지 인쇄 미리보기 -->
+        <div id="preview-area" class="preview-panel" style="display: none;">
+          <div id="preview-container">
+            <!-- A4 규격 종이가 동적으로 주입됩니다 -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 하단 꼬리말 -->
+      <footer style="height:32px; background-color:var(--bg-secondary); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; padding:0 24px; font-size:0.75rem; color:var(--text-tertiary);">
+        <div>서울 에듀테크 소프트랩 개별 교사 실증용 공식 보고서 도구</div>
+        <div>보관함 활성 파일: <span id="footer-active-product" style="font-weight:700; color:var(--text-secondary);">미선택</span></div>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <!-- ==================== C. 관리자(Admin) 회원 관리 대시보드 뷰 ==================== -->
+  <div id="admin-container" style="display: none; width: 100vw; height: 100vh; background-color: var(--bg-primary); padding: 40px; overflow-y: auto; flex-direction: column; gap: 24px;">
+    <!-- 관리자 헤더 -->
+    <header style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--accent-color); padding-bottom:16px;">
+      <div>
+        <h1 style="font-family: var(--font-display); font-size: 1.8rem; font-weight:800; color:var(--text-primary);">🛠️ 서울에듀테크소프트랩 관리자 대시보드</h1>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">가입된 교사 회원 리스트를 실시간 관리하고 보안 제어합니다.</p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button id="btn-admin-to-teacher" class="btn btn-primary" style="font-size:0.82rem;">👨‍🏫 교사 실증 모드 진입</button>
+        <button id="btn-admin-logout" class="btn" style="border-color:var(--danger-color); color:var(--danger-color); font-size:0.82rem;">로그아웃</button>
+      </div>
+    </header>
+
+    <!-- 관리자 통계 카드 -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+      <div class="form-header-box" style="padding: 20px; display:flex; align-items:center; gap:16px;">
+        <div style="font-size:2.5rem;">👥</div>
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-tertiary); font-weight:700;">총 가입 교사 수</div>
+          <div id="admin-stat-users" style="font-size:1.8rem; font-weight:800; color:var(--accent-color);">0명</div>
+        </div>
+      </div>
+      <div class="form-header-box" style="padding: 20px; display:flex; align-items:center; gap:16px;">
+        <div style="font-size:2.5rem;">📁</div>
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-tertiary); font-weight:700;">총 실증 데이터베이스 수</div>
+          <div id="admin-stat-projects" style="font-size:1.8rem; font-weight:800; color:var(--success-color);">0개</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 회원 검색 및 관리 목록 -->
+    <div class="form-header-box" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+        <h2 style="font-size:1.2rem; font-weight:700;">👤 가입 교사 계정 통제 센터</h2>
+        <input type="text" id="admin-search-input" class="input-control" style="max-width:320px;" placeholder="🔍 이메일 주소로 검색...">
+      </div>
+
+      <div class="checklist-table-wrapper" style="width:100%;">
+        <table class="checklist-table" style="min-width:100%;">
+          <thead>
+            <tr>
+              <th style="width: 25%">이메일 계정</th>
+              <th style="width: 20%">교사 대표명 (초기값: 이메일)</th>
+              <th style="width: 25%">소속 학교/기관</th>
+              <th style="width: 15%">비밀번호 (보안 확인)</th>
+              <th style="width: 15%">관리 조치</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users-tbody">
+            <!-- 가입된 회원 로드가 렌더링됩니다 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 알림 토스트 박스 -->
+  <div id="toast" role="alert" aria-live="assertive">
+    <span>💡</span>
+    <span class="toast-message">알림 메시지</span>
+  </div>
+
+  <!-- 스크립트 로드 -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
