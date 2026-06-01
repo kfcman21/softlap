@@ -47,6 +47,19 @@
           </div>
         </div>
 
+        <!-- 회원 역할 구분 (회원가입 시 노출) -->
+        <div class="auth-input-group" id="group-role" style="display: none; flex-direction: column; gap: 6px;">
+          <label>회원 역할 구분</label>
+          <div style="display: flex; gap: 10px; width: 100%;">
+            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
+              <input type="radio" name="auth-role" value="teacher" checked style="margin: 0; cursor: pointer;"> 👨‍🏫 실증 교사
+            </label>
+            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
+              <input type="radio" name="auth-role" value="enterprise" style="margin: 0; cursor: pointer;"> 🏢 에듀테크 기업
+            </label>
+          </div>
+        </div>
+
         <!-- 인증 번호 입력 (비밀번호 분실 시 노출) -->
         <div class="auth-input-group" id="group-code" style="display: none;">
           <label for="auth-code">이메일 인증 번호 (6자리)</label>
@@ -216,14 +229,41 @@
         <!-- A. 개별 실증지 작성 워크스페이스 -->
         <div id="editor-area" class="editor-panel" style="max-width: 100%; padding: 20px;">
           
+          <!-- 🏢 기업 피드백 수신 안내 레이어 (기본 숨김) -->
+          <div id="feedback-receipt-panel" class="feedback-receipt-card" style="display: none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(142, 60%, 80%); padding-bottom:6px;">
+              <span style="font-weight:800; font-size:0.92rem; color:hsl(140, 80%, 25%); display:flex; align-items:center; gap:6px;">
+                🏢 실증 대상 기업 피드백 및 조치결과 도착
+              </span>
+              <span id="feedback-date" style="font-size:0.75rem; color:var(--text-secondary);">2026-06-01</span>
+            </div>
+            <p id="feedback-content" style="font-size:0.85rem; line-height:1.5; color:var(--text-primary); margin: 4px 0 0 0; white-space: pre-wrap;">
+              피드백 내용이 여기에 로드됩니다.
+            </p>
+          </div>
+
           <!-- 실증 대상 & 환경 메타데이터 카드 -->
           <div class="form-header-box" style="margin-bottom:16px; padding: 14px 20px;">
-            <h2 style="font-size:1.15rem; margin-bottom:10px;">📊 에듀테크 실증 대상 및 환경 정보 입력</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+              <h2 style="font-size:1.15rem; margin:0;">📊 에듀테크 실증 대상 및 환경 정보 입력</h2>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" id="btn-submit-to-company" class="btn btn-primary" style="font-size:0.75rem; padding: 4px 10px; background-color: var(--success-color); border-color: var(--success-color); font-weight:700;" title="완성된 실증 보고서를 기업에 최종 제출하고 피드백을 요청">🏢 기업에 최종 제출</button>
+                <span id="txt-submitted-status" class="status-badge" style="display:none;">제출완료 (대기중)</span>
+              </div>
+            </div>
             
             <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
-              <div class="form-item">
-                <label style="font-size:0.75rem;">실증 대상 제품명</label>
-                <input type="text" id="in-target-product" class="input-control" style="padding:6px 10px; font-size:0.78rem;" placeholder="예: 엔트리봇 AI 코딩">
+              <div class="form-item" style="position: relative;">
+                <label style="font-size:0.75rem; display:flex; justify-content:space-between; align-items:center;">
+                  <span>실증 대상 제품명</span>
+                  <span id="btn-open-registry" style="color:var(--accent-color); font-size:0.68rem; font-weight:700; cursor:pointer;" title="전체 에듀테크 마스터 리스트 관리">🛠️ 마스터 관리</span>
+                </label>
+                <div style="display: flex; gap: 4px; width: 100%;">
+                  <select id="in-target-product-select" class="input-control" style="padding:6px 10px; font-size:0.78rem; width: 100%; flex: 1;">
+                    <!-- Javascript가 마스터 목록을 뿌려줍니다 -->
+                  </select>
+                  <input type="text" id="in-target-product" class="input-control" style="display:none; padding:6px 10px; font-size:0.78rem; width: 100%;" placeholder="예: 직접 입력 제품명">
+                </div>
               </div>
               <div class="form-item">
                 <label style="font-size:0.75rem;">개발사/제조기업</label>
@@ -378,6 +418,219 @@
             <!-- 가입된 회원 로드가 렌더링됩니다 -->
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== D. 에듀테크 기업(Enterprise) 피드백 센터 뷰 ==================== -->
+  <div id="company-container" style="display: none; width: 100vw; height: 100vh; background-color: var(--bg-primary); padding: 40px; overflow-y: auto; flex-direction: column; gap: 24px;">
+    <!-- 기업 헤더 -->
+    <header style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--success-color); padding-bottom:16px;">
+      <div>
+        <h1 style="font-family: var(--font-display); font-size: 1.8rem; font-weight:800; color:var(--text-primary);">🏢 서울에듀테크소프트랩 기업 피드백 센터</h1>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">교사들이 제출한 현장 실증 결과서를 분석하고 즉각적인 개선 조치 피드백을 등록합니다.</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="company-profile-name" style="font-weight:700; font-size:0.88rem; color:var(--text-secondary);">기업 회원</span>
+        <button id="btn-company-logout" class="btn" style="border-color:var(--danger-color); color:var(--danger-color); font-size:0.82rem;">로그아웃</button>
+      </div>
+    </header>
+
+    <!-- 기업 통계 카드 -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
+      <div class="form-header-box" style="padding: 20px; display:flex; align-items:center; gap:16px;">
+        <div style="font-size:2.5rem;">📥</div>
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-tertiary); font-weight:700;">수집된 전체 실증서</div>
+          <div id="company-stat-submitted" style="font-size:1.8rem; font-weight:800; color:var(--accent-color);">0개</div>
+        </div>
+      </div>
+      <div class="form-header-box" style="padding: 20px; display:flex; align-items:center; gap:16px;">
+        <div style="font-size:2.5rem;">✅</div>
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-tertiary); font-weight:700;">피드백 완료 보고서</div>
+          <div id="company-stat-completed" style="font-size:1.8rem; font-weight:800; color:var(--success-color);">0개</div>
+        </div>
+      </div>
+      <div class="form-header-box" style="padding: 20px; display:flex; align-items:center; gap:16px;">
+        <div style="font-size:2.5rem;">⏳</div>
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-tertiary); font-weight:700;">피드백 미처리 대기</div>
+          <div id="company-stat-pending" style="font-size:1.8rem; font-weight:800; color:var(--warning-color);">0개</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 제출 목록 수집 섹션 -->
+    <div class="form-header-box" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+        <h2 style="font-size:1.2rem; font-weight:700;">📋 수집된 교사 개별 실증 보고서 목록</h2>
+        <div style="display:flex; gap:10px; flex:1; max-width:500px;">
+          <input type="text" id="company-search-input" class="input-control" style="flex:1;" placeholder="🔍 제품명, 교사명, 소속 학교로 검색...">
+          <select id="company-filter-status" class="input-control" style="width: 140px;">
+            <option value="all">전체 상태</option>
+            <option value="pending">피드백 대기</option>
+            <option value="completed">피드백 완료</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="checklist-table-wrapper" style="width:100%;">
+        <table class="checklist-table" style="min-width:100%;">
+          <thead>
+            <tr>
+              <th style="width: 25%">실증 에듀테크 제품명</th>
+              <th style="width: 15%">교사명</th>
+              <th style="width: 20%">소속 학교 / 기관</th>
+              <th style="width: 15%">제출 일자</th>
+              <th style="width: 13%">상태</th>
+              <th style="width: 12%">보고서 검토</th>
+            </tr>
+          </thead>
+          <tbody id="company-submitted-tbody">
+            <tr>
+              <td colspan="6" style="text-align:center; color:var(--text-tertiary); padding:40px;">교사들이 최종 제출한 실증 보고서가 아직 없습니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== E. 에듀테크 마스터 리스트 레지스트리 관리 모달 ==================== -->
+  <div id="edutech-registry-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div class="auth-card" style="max-width: 550px; width: 90%; max-height: 85vh; display: flex; flex-direction: column; padding: 24px; gap: 16px; border: 2px solid var(--accent-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">🛠️ 에듀테크 마스터 명부 관리</h3>
+        <button id="btn-close-registry-modal" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+      </div>
+
+      <!-- 새 마스터 입력 추가 폼 -->
+      <div class="form-header-box" style="padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; background-color: var(--bg-secondary);">
+        <h4 style="font-size: 0.8rem; font-weight: 700;">➕ 신규 에듀테크 프로그램 추가</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: flex-end;">
+          <div class="form-item" style="margin:0;">
+            <label style="font-size:0.7rem; font-weight: 700;">프로그램명</label>
+            <input type="text" id="reg-product-name" class="input-control" style="padding:5px 8px; font-size:0.75rem;" placeholder="예: 코딩 마스터 v3">
+          </div>
+          <div class="form-item" style="margin:0;">
+            <label style="font-size:0.7rem; font-weight: 700;">개발사/제조사</label>
+            <input type="text" id="reg-company-name" class="input-control" style="padding:5px 8px; font-size:0.75rem;" placeholder="예: (주)에듀랩">
+          </div>
+          <button id="btn-add-registry-item" class="btn btn-primary" style="padding:6px 14px; font-size:0.75rem; font-weight:800; height: 32px;">등록</button>
+        </div>
+      </div>
+
+      <!-- 마스터 리스트 조회 및 삭제 영역 -->
+      <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; max-height: 45vh;">
+        <table class="checklist-table" style="min-width: 100%; border: none;">
+          <thead style="position: sticky; top: 0; z-index: 5;">
+            <tr>
+              <th style="padding: 8px 12px; font-size: 0.72rem; width: 50%;">에듀테크 프로그램</th>
+              <th style="padding: 8px 12px; font-size: 0.72rem; width: 35%;">개발 기업</th>
+              <th style="padding: 8px 12px; font-size: 0.72rem; width: 15%; text-align: center;">제거</th>
+            </tr>
+          </thead>
+          <tbody id="registry-items-tbody">
+            <!-- 마스터 에듀테크 리스트 동적 렌더링 -->
+          </tbody>
+        </table>
+      </div>
+      
+      <p style="font-size: 0.7rem; color: var(--text-tertiary); text-align: center; margin: 0;">※ 교사의 실증지 작성 화면 제품 선택 박스에 실시간 자동 반영됩니다.</p>
+    </div>
+  </div>
+
+  <!-- ==================== F. 기업용 교사 실증서 상세 조회 및 피드백 작성 모달 ==================== -->
+  <div id="company-review-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div class="auth-card" style="max-width: 1000px; width: 95%; height: 90vh; display: flex; flex-direction: column; padding: 24px; gap: 20px; border: 2px solid var(--success-color);">
+      <!-- 모달 헤더 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <div>
+          <h3 id="review-modal-title" style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary);">📝 실증 평가서 상세 검토 센터</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">해당 현직 교사께서 보고서에 기재하신 등급 및 위협 상세 내역입니다.</p>
+        </div>
+        <button id="btn-close-review-modal" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+      </div>
+
+      <!-- 모달 메인 콘텐츠 영역 (2분할 레이아웃) -->
+      <div style="display: flex; gap: 20px; flex: 1; overflow: hidden; min-height: 0;">
+        <!-- 좌측: 교사가 입력한 상세 실증 내용 (스크롤 영역) -->
+        <div style="flex: 1.3; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 10px; border-right: 1px solid var(--border-color);">
+          <!-- A. 메타 정보 카드 -->
+          <div class="form-header-box" style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+            <h4 style="font-size: 0.85rem; font-weight: 800; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; color: var(--accent-color);">📋 실증 대상 환경 요약</h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; font-size: 0.8rem; line-height: 1.5;">
+              <div><strong>실증 교사:</strong> <span id="rev-meta-teacher">-</span></div>
+              <div><strong>소속 학교:</strong> <span id="rev-meta-school">-</span></div>
+              <div><strong>제품명 / 개발사:</strong> <span id="rev-meta-product">-</span></div>
+              <div><strong>OS 종류 및 버전:</strong> <span id="rev-meta-os">-</span></div>
+              <div><strong>기기 모델명:</strong> <span id="rev-meta-model">-</span></div>
+              <div><strong>사용 환경 및 학내망:</strong> <span id="rev-meta-env">-</span></div>
+            </div>
+          </div>
+
+          <!-- B. 항목별 상세 기재 내역 격자 -->
+          <div class="form-header-box" style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+            <h4 style="font-size: 0.85rem; font-weight: 800; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; color: var(--accent-color);">🚨 등급별 체크 리스트 및 개선 권고</h4>
+            <div class="checklist-table-wrapper" style="width:100%;">
+              <table class="checklist-table" style="min-width: 100%;">
+                <thead>
+                  <tr>
+                    <th style="width: 25%;">평가 요소 및 항목</th>
+                    <th style="width: 45%;">현장 테스트 관찰 내용 (실증 분석)</th>
+                    <th style="width: 15%; text-align: center;">심각도</th>
+                    <th style="width: 15%; text-align: center;">기재 여부</th>
+                  </tr>
+                </thead>
+                <tbody id="rev-checklist-tbody">
+                  <!-- 점검 항목 리스트 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 우측: 개발사 피드백 및 처리 결과 작성 패널 -->
+        <div style="flex: 0.8; display: flex; flex-direction: column; gap: 16px;">
+          <!-- 점수 통계 박스 -->
+          <div class="form-header-box" style="padding: 16px; display:flex; flex-direction:column; gap:10px; background-color: var(--bg-secondary);">
+            <h4 style="font-size: 0.8rem; font-weight: 700;">📊 교사 실증 전체 위협 통계</h4>
+            <div style="display:flex; justify-content:space-around; align-items:center; text-align:center;">
+              <div>
+                <div style="font-size: 1.25rem; font-weight:800; color: var(--danger-color);" id="rev-stat-high">0</div>
+                <div style="font-size: 0.68rem; color: var(--text-secondary);">🚨 심각(상)</div>
+              </div>
+              <div style="border-left: 1px solid var(--border-color); height: 24px;"></div>
+              <div>
+                <div style="font-size: 1.25rem; font-weight:800; color: var(--warning-color);" id="rev-stat-mid">0</div>
+                <div style="font-size: 0.68rem; color: var(--text-secondary);">⚠️ 위험(중)</div>
+              </div>
+              <div style="border-left: 1px solid var(--border-color); height: 24px;"></div>
+              <div>
+                <div style="font-size: 1.25rem; font-weight:800; color: var(--success-color);" id="rev-stat-low">0</div>
+                <div style="font-size: 0.68rem; color: var(--text-secondary);">✅ 양호(하)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 피드백 입력 패널 -->
+          <div class="form-header-box" style="padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
+            <h4 style="font-size: 0.85rem; font-weight: 800; color: var(--success-color); display: flex; align-items: center; gap: 6px;">
+              🏢 개발사 조치 계획 및 처리 피드백 입력
+            </h4>
+            <p style="font-size: 0.72rem; color: var(--text-tertiary);">
+              교사의 지적 사항 및 요청 사항에 대응하여 솔루션 개선 패치 일정, 보완 대책 등 개발사의 공식 입장을 입력해 주십시오. 실시간으로 교사에게 회신됩니다.
+            </p>
+            <textarea id="rev-feedback-textarea" class="input-control" style="flex:1; width:100%; min-height: 120px; font-size: 0.8rem; line-height: 1.4; resize:none; padding:10px;" placeholder="교사님의 실증 분석에 감사를 전합니다. 건의해 주신 HTTPS 통신구간 암호화 미비 및 쿠키 수집 정보는 다음 v2.1 패치 버전에 즉각 수정하여 배포 예정입니다..."></textarea>
+            
+            <div style="display: flex; gap: 10px;">
+              <button id="btn-submit-feedback" class="btn btn-success" style="flex: 1; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem;">
+                📢 피드백 전송 및 상태 갱신
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

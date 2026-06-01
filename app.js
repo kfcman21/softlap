@@ -81,6 +81,8 @@ function checkAuthSession() {
       state.currentUser = JSON.parse(session);
       if (state.currentUser.isAdmin) {
         showAdminDashboard();
+      } else if (state.currentUser.isEnterprise) {
+        showEnterpriseDashboard();
       } else {
         showMainDashboard();
       }
@@ -318,6 +320,64 @@ function loadActiveProject() {
   document.getElementById("in-school-name").value = meta.schoolName || "";
   document.getElementById("in-report-date").value = meta.reportDate || "";
 
+  // 🏢 [신규] 제출 여부 및 피드백 현황 수신 처리
+  const isSubmitted = !!state.activeProject.submitted;
+  const status = state.activeProject.status || "작성중";
+  const feedback = state.activeProject.feedback;
+
+  const btnSubmit = document.getElementById("btn-submit-to-company");
+  const txtStatus = document.getElementById("txt-submitted-status");
+  const panelFeedback = document.getElementById("feedback-receipt-panel");
+
+  if (isSubmitted) {
+    btnSubmit.style.display = "none";
+    txtStatus.style.display = "inline-flex";
+    
+    if (status === "피드백 완료") {
+      txtStatus.textContent = "피드백 완료";
+      txtStatus.className = "status-badge status-completed";
+      
+      // 피드백 패널 노출 및 매핑
+      if (feedback) {
+        panelFeedback.style.display = "flex";
+        document.getElementById("feedback-date").textContent = feedback.date || "";
+        document.getElementById("feedback-content").textContent = `[${feedback.company || "제조기업"}]\n${feedback.text || ""}`;
+      } else {
+        panelFeedback.style.display = "none";
+      }
+    } else {
+      txtStatus.textContent = "제출완료 (대기중)";
+      txtStatus.className = "status-badge status-submitted";
+      panelFeedback.style.display = "none";
+    }
+  } else {
+    btnSubmit.style.display = "inline-flex";
+    txtStatus.style.display = "none";
+    panelFeedback.style.display = "none";
+  }
+
+  // 양식 락다운(Lock) 및 드롭다운 잠금 분기 처리
+  const fields = [
+    "in-target-product", "in-developer", "in-os-type", "in-os-version",
+    "in-model-name", "in-network", "in-usage-env", "in-teacher-name",
+    "in-school-name", "in-report-date", "in-target-product-select"
+  ];
+  fields.forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) {
+      if (isSubmitted) {
+        el.setAttribute("disabled", "true");
+        el.style.opacity = "0.75";
+      } else {
+        el.removeAttribute("disabled");
+        el.style.opacity = "1";
+      }
+    }
+  });
+
+  // 에듀테크 마스터 드롭다운 동적 로드 및 선택 동기화
+  renderEdutechDropdown();
+
   renderChecklistGrid();
   updateSummaryStats();
   
@@ -459,6 +519,7 @@ function updateAuthUI() {
   const descEl = document.getElementById("auth-desc");
   const emailGroup = document.getElementById("group-email");
   const passwordGroup = document.getElementById("group-password");
+  const roleGroup = document.getElementById("group-role");
   const codeGroup = document.getElementById("group-code");
   const newPasswordGroup = document.getElementById("group-new-password");
   const forgotLinkGroup = document.getElementById("group-forgot-link");
@@ -468,12 +529,13 @@ function updateAuthUI() {
   // 기본 초기화
   emailGroup.style.display = "none";
   passwordGroup.style.display = "none";
+  roleGroup.style.display = "none";
   codeGroup.style.display = "none";
   newPasswordGroup.style.display = "none";
   forgotLinkGroup.style.display = "none";
 
   if (state.authMode === "login") {
-    titleEl.textContent = "교사 회원 로그인";
+    titleEl.textContent = "회원 로그인";
     descEl.textContent = "서울에듀테크소프트랩 개별 실증지";
     emailGroup.style.display = "flex";
     passwordGroup.style.display = "flex";
@@ -482,10 +544,11 @@ function updateAuthUI() {
     switchBox.innerHTML = `아직 계정이 없으신가요? <span class="auth-switch-link" id="link-switch-auth">회원 가입</span>`;
   } 
   else if (state.authMode === "signup") {
-    titleEl.textContent = "교사 회원 가입";
-    descEl.textContent = "이메일과 비밀번호만 기입하는 초간편 최소정보 가입";
+    titleEl.textContent = "회원 가입";
+    descEl.textContent = "역할을 선택하고 바로 활용하세요";
     emailGroup.style.display = "flex";
     passwordGroup.style.display = "flex";
+    roleGroup.style.display = "flex";
     submitBtn.textContent = "회원 가입 완료";
     switchBox.innerHTML = `이미 계정이 있으신가요? <span class="auth-switch-link" id="link-switch-auth">로그인 전환</span>`;
   }
@@ -519,6 +582,23 @@ function updateAuthUI() {
       updateAuthUI();
     });
   }
+
+  // 가입 역할 라디오 디자인 스위칭 바인딩
+  const radioTeacher = document.querySelector('input[name="auth-role"][value="teacher"]');
+  const radioEnterprise = document.querySelector('input[name="auth-role"][value="enterprise"]');
+  const labelTeacher = document.getElementById("label-role-teacher");
+  const labelEnterprise = document.getElementById("label-role-enterprise");
+
+  if (radioTeacher && radioEnterprise && labelTeacher && labelEnterprise) {
+    radioTeacher.addEventListener("change", () => {
+      labelTeacher.style.borderColor = "var(--accent-color)";
+      labelEnterprise.style.borderColor = "var(--border-color)";
+    });
+    radioEnterprise.addEventListener("change", () => {
+      labelEnterprise.style.borderColor = "var(--accent-color)";
+      labelTeacher.style.borderColor = "var(--border-color)";
+    });
+  }
 }
 
 function handleAuthSubmit() {
@@ -536,7 +616,7 @@ function handleAuthSubmit() {
       return;
     }
     
-    // [관리자 권한 진입 백도어]
+    // [최고 관리자 권한 진입 백도어]
     if (email === "admin" && password === "admin123") {
       const session = { 
         email: "admin", 
@@ -551,16 +631,37 @@ function handleAuthSubmit() {
       return;
     }
 
+    // [에듀테크 기업 권한 진입 백도어]
+    if (email === "company" && password === "company123") {
+      const session = { 
+        email: "company", 
+        name: "에듀테크 개발사", 
+        school: "실증 개발사 파트너", 
+        isEnterprise: true 
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      state.currentUser = session;
+      showEnterpriseDashboard();
+      showToast("에듀테크 기업 피드백 센터에 연동 진입했습니다.");
+      return;
+    }
+
     const user = usersDB[email];
     if (user && user.password === password) {
       const session = { 
         email, 
         name: user.name || email.split("@")[0], 
-        school: user.school || "서울에듀테크소프트랩" 
+        school: user.school || "서울에듀테크소프트랩",
+        isEnterprise: user.role === "enterprise" || user.isEnterprise
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
       state.currentUser = session;
-      showMainDashboard();
+      
+      if (session.isEnterprise) {
+        showEnterpriseDashboard();
+      } else {
+        showMainDashboard();
+      }
       showToast("반갑습니다! 에듀테크 실증 보관함에 연결되었습니다.");
     } else {
       alert("이메일 주소 또는 비밀번호가 일치하지 않습니다.");
@@ -572,8 +673,8 @@ function handleAuthSubmit() {
       alert("가입할 이메일 주소와 비밀번호를 모두 입력해 주십시오.");
       return;
     }
-    if (email.toLowerCase() === "admin") {
-      alert("admin 계정명은 시스템 최고 관리자 권한용으로 등록/가입이 불가능합니다.");
+    if (email.toLowerCase() === "admin" || email.toLowerCase() === "company") {
+      alert("해당 계정명은 시스템 예약어 권한용으로 등록/가입이 불가능합니다.");
       return;
     }
     if (password.length < 4) {
@@ -585,25 +686,36 @@ function handleAuthSubmit() {
       return;
     }
 
-    // 이메일 주소만으로 가입 완료 (이름은 이메일 앞부분 추출, 소속은 기본값 처리)
+    const roleElement = document.querySelector('input[name="auth-role"]:checked');
+    const selectedRole = roleElement ? roleElement.value : "teacher";
+
+    // 역할별 소속 처리
     const displayName = email.split("@")[0];
+    const defaultSchool = selectedRole === "enterprise" ? "협력 에듀테크 기업" : "서울에듀테크소프트랩";
+    
     usersDB[email] = { 
       password, 
       name: displayName, 
-      school: "서울에듀테크소프트랩" 
+      school: defaultSchool,
+      role: selectedRole
     };
     localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
 
     const session = { 
       email, 
       name: displayName, 
-      school: "서울에듀테크소프트랩" 
+      school: defaultSchool,
+      isEnterprise: selectedRole === "enterprise"
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     state.currentUser = session;
     
-    showMainDashboard();
-    showToast("서울에듀테크소프트랩 교사 계정이 가입되어 웰컴 프로젝트가 배포되었습니다!");
+    if (session.isEnterprise) {
+      showEnterpriseDashboard();
+    } else {
+      showMainDashboard();
+    }
+    showToast("서울에듀테크소프트랩 회원 가입이 완료되어 웰컴 프로젝트가 배포되었습니다!");
   }
   // 3. 비밀번호 찾기 - 이메일 입력 단계
   else if (state.authMode === "forgot_email") {
@@ -781,6 +893,24 @@ function setupEventListeners() {
   // 오라클 클라우드 연동 액션 바인딩
   document.getElementById("btn-oracle-test").addEventListener("click", testOracleConnection);
   document.getElementById("btn-oracle-sync").addEventListener("click", syncToOracleCloud);
+
+  // 🏢 [신규] 에듀테크 마스터 리스트 및 피드백 관련 이벤트 바인딩
+  document.getElementById("btn-open-registry").addEventListener("click", openRegistryModal);
+  document.getElementById("btn-close-registry-modal").addEventListener("click", closeRegistryModal);
+  document.getElementById("btn-add-registry-item").addEventListener("click", addRegistryItem);
+  
+  // 마스터 드롭다운 제품명 변경
+  document.getElementById("in-target-product-select").addEventListener("change", handleProductSelectChange);
+  
+  // 교사 제출하기
+  document.getElementById("btn-submit-to-company").addEventListener("click", submitProjectToEnterprise);
+  
+  // 기업 대시보드 바인딩
+  document.getElementById("btn-company-logout").addEventListener("click", () => showAuthScreen());
+  document.getElementById("company-search-input").addEventListener("input", renderEnterpriseDashboard);
+  document.getElementById("company-filter-status").addEventListener("change", renderEnterpriseDashboard);
+  document.getElementById("btn-close-review-modal").addEventListener("click", closeReviewModal);
+  document.getElementById("btn-submit-feedback").addEventListener("click", submitEnterpriseFeedback);
 }
 
 // 테마 관리
@@ -918,6 +1048,12 @@ function renderChecklistGrid() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
+  const isSubmitted = !!state.activeProject.submitted;
+  const btnAddRow = document.getElementById("btn-add-row");
+  if (btnAddRow) {
+    btnAddRow.style.display = isSubmitted ? "none" : "inline-flex";
+  }
+
   const rows = state.activeProject.items || [];
   const filtered = state.filterElement === "전체"
     ? rows
@@ -928,7 +1064,7 @@ function renderChecklistGrid() {
       <tr>
         <td colspan="9" style="text-align:center; padding:40px; color:var(--text-tertiary);">
           추가된 평가 기준 문항이 없습니다.<br>
-          왼쪽의 <strong>[클릭 시 보관함에 추가]</strong> 가이드를 통해 분석할 세부 항목들을 터치해 추가하세요.
+          ${isSubmitted ? "제출 완료되어 새로운 평가 기준을 추가할 수 없습니다." : "왼쪽의 <strong>[클릭 시 보관함에 추가]</strong> 가이드를 통해 분석할 세부 항목들을 터치해 추가하세요."}
         </td>
       </tr>
     `;
@@ -949,8 +1085,9 @@ function renderChecklistGrid() {
     selectCheck.checked = rowData.selected !== false;
     selectCheck.style.width = "17px";
     selectCheck.style.height = "17px";
-    selectCheck.style.cursor = "pointer";
+    selectCheck.style.cursor = isSubmitted ? "not-allowed" : "pointer";
     selectCheck.title = "A4 보고서 인쇄물에 포함할지 여부 결정";
+    if (isSubmitted) selectCheck.disabled = true;
     
     // 미선택 상태인 행은 불투명도를 살짝 낮춰 비활성화 피드백 제공
     if (rowData.selected === false) {
@@ -980,6 +1117,7 @@ function renderChecklistGrid() {
     const tdElement = document.createElement("td");
     const elSelect = document.createElement("select");
     elSelect.className = "table-select";
+    if (isSubmitted) elSelect.disabled = true;
     Object.keys(EMPIRICAL_STANDARDS).forEach(el => {
       const opt = document.createElement("option");
       opt.value = el;
@@ -1002,6 +1140,7 @@ function renderChecklistGrid() {
     const tdItem = document.createElement("td");
     const itemSelect = document.createElement("select");
     itemSelect.className = "table-select";
+    if (isSubmitted) itemSelect.disabled = true;
     const items = Object.keys(EMPIRICAL_STANDARDS[rowData.element].items);
     items.forEach(it => {
       const isEssential = EMPIRICAL_STANDARDS[rowData.element].items[it].isEssential;
@@ -1031,6 +1170,7 @@ function renderChecklistGrid() {
     critSelect.className = "table-select";
     critSelect.style.fontSize = "0.72rem";
     critSelect.style.padding = "3px";
+    if (isSubmitted) critSelect.disabled = true;
 
     const criteria = EMPIRICAL_STANDARDS[rowData.element].items[rowData.item].criteria;
     criteria.forEach(cr => {
@@ -1047,6 +1187,7 @@ function renderChecklistGrid() {
     critArea.placeholder = "점검 기준을 본인의 교실 상황 언어로 편집 수정하십시오.";
     critArea.style.fontSize = "0.76rem";
     critArea.style.minHeight = "48px";
+    if (isSubmitted) critArea.disabled = true;
 
     critSelect.addEventListener("change", (e) => {
       rowData.criterion = e.target.value;
@@ -1068,6 +1209,7 @@ function renderChecklistGrid() {
     const tdType = document.createElement("td");
     const typeSelect = document.createElement("select");
     typeSelect.className = "table-select";
+    if (isSubmitted) typeSelect.disabled = true;
     ["점검기준", "점검결과"].forEach(tp => {
       const opt = document.createElement("option");
       opt.value = tp;
@@ -1089,6 +1231,7 @@ function renderChecklistGrid() {
     analysisArea.value = rowData.analysis || "";
     analysisArea.placeholder = "교실 속 실증 상황에서 수집된 버그 및 학생의 행동 현상을 기록하세요.";
     analysisArea.style.minHeight = "54px";
+    if (isSubmitted) analysisArea.disabled = true;
     analysisArea.addEventListener("input", (e) => {
       rowData.analysis = e.target.value;
       saveActiveProject();
@@ -1101,6 +1244,7 @@ function renderChecklistGrid() {
     const sevSelect = document.createElement("select");
     sevSelect.className = "table-select";
     sevSelect.style.fontWeight = "bold";
+    if (isSubmitted) sevSelect.disabled = true;
 
     const styleSeverity = (sel, val) => {
       if (val === "상") {
@@ -1139,6 +1283,7 @@ function renderChecklistGrid() {
     impArea.value = rowData.improvement || "";
     impArea.placeholder = "안전 조치 및 개선되어야 할 규격 요구사항 기재";
     impArea.style.minHeight = "54px";
+    if (isSubmitted) impArea.disabled = true;
     impArea.addEventListener("input", (e) => {
       rowData.improvement = e.target.value;
       saveActiveProject();
@@ -1151,6 +1296,11 @@ function renderChecklistGrid() {
     const delBtn = document.createElement("button");
     delBtn.className = "btn-delete";
     delBtn.innerHTML = "🗑️";
+    if (isSubmitted) {
+      delBtn.disabled = true;
+      delBtn.style.opacity = "0.4";
+      delBtn.style.cursor = "not-allowed";
+    }
     delBtn.addEventListener("click", () => {
       deleteChecklistRow(rowData.id);
     });
@@ -1674,6 +1824,462 @@ async function testOracleConnection() {
     oracleConfig.enabled = false;
     localStorage.setItem(ORACLE_CONFIG_KEY, JSON.stringify(oracleConfig));
   }
+}
+
+}
+
+// ==================== 🏢 에듀테크 마스터 리스트 및 교사-기업 피드백 통합 협업 모듈 ====================
+const EDUTECH_REGISTRY_KEY = "softlap_edutech_registry";
+const SUBMITTED_PROJECTS_KEY = "softlap_submitted_projects";
+
+// A. 마스터 명부 데이터 라이프사이클 관리
+function loadEdutechRegistry() {
+  const saved = localStorage.getItem(EDUTECH_REGISTRY_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch(e) {}
+  }
+  // 기본 데이터 시딩
+  localStorage.setItem(EDUTECH_REGISTRY_KEY, JSON.stringify(DEFAULT_EDUTECH_REGISTRY));
+  return DEFAULT_EDUTECH_REGISTRY;
+}
+
+function saveEdutechRegistry(data) {
+  localStorage.setItem(EDUTECH_REGISTRY_KEY, JSON.stringify(data));
+}
+
+// 교사용 드롭다운 옵션 로딩 및 동기화
+function renderEdutechDropdown() {
+  const select = document.getElementById("in-target-product-select");
+  const textInput = document.getElementById("in-target-product");
+  if (!select || !textInput) return;
+
+  const registry = loadEdutechRegistry();
+  select.innerHTML = "";
+
+  // 기본 안내 옵션
+  const optDefault = document.createElement("option");
+  optDefault.value = "";
+  optDefault.textContent = "== 실증 프로그램을 선택하십시오 ==";
+  select.appendChild(optDefault);
+
+  registry.forEach(item => {
+    const opt = document.createElement("option");
+    opt.value = item.name;
+    opt.textContent = `${item.name} (${item.company})`;
+    opt.dataset.company = item.company;
+    if (state.activeProject.meta.targetProduct === item.name) {
+      opt.selected = true;
+    }
+    select.appendChild(opt);
+  });
+
+  // 직접 입력 옵션 추가
+  const optDirect = document.createElement("option");
+  optDirect.value = "direct";
+  optDirect.textContent = "✍️ 직접 텍스트 기재하기...";
+  select.appendChild(optDirect);
+
+  // 현재 활성화된 제품이 마스터 리스트에 없고 텍스트가 적혀 있다면 텍스트 모드로 진입
+  const inList = registry.some(item => item.name === state.activeProject.meta.targetProduct);
+  if (!inList && state.activeProject.meta.targetProduct && state.activeProject.meta.targetProduct !== "새로운 에듀테크 프로그램") {
+    select.value = "direct";
+    textInput.style.display = "block";
+    textInput.value = state.activeProject.meta.targetProduct;
+  } else {
+    textInput.style.display = "none";
+  }
+}
+
+// 드롭다운 변경 핸들러
+function handleProductSelectChange(e) {
+  const select = e.target;
+  const textInput = document.getElementById("in-target-product");
+  const devInput = document.getElementById("in-developer");
+  
+  if (select.value === "direct") {
+    textInput.style.display = "block";
+    textInput.value = "";
+    textInput.focus();
+    
+    state.activeProject.meta.targetProduct = "";
+    state.activeProject.meta.developer = "";
+    devInput.value = "";
+  } else if (select.value === "") {
+    textInput.style.display = "none";
+    state.activeProject.meta.targetProduct = "";
+    state.activeProject.meta.developer = "";
+    devInput.value = "";
+  } else {
+    textInput.style.display = "none";
+    const optSelected = select.options[select.selectedIndex];
+    const company = optSelected.dataset.company || "";
+    
+    state.activeProject.meta.targetProduct = select.value;
+    state.activeProject.meta.developer = company;
+    
+    devInput.value = company;
+  }
+  
+  saveActiveProject();
+  document.getElementById("footer-active-product").textContent = state.activeProject.meta.targetProduct || "제품명 미기재";
+}
+
+// 마스터 명부 편집 모달 제어
+function openRegistryModal() {
+  document.getElementById("edutech-registry-modal").style.display = "flex";
+  renderRegistryModalList();
+}
+
+function closeRegistryModal() {
+  document.getElementById("edutech-registry-modal").style.display = "none";
+}
+
+function renderRegistryModalList() {
+  const tbody = document.getElementById("registry-items-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const registry = loadEdutechRegistry();
+  
+  if (registry.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-tertiary);">등록된 에듀테크 프로그램이 없습니다.</td></tr>`;
+    return;
+  }
+
+  registry.forEach((item, index) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="padding:8px 12px; font-weight:700;">${item.name}</td>
+      <td style="padding:8px 12px; color:var(--text-secondary);">${item.company}</td>
+      <td style="padding:8px 12px; text-align:center;">
+        <button class="btn btn-delete" style="padding:3px 6px; font-size:0.7rem;" onclick="deleteRegistryItem(${index})">제거</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function addRegistryItem() {
+  const nameInput = document.getElementById("reg-product-name");
+  const compInput = document.getElementById("reg-company-name");
+  
+  const name = nameInput.value.trim();
+  const company = compInput.value.trim();
+
+  if (!name || !company) {
+    alert("에듀테크 프로그램명과 제조사(개발사) 명칭을 모두 입력해 주십시오.");
+    return;
+  }
+
+  const registry = loadEdutechRegistry();
+  if (registry.some(item => item.name.toLowerCase() === name.toLowerCase())) {
+    alert("이미 등록되어 있는 에듀테크 제품명입니다.");
+    return;
+  }
+
+  registry.push({ name, company });
+  saveEdutechRegistry(registry);
+  
+  nameInput.value = "";
+  compInput.value = "";
+  
+  renderRegistryModalList();
+  renderEdutechDropdown();
+  showToast("에듀테크 마스터 명부에 새 제품이 등록되었습니다.");
+}
+
+function deleteRegistryItem(index) {
+  if (!confirm("해당 제품을 마스터 명부에서 삭제하시겠습니까?")) return;
+
+  const registry = loadEdutechRegistry();
+  registry.splice(index, 1);
+  saveEdutechRegistry(registry);
+  
+  renderRegistryModalList();
+  renderEdutechDropdown();
+  showToast("선택하신 제품이 목록에서 제거되었습니다.");
+}
+// 글로벌 바인딩
+window.deleteRegistryItem = deleteRegistryItem;
+
+// B. 교사 평가 보고서 최종 제출
+function submitProjectToEnterprise() {
+  if (!state.activeProjectId) return;
+  
+  // 필수 환경 정보 체크
+  const meta = state.activeProject.meta;
+  if (!meta.targetProduct || meta.targetProduct === "새로운 에듀테크 프로그램") {
+    alert("제출 전에 메타 카드 정보에 '에듀테크 제품명'을 정확히 선택하거나 입력해 주십시오.");
+    return;
+  }
+
+  if (state.activeProject.items.length === 0) {
+    alert("제출 전에 최소 1개 이상의 실증 평가 점검 기준을 리스트에 작성해 주십시오.");
+    return;
+  }
+
+  if (!confirm("⚠️ [경고] 기업 최종 제출하기\n\n최종 제출 시 보고서 데이터가 암묵적으로 잠금(Read-only) 처리되어 이후 수정이 불가능해집니다.\n\n해당 실증 분석 결과를 에듀테크 기업 피드백 센터로 최종 발송하시겠습니까?")) {
+    return;
+  }
+
+  // 데이터 전환
+  state.activeProject.submitted = true;
+  state.activeProject.status = "제출완료";
+  state.activeProject.submitDate = new Date().toISOString().split('T')[0];
+
+  // 로컬 사용자 프로젝트 DB 업데이트
+  const projIndex = state.projects.findIndex(p => p.id === state.activeProjectId);
+  if (projIndex !== -1) {
+    state.projects[projIndex] = JSON.parse(JSON.stringify(state.activeProject));
+    saveUserProjects();
+  }
+
+  // 기업이 조회할 수 있는 '공용 제출 보고서 저장소'에 밀어넣기
+  const submittedKey = SUBMITTED_PROJECTS_KEY;
+  const submittedList = JSON.parse(localStorage.getItem(submittedKey) || "[]");
+  
+  // 중복 삽입 방지 및 업데이트
+  const existingIdx = submittedList.findIndex(p => p.id === state.activeProjectId);
+  const payloadToSubmit = {
+    id: state.activeProjectId,
+    email: state.currentUser.email,
+    teacherName: meta.teacherName || state.currentUser.name,
+    schoolName: meta.schoolName || state.currentUser.school,
+    meta: meta,
+    items: state.activeProject.items,
+    submitted: true,
+    status: "제출완료",
+    submitDate: state.activeProject.submitDate
+  };
+
+  if (existingIdx !== -1) {
+    submittedList[existingIdx] = payloadToSubmit;
+  } else {
+    submittedList.push(payloadToSubmit);
+  }
+  localStorage.setItem(submittedKey, JSON.stringify(submittedList));
+
+  // OCI 클라우드 백업 자동 실행
+  if (oracleConfig.enabled && oracleConfig.endpoint) {
+    syncToOracleCloud();
+  }
+
+  loadActiveProject();
+  showToast("🎉 실증 보고서가 협력 개발사에 최종 제출되었습니다! 피드백 대기중.");
+}
+
+// C. 에듀테크 기업 피드백 센터 대시보드 로직
+function showEnterpriseDashboard() {
+  document.getElementById("auth-container").style.display = "none";
+  document.getElementById("app-container").style.display = "none";
+  document.getElementById("admin-container").style.display = "none";
+  document.getElementById("company-container").style.display = "flex";
+
+  document.getElementById("company-profile-name").textContent = `${state.currentUser.name} (${state.currentUser.school})`;
+  renderEnterpriseDashboard();
+}
+
+function renderEnterpriseDashboard() {
+  const tbody = document.getElementById("company-submitted-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  const searchVal = document.getElementById("company-search-input").value.trim().toLowerCase();
+  const filterStatus = document.getElementById("company-filter-status").value;
+
+  // 공용 제출 저장소에서 덤프
+  const submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+
+  // 통계 업데이트
+  const pendingCount = submittedList.filter(p => p.status !== "피드백 완료").length;
+  const completedCount = submittedList.filter(p => p.status === "피드백 완료").length;
+  
+  document.getElementById("company-stat-submitted").textContent = `${submittedList.length}개`;
+  document.getElementById("company-stat-completed").textContent = `${completedCount}개`;
+  document.getElementById("company-stat-pending").textContent = `${pendingCount}개`;
+
+  // 검색 및 상태 필터링
+  const filtered = submittedList.filter(p => {
+    const matchesSearch = 
+      (p.meta.targetProduct && p.meta.targetProduct.toLowerCase().includes(searchVal)) ||
+      (p.teacherName && p.teacherName.toLowerCase().includes(searchVal)) ||
+      (p.schoolName && p.schoolName.toLowerCase().includes(searchVal));
+
+    const matchesStatus = 
+      filterStatus === "all" ||
+      (filterStatus === "pending" && p.status !== "피드백 완료") ||
+      (filterStatus === "completed" && p.status === "피드백 완료");
+
+    return matchesSearch && matchesStatus;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-tertiary); padding:40px;">조회 가능한 제출 완료 실증서가 없습니다.</td></tr>`;
+    return;
+  }
+
+  filtered.forEach(p => {
+    const tr = document.createElement("tr");
+    
+    // 상태 뱃지 스타일 매핑
+    let badgeHtml = "";
+    if (p.status === "피드백 완료") {
+      badgeHtml = `<span class="status-badge status-completed">피드백 완료</span>`;
+    } else {
+      badgeHtml = `<span class="status-badge status-submitted">피드백 대기</span>`;
+    }
+
+    tr.innerHTML = `
+      <td style="font-weight:700; color:var(--accent-color);">${p.meta.targetProduct}</td>
+      <td style="font-weight:600;">${p.teacherName} 교사</td>
+      <td>${p.schoolName}</td>
+      <td>${p.submitDate || "-"}</td>
+      <td>${badgeHtml}</td>
+      <td>
+        <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="viewSubmittedProject('${p.id}')">🔍 검토 & 피드백</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// 특정 제출 보고서 상세 보기 모달 오픈
+let activeReviewProjectId = null;
+function viewSubmittedProject(projectId) {
+  const submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+  const project = submittedList.find(p => p.id === projectId);
+  if (!project) return;
+
+  activeReviewProjectId = projectId;
+  document.getElementById("company-review-modal").style.display = "flex";
+
+  // 메타 정보 매핑
+  document.getElementById("rev-meta-teacher").textContent = project.teacherName || "-";
+  document.getElementById("rev-meta-school").textContent = project.schoolName || "-";
+  document.getElementById("rev-meta-product").textContent = `${project.meta.targetProduct} (${project.meta.developer || "미지정"})`;
+  document.getElementById("rev-meta-os").textContent = `${project.meta.osType || "-"} / ${project.meta.osVersion || "-"}`;
+  document.getElementById("rev-meta-model").textContent = project.meta.modelName || "-";
+  document.getElementById("rev-meta-env").textContent = `${project.meta.usageEnv || "-"} / ${project.meta.network || "-"}`;
+
+  // 통계 계산
+  const items = project.items || [];
+  const high = items.filter(i => i.severity === "상").length;
+  const mid = items.filter(i => i.severity === "중").length;
+  const low = items.filter(i => i.severity === "하").length;
+
+  document.getElementById("rev-stat-high").textContent = high;
+  document.getElementById("rev-stat-mid").textContent = mid;
+  document.getElementById("rev-stat-low").textContent = low;
+
+  // 기존 등록된 피드백 노출
+  const feedbackArea = document.getElementById("rev-feedback-textarea");
+  feedbackArea.value = project.feedback ? project.feedback.text : "";
+
+  // 점검 항목 바인딩
+  const tbody = document.getElementById("rev-checklist-tbody");
+  tbody.innerHTML = "";
+  
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-tertiary);">점검 리스트가 비어 있습니다.</td></tr>`;
+  } else {
+    items.forEach(item => {
+      const tr = document.createElement("tr");
+      
+      let severityBadge = "";
+      if (item.severity === "상") {
+        severityBadge = `<span class="status-badge" style="color:var(--danger-color); background:var(--danger-bg); border-color:var(--danger-color);">🚨 상</span>`;
+      } else if (item.severity === "중") {
+        severityBadge = `<span class="status-badge" style="color:var(--warning-color); background:var(--warning-bg); border-color:var(--warning-color);">⚠️ 중</span>`;
+      } else {
+        severityBadge = `<span class="status-badge" style="color:var(--success-color); background:var(--success-bg); border-color:var(--success-color);">✅ 하</span>`;
+      }
+
+      tr.innerHTML = `
+        <td>
+          <div style="font-weight:700;">${item.element}</div>
+          <div style="font-size:0.7rem; color:var(--text-secondary);">${item.item}</div>
+        </td>
+        <td>
+          <div style="font-weight:600; color:var(--text-primary); margin-bottom:4px;">Q. ${item.criterion}</div>
+          <div style="background-color:var(--bg-secondary); border-radius:4px; padding:6px; font-size:0.75rem; border-left:3px solid var(--accent-color);">
+            <strong>실증 분석:</strong> ${item.analysis || "(관찰 정보 없음)"}
+          </div>
+          ${item.improvement ? `<div style="margin-top:4px; font-size:0.72rem; color:var(--text-secondary);">💡 권장 대책: ${item.improvement}</div>` : ""}
+        </td>
+        <td style="text-align:center; vertical-align:middle;">${severityBadge}</td>
+        <td style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
+          ${item.selected !== false ? "🟢 기재" : "🔴 미인쇄"}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+}
+window.viewSubmittedProject = viewSubmittedProject;
+
+function closeReviewModal() {
+  document.getElementById("company-review-modal").style.display = "none";
+  activeReviewProjectId = null;
+}
+
+// 기업이 작성한 최종 조치결과/피드백 제출 저장 및 실시간 연동
+function submitEnterpriseFeedback() {
+  if (!activeReviewProjectId) return;
+  const feedbackText = document.getElementById("rev-feedback-textarea").value.trim();
+
+  if (!feedbackText) {
+    alert("교사에게 전달할 에듀테크 프로그램 보완 피드백 코멘트를 입력해 주십시오.");
+    return;
+  }
+
+  // 1. 공용 제출물 DB 갱신
+  const submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+  const pIdx = submittedList.findIndex(p => p.id === activeReviewProjectId);
+  if (pIdx === -1) return;
+
+  const feedbackObj = {
+    company: state.currentUser.name || "에듀테크 개발사",
+    text: feedbackText,
+    date: new Date().toISOString().split('T')[0]
+  };
+
+  submittedList[pIdx].status = "피드백 완료";
+  submittedList[pIdx].feedback = feedbackObj;
+  localStorage.setItem(SUBMITTED_PROJECTS_KEY, JSON.stringify(submittedList));
+
+  // 2. 해당 교사의 로컬 프로젝트 DB 갱신 동기화 (오프라인/로컬 테넌트 동기화 바인딩)
+  // 기업 피드백은 교사 계정의 로컬스토리지 프로젝트에도 융합되어야 합니다.
+  const email = submittedList[pIdx].email;
+  const teacherProjectsKey = `softlap_projects_${email}`;
+  const teacherProjects = JSON.parse(localStorage.getItem(teacherProjectsKey) || "[]");
+  const teacherProjIdx = teacherProjects.findIndex(proj => proj.id === activeReviewProjectId);
+  
+  if (teacherProjIdx !== -1) {
+    teacherProjects[teacherProjIdx].status = "피드백 완료";
+    teacherProjects[teacherProjIdx].feedback = feedbackObj;
+    localStorage.setItem(teacherProjectsKey, JSON.stringify(teacherProjects));
+  }
+
+  // 3. 만약 OCI 클라우드가 활성화되어 있다면, OCI 동기화 데이터 송신
+  if (oracleConfig.enabled && oracleConfig.endpoint) {
+    // 임시 activeProject 매핑을 통해 sync 함수 태우기
+    const prevActive = state.activeProject;
+    const prevActiveId = state.activeProjectId;
+    
+    state.activeProjectId = activeReviewProjectId;
+    state.activeProject = submittedList[pIdx];
+    
+    syncToOracleCloud();
+    
+    state.activeProject = prevActive;
+    state.activeProjectId = prevActiveId;
+  }
+
+  closeReviewModal();
+  renderEnterpriseDashboard();
+  alert("🎉 개발사의 소중한 피드백이 등록되었습니다!\n\n해당 실증 교사의 보고서 화면에 실시간으로 보완책 피드백 알림이 통보됩니다.");
 }
 
 // 초기 로딩 바인딩

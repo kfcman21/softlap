@@ -292,3 +292,16 @@ const WELCOME_SAMPLE_PROJECT = {
     }
   ]
 };
+
+// 기본 탑재용 마스터 에듀테크 프로그램 및 개발 기업 리스트
+const DEFAULT_EDUTECH_REGISTRY = [
+  { name: "엔트리봇 코딩 마스터 AI v2.0", company: "에듀크리에이티브 주식회사" },
+  { name: "클래스팅 AI", company: "클래스팅" },
+  { name: "홈런 초등 AI", company: "아이스크림에듀" },
+  { name: "엘리하이 초등", company: "메가스터디교육" },
+  { name: "똑똑 수학탐험대", company: "교육부 / 한국교육학술정보원" },
+  { name: "리딩앤", company: "아이포트폴리오" },
+  { name: "호두잉글리시", company: "호두랩스" },
+  { name: "스마트올 초등", company: "웅진씽크빅" }
+];
+

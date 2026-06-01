@@ -890,3 +890,83 @@ body {
     background: transparent !important;
   }
 }
+
+/* ==================== 🏢 실증 협업 & 피드백 시스템 전용 신규 스타일 ==================== */
+/* 가입 역할 선택기 활성화 테두리 강조 */
+.auth-input-group label:has(input[type="radio"]:checked) {
+  border-color: var(--accent-color) !important;
+  background-color: var(--bg-tertiary) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+/* 프로젝트 상태 뱃지 (목록 및 보고서 출력용) */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-draft {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.status-submitted {
+  background-color: hsl(35, 100%, 96%);
+  color: hsl(35, 100%, 42%);
+  border: 1px solid hsl(35, 100%, 90%);
+}
+
+.status-completed {
+  background-color: hsl(140, 100%, 95%);
+  color: hsl(140, 80%, 30%);
+  border: 1px solid hsl(140, 100%, 88%);
+}
+
+/* 교사 피드백 카드 수신용 */
+.feedback-receipt-card {
+  background: linear-gradient(135deg, hsl(142, 70%, 97%) 0%, hsl(142, 60%, 94%) 100%);
+  border: 2px dashed hsl(142, 60%, 80%);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.feedback-receipt-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 테이블의 피드백 미처리 대기 로우 반투명 처리 */
+.submitted-row-lock {
+  background-color: rgba(248, 250, 252, 0.5);
+}
+
+.submitted-row-lock td {
+  color: var(--text-secondary);
+}
+
+/* 기업 리뷰 모달 레이아웃 */
+#company-review-modal select, #company-review-modal textarea {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#company-review-modal textarea:focus {
+  border-color: var(--success-color);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08);
+}
+
