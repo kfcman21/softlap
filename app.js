@@ -54,12 +54,20 @@ async function checkCentralDbStatus() {
     // A. 현재 브라우저의 도메인(Origin)을 기본 백엔드로 시도
     connection = await tryUrl(window.location.origin);
     
-    // B. 로컬 서버(localhost:3000) 자동 스캐닝 시도 (정적 호스팅 사이트에서 로컬 서버 켰을 때 자동 연결용)
+    // B. OCI 전용 보안 API 서버 주소 최우선 스캐닝 시도 (실시간 HTTPS 연동 보장)
+    if (!connection) {
+      connection = await tryUrl("https://api.kfcman.link");
+    }
+    if (!connection) {
+      connection = await tryUrl("https://api.softlap.seoul.kr");
+    }
+    
+    // C. 로컬 서버(localhost:3000) 자동 스캐닝 시도 (정적 호스팅 사이트에서 로컬 서버 켰을 때 자동 연결용)
     if (!connection && window.location.origin !== "http://localhost:3000" && window.location.origin !== "http://127.0.0.1:3000") {
       connection = await tryUrl("http://localhost:3000");
     }
     
-    // C. OCI 대표 주소(kfcman.link) 자동 폴백 시도
+    // D. OCI 대표 주소(kfcman.link) 자동 폴백 시도
     if (!connection) {
       connection = await tryUrl("https://kfcman.link");
     }
