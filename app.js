@@ -1225,27 +1225,41 @@ function switchAuthMode() {
   updateAuthUI();
 }
 
+// 안전한 이벤트 바인딩 헬퍼 함수
+function safeBindClick(id, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("click", handler);
+}
+function safeBindChange(id, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", handler);
+}
+function safeBindInput(id, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("input", handler);
+}
+
 // 4. 이벤트 핸들러 및 데이터 제어
 function setupEventListeners() {
   // 인증 액션
-  document.getElementById("btn-auth-submit").addEventListener("click", handleAuthSubmit);
-  document.getElementById("link-switch-auth").addEventListener("click", switchAuthMode);
-  document.getElementById("link-forgot-password").addEventListener("click", () => {
+  safeBindClick("btn-auth-submit", handleAuthSubmit);
+  safeBindClick("link-switch-auth", switchAuthMode);
+  safeBindClick("link-forgot-password", () => {
     state.authMode = "forgot_email";
     updateAuthUI();
   });
-  document.getElementById("btn-logout").addEventListener("click", () => {
+  safeBindClick("btn-logout", () => {
     if (confirm("로그아웃하여 보관함을 닫으시겠습니까?")) {
       showAuthScreen();
     }
   });
 
   // 관리자 대시보드 액션 바인딩
-  document.getElementById("btn-admin-logout").addEventListener("click", () => {
+  safeBindClick("btn-admin-logout", () => {
     showAuthScreen();
   });
   
-  document.getElementById("btn-admin-to-teacher").addEventListener("click", () => {
+  safeBindClick("btn-admin-to-teacher", () => {
     // 관리자 모드에서 일반 실증용 화면으로 분기 진입
     document.getElementById("admin-container").style.display = "none";
     document.getElementById("app-container").style.display = "flex";
@@ -1276,7 +1290,7 @@ function setupEventListeners() {
     loadUserProjects();
   });
   
-  document.getElementById("admin-search-input").addEventListener("input", () => {
+  safeBindInput("admin-search-input", () => {
     renderAdminUsersList();
   });
 
@@ -1296,27 +1310,27 @@ function setupEventListeners() {
   }
 
   // 보관함 플러스 클릭
-  document.getElementById("btn-new-project").addEventListener("click", () => createNewProject(true));
+  safeBindClick("btn-new-project", () => createNewProject(true));
 
   // 상단 탭 스위칭
-  document.getElementById("btn-tab-edit").addEventListener("click", () => switchTab("edit"));
-  document.getElementById("btn-tab-preview").addEventListener("click", () => switchTab("preview"));
+  safeBindClick("btn-tab-edit", () => switchTab("edit"));
+  safeBindClick("btn-tab-preview", () => switchTab("preview"));
 
   // 백업
-  document.getElementById("btn-copy-markdown").addEventListener("click", copyMarkdown);
-  document.getElementById("btn-print").addEventListener("click", () => window.print());
-  document.getElementById("btn-theme-switch").addEventListener("click", toggleTheme);
+  safeBindClick("btn-copy-markdown", copyMarkdown);
+  safeBindClick("btn-print", () => window.print());
+  safeBindClick("btn-theme-switch", toggleTheme);
 
   // 사이드바 액션
-  document.getElementById("btn-load-sample").addEventListener("click", loadSampleData);
-  document.getElementById("btn-clear-all").addEventListener("click", clearAllData);
+  safeBindClick("btn-load-sample", loadSampleData);
+  safeBindClick("btn-clear-all", clearAllData);
 
   // 필터 및 단추
-  document.getElementById("editor-filter-select").addEventListener("change", (e) => {
+  safeBindChange("editor-filter-select", (e) => {
     state.filterElement = e.target.value;
     renderChecklistGrid();
   });
-  document.getElementById("btn-add-row").addEventListener("click", () => {
+  safeBindClick("btn-add-row", () => {
     addNewChecklistRow();
   });
 
