@@ -382,6 +382,9 @@ function loadActiveProject() {
   renderChecklistGrid();
   updateSummaryStats();
   
+  // 🏢 [신규] 활성화 시 실시간 중복 여부 판독
+  checkTeamDuplication();
+  
   document.getElementById("footer-active-product").textContent = meta.targetProduct || "제품명 미기재";
 }
 
@@ -887,6 +890,11 @@ function setupEventListeners() {
       inputEl.addEventListener("input", (e) => {
         state.activeProject.meta[f.key] = e.target.value;
         saveActiveProject();
+
+        // 🏢 [신규] 학교명 또는 제품명이 타이핑될 때 동일 소속 중복 실증 방지 실시간 갱신
+        if (f.key === "schoolName" || f.key === "targetProduct") {
+          checkTeamDuplication();
+        }
       });
     }
   });
@@ -1296,7 +1304,83 @@ function renderChecklistGrid() {
     tdImprovement.appendChild(impArea);
     tr.appendChild(tdImprovement);
 
-    // 8. 행 삭제
+    // 8. [신규] 증빙 사진 스크린샷 업로드 및 캡처 열 추가
+    const tdEvidence = document.createElement("td");
+    tdEvidence.style.textAlign = "center";
+    tdEvidence.style.verticalAlign = "middle";
+
+    if (rowData.screenshot) {
+      // 썸네일 컨테이너
+      const thumbContainer = document.createElement("div");
+      thumbContainer.className = "evidence-thumb-container";
+      
+      const img = document.createElement("img");
+      img.src = rowData.screenshot;
+      img.className = "evidence-thumb";
+      img.title = "클릭하여 원본 크기 증빙 검토";
+      img.addEventListener("click", () => openLightbox(rowData.screenshot));
+      thumbContainer.appendChild(img);
+
+      // 삭제 단추
+      if (!isSubmitted) {
+        const delThumbBtn = document.createElement("button");
+        delThumbBtn.className = "btn-evidence-delete";
+        delThumbBtn.innerHTML = "&times;";
+        delThumbBtn.title = "증빙 사진 제거";
+        delThumbBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (confirm("첨부된 스크린샷 증빙을 지우시겠습니까?")) {
+            rowData.screenshot = "";
+            saveActiveProject();
+            renderChecklistGrid();
+          }
+        });
+        thumbContainer.appendChild(delThumbBtn);
+      }
+
+      tdEvidence.appendChild(thumbContainer);
+    } else {
+      if (isSubmitted) {
+        const emptyTxt = document.createElement("span");
+        emptyTxt.style.fontSize = "0.72rem";
+        emptyTxt.style.color = "var(--text-tertiary)";
+        emptyTxt.textContent = "사진 없음";
+        tdEvidence.appendChild(emptyTxt);
+      } else {
+        // 사진 첨부 버튼
+        const label = document.createElement("label");
+        label.className = "btn-evidence-attach";
+        label.innerHTML = "📷 첨부";
+        
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.style.display = "none";
+        
+        fileInput.addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          showToast("스크린샷 증빙 이미지를 경량 압축 처리 중...");
+          try {
+            const compressedBase64 = await compressImageToBase64(file);
+            rowData.screenshot = compressedBase64;
+            saveActiveProject();
+            renderChecklistGrid();
+            showToast("📸 증빙 사진이 480px 초경량 포맷으로 압축 첨부되었습니다.");
+          } catch (err) {
+            console.error("이미지 압축 실패:", err);
+            alert("사진 업로드 도중 에러가 발생했습니다.");
+          }
+        });
+
+        label.appendChild(fileInput);
+        tdEvidence.appendChild(label);
+      }
+    }
+    tr.appendChild(tdEvidence);
+
+    // 9. 행 삭제
     const tdDelete = document.createElement("td");
     const delBtn = document.createElement("button");
     delBtn.className = "btn-delete";
@@ -1558,11 +1642,18 @@ function renderTableForPage(pageElement, pageItems) {
           <td><strong>${r.item}</strong></td>
           <td style="font-size:0.75rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
           <td style="text-align:center;">${r.type}</td>
-          <td style="white-space: pre-wrap;">${r.analysis || "<span style='color:#94a3b8'>현상분석 없음</span>"}</td>
+          <td style="white-space: pre-wrap; vertical-align: top;">
+            <div>${r.analysis || "<span style='color:#94a3b8'>현상분석 없음</span>"}</div>
+            ${r.screenshot ? `
+              <div class="print-evidence-img-box">
+                <img src="${r.screenshot}" class="print-evidence-img">
+              </div>
+            ` : ""}
+          </td>
           <td style="text-align:center;">
             <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
           </td>
-          <td style="white-space: pre-wrap;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
+          <td style="white-space: pre-wrap; vertical-align: top;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
         </tr>
       `).join("")}
     </tbody>
@@ -1929,6 +2020,9 @@ function handleProductSelectChange(e) {
   
   saveActiveProject();
   document.getElementById("footer-active-product").textContent = state.activeProject.meta.targetProduct || "제품명 미기재";
+  
+  // 🏢 [신규] 제품이 변경될 때 팀별 중복 실증 방지 즉시 검증
+  checkTeamDuplication();
 }
 
 // 마스터 명부 편집 모달 제어
@@ -2370,6 +2464,101 @@ function handleChangePassword() {
   
   showToast("비밀번호가 정상적으로 변경되었습니다. 다음 로그인부터 새 비밀번호가 적용됩니다.");
 }
+
+// 🏢 [신규] 동일 기관(소속 팀) 내 중복 에듀테크 실증 방지 검증 모듈
+function checkTeamDuplication() {
+  const warningBanner = document.getElementById("team-duplicate-warning-banner");
+  const warningText = document.getElementById("txt-team-duplicate-warning");
+  if (!warningBanner || !warningText) return;
+
+  const schoolInput = document.getElementById("in-school-name");
+  if (!schoolInput) return;
+
+  const schoolName = schoolInput.value.trim().toLowerCase().replace(/\s+/g, '');
+  const productName = (state.activeProject.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+
+  if (!schoolName || !productName || productName === "새로운에듀테크프로그램") {
+    warningBanner.style.display = "none";
+    return;
+  }
+
+  // 공용 제출 보관소에서 이미 최종 제출된 다른 교사의 실증서와 대조
+  const submittedList = JSON.parse(localStorage.getItem(SUBMITTED_PROJECTS_KEY) || "[]");
+  
+  const duplicateReport = submittedList.find(p => {
+    // 본인의 지금 활성화된 프로젝트 ID는 배제
+    if (p.id === state.activeProjectId) return false;
+
+    const pSchool = (p.schoolName || "").trim().toLowerCase().replace(/\s+/g, '');
+    const pProduct = (p.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+    
+    return pSchool === schoolName && pProduct === productName;
+  });
+
+  if (duplicateReport) {
+    warningBanner.style.display = "flex";
+    warningText.textContent = `동일 소속 기관 [${duplicateReport.schoolName}]의 다른 교사 [${duplicateReport.teacherName}]님이 본 제품 '${duplicateReport.meta.targetProduct}'에 대해 실증지 작성을 마쳤습니다. 중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
+  } else {
+    warningBanner.style.display = "none";
+  }
+}
+
+// 📷 [신규] Canvas 2D 이용 고성능 이미지 비례 축소 및 JPEG 0.7 경량화 압축 엔진 (30KB급 보존)
+function compressImageToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        // 최적 해상도: 가로 480px 기준으로 비례 축소 리사이징
+        const MAX_WIDTH = 480;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // 캔버스에 이미지 렌더링
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // JPEG 포맷 + 0.7 압축률 최적 가변 품질 압축 ➔ 고해상도 시각성을 보장하면서 파일 용량은 30KB~50KB 내외로 극적 축소
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(compressedBase64);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+// 🖼️ [신규] 글래스모피즘 라이트박스 팝업 오버레이 제어기
+function openLightbox(src) {
+  const lightbox = document.getElementById("global-image-lightbox");
+  const lightboxImg = document.getElementById("lightbox-img");
+  if (!lightbox || !lightboxImg) return;
+
+  lightboxImg.src = src;
+  lightbox.style.display = "flex";
+}
+window.openLightbox = openLightbox;
+
+function closeLightbox() {
+  const lightbox = document.getElementById("global-image-lightbox");
+  if (lightbox) {
+    lightbox.style.display = "none";
+  }
+}
+window.closeLightbox = closeLightbox;
 
 // 초기 로딩 바인딩
 window.addEventListener("DOMContentLoaded", initApp);

@@ -304,6 +304,12 @@
               </div>
             </div>
 
+            <!-- ⚠️ 동일 학교/팀 에듀테크 중복 실증 방지 실시간 감지 배너 -->
+            <div id="team-duplicate-warning-banner" class="form-header-box" style="display: none; background: linear-gradient(135deg, hsl(35, 100%, 96%) 0%, hsl(35, 100%, 92%) 100%); border: 1.5px solid hsl(35, 100%, 82%); border-radius: 8px; padding: 10px 14px; margin-top: 10px; align-items: center; gap: 8px; color: hsl(35, 100%, 25%); animation: pulseDuplication 2s infinite ease-in-out;">
+              <span style="font-size: 1.1rem;">⚠️</span>
+              <span id="txt-team-duplicate-warning" style="font-size: 0.76rem; font-weight: 700; line-height: 1.4;">경고 메시지</span>
+            </div>
+
           </div>
 
           <!-- 실증 개별 시트 입력 격자판 -->
@@ -326,13 +332,14 @@
                 <thead>
                   <tr>
                     <th style="width: 4%">인쇄</th>
-                    <th style="width: 10%">대분류(요소)</th>
-                    <th style="width: 11%">중분류(항목)</th>
-                    <th style="width: 23%">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
-                    <th style="width: 7%">구분</th>
-                    <th style="width: 22%">분석 내용 (실제결과/현상)</th>
+                    <th style="width: 9%">대분류(요소)</th>
+                    <th style="width: 10%">중분류(항목)</th>
+                    <th style="width: 20%">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
+                    <th style="width: 6%">구분</th>
+                    <th style="width: 20%">분석 내용 (실제결과/현상)</th>
                     <th style="width: 7%">심각성</th>
-                    <th style="width: 11%">개선 사항 (기대결과)</th>
+                    <th style="width: 13%">개선 사항 (기대결과)</th>
+                    <th style="width: 6%">증빙 사진</th>
                     <th style="width: 5%">삭제</th>
                   </tr>
                 </thead>
@@ -635,6 +642,12 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ==================== G. 전역 이미지 캡처 증빙 라이트박스 모달 ==================== -->
+  <div id="global-image-lightbox" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.85); z-index: 3000; justify-content: center; align-items: center; backdrop-filter: blur(8px);" onclick="closeLightbox()">
+    <span style="position: absolute; top: 20px; right: 30px; font-size: 2.5rem; color: #ffffff; cursor: pointer; font-weight: bold;">&times;</span>
+    <img id="lightbox-img" src="" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
   </div>
 
   <!-- 알림 토스트 박스 -->
