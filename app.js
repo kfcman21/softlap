@@ -527,31 +527,41 @@ async function loadUserProjects() {
   }
 }
 
-// 프로젝트 저장
-async function saveActiveProject() {
-  if (!state.activeProjectId) return;
-
+// 프로젝트 목록 전체 저장 및 동기화 헬퍼 함수 (로컬 캐시 완전 배제 및 서버 단일 소스 원칙 실현)
+async function saveProjectsList() {
+  if (!state.currentUser) return;
   const key = getUserStorageKey();
-  const index = state.projects.findIndex(p => p.id === state.activeProjectId);
   
-  if (index !== -1) {
-    state.projects[index].meta = state.activeProject.meta;
-    state.projects[index].items = state.activeProject.items;
-  }
-  
-  localStorage.setItem(key, JSON.stringify(state.projects));
-  
-  if (isCentralDbActive && state.currentUser) {
+  if (isCentralDbActive) {
     try {
       await fetch(`${centralDbUrl}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
       });
+      // 비상시 오프라인 상황 복원을 대비하여 백업 용도로만 최신 목록을 로컬 스토리지에 기입
+      localStorage.setItem(key, JSON.stringify(state.projects));
     } catch (e) {
-      console.error("원격 서버에 저장 동기화 실패:", e);
+      console.error("원격 서버 동기화 실패, 비상 로컬 저장 처리합니다.", e);
+      localStorage.setItem(key, JSON.stringify(state.projects));
     }
+  } else {
+    // 오프라인 로컬 전용 모드인 경우에만 로컬 저장소를 액티브하게 활용
+    localStorage.setItem(key, JSON.stringify(state.projects));
   }
+}
+
+// 프로젝트 저장
+async function saveActiveProject() {
+  if (!state.activeProjectId) return;
+
+  const index = state.projects.findIndex(p => p.id === state.activeProjectId);
+  if (index !== -1) {
+    state.projects[index].meta = state.activeProject.meta;
+    state.projects[index].items = state.activeProject.items;
+  }
+  
+  await saveProjectsList();
   
   // 사이드바 목록 리프레시 (제품명 연동 반영용)
   renderCabinetList();
@@ -697,8 +707,7 @@ function createNewProject(shouldToast = true) {
   state.projects.push(newProj);
   state.activeProjectId = newProj.id;
   
-  const key = getUserStorageKey();
-  localStorage.setItem(key, JSON.stringify(state.projects));
+  await saveProjectsList();
   
   renderCabinetList();
   loadActiveProject();
@@ -709,7 +718,7 @@ function createNewProject(shouldToast = true) {
 }
 
 // 프로젝트 복제
-function duplicateProject(projId, e) {
+async function duplicateProject(projId, e) {
   if (e) e.stopPropagation(); // 카드 선택 이벤트 전파 차단
   
   const target = state.projects.find(p => p.id === projId);
@@ -722,8 +731,7 @@ function duplicateProject(projId, e) {
   state.projects.push(clone);
   state.activeProjectId = clone.id;
   
-  const key = getUserStorageKey();
-  localStorage.setItem(key, JSON.stringify(state.projects));
+  await saveProjectsList();
 
   renderCabinetList();
   loadActiveProject();
@@ -731,22 +739,13 @@ function duplicateProject(projId, e) {
 }
 
 // 프로젝트 삭제
-function deleteProject(projId, e) {
+async function deleteProject(projId, e) {
   if (e) e.stopPropagation();
 
   if (confirm("경고: 해당 에듀테크 제품에 작성하셨던 모든 분석 내용이 보관함에서 영구히 삭제됩니다. 삭제하시겠습니까?")) {
     state.projects = state.projects.filter(p => p.id !== projId);
     
-    const key = getUserStorageKey();
-    localStorage.setItem(key, JSON.stringify(state.projects));
-
-    if (isCentralDbActive && state.currentUser) {
-      fetch(`${centralDbUrl}/api/projects`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
-      }).catch(err => console.error("원격 서버 삭제 동기화 실패:", err));
-    }
+    await saveProjectsList();
 
     if (state.activeProjectId === projId) {
       state.activeProjectId = state.projects.length > 0 ? state.projects[0].id : null;
