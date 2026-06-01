@@ -103,7 +103,7 @@ function showMainDashboard() {
 
   // 프로필 정보 매핑
   document.getElementById("profile-name").textContent = `${state.currentUser.name} 교사`;
-  document.getElementById("profile-school").textContent = state.currentUser.school;
+  document.getElementById("profile-school").textContent = state.currentUser.team || state.currentUser.school;
   document.getElementById("profile-avatar").textContent = state.currentUser.name ? state.currentUser.name[0] : "👨‍🏫";
 
   // 만약 일반 교사인데 기존 관리자 복구 단추가 남아있다면 제거
@@ -254,9 +254,8 @@ function loadUserProjects() {
     // 신규 교사의 경우 기본 웰컴 샘플 프로젝트를 자동으로 복제 매핑 탑재
     const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
     welcomeProj.id = "welcome_" + Date.now();
-    // 가입한 교사의 프로필 명칭으로 디폴트 보완 기재
-    welcomeProj.meta.teacherName = state.currentUser.name;
-    welcomeProj.meta.schoolName = state.currentUser.school;
+    welcomeProj.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
+    welcomeProj.meta.schoolName = state.currentUser.team || state.currentUser.school || "";
     
     state.projects = [welcomeProj];
     localStorage.setItem(key, JSON.stringify(state.projects));
@@ -400,8 +399,8 @@ function createNewProject(shouldToast = true) {
       modelName: "",
       network: "",
       usageEnv: "",
-      teacherName: state.currentUser.name || "",
-      schoolName: state.currentUser.school || "",
+      teacherName: (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || ""),
+      schoolName: state.currentUser.team || state.currentUser.school || "",
       reportDate: new Date().toISOString().split('T')[0]
     },
     items: []
@@ -530,6 +529,11 @@ function updateAuthUI() {
   const submitBtn = document.getElementById("btn-auth-submit");
   const switchBox = document.getElementById("auth-switch-box");
 
+  // [신규 가입 필드 그룹]
+  const authNameGroup = document.getElementById("group-auth-name");
+  const authSchoolGroup = document.getElementById("group-auth-school");
+  const authTeamGroup = document.getElementById("group-auth-team");
+
   // 기본 초기화
   emailGroup.style.display = "none";
   passwordGroup.style.display = "none";
@@ -537,6 +541,10 @@ function updateAuthUI() {
   codeGroup.style.display = "none";
   newPasswordGroup.style.display = "none";
   forgotLinkGroup.style.display = "none";
+  
+  if (authNameGroup) authNameGroup.style.display = "none";
+  if (authSchoolGroup) authSchoolGroup.style.display = "none";
+  if (authTeamGroup) authTeamGroup.style.display = "none";
 
   if (state.authMode === "login") {
     titleEl.textContent = "회원 로그인";
@@ -553,6 +561,51 @@ function updateAuthUI() {
     emailGroup.style.display = "flex";
     passwordGroup.style.display = "flex";
     roleGroup.style.display = "flex";
+
+    // 회원가입시 이름, 학교명, 팀명 그룹도 함께 노출
+    if (authNameGroup) authNameGroup.style.display = "flex";
+    if (authSchoolGroup) authSchoolGroup.style.display = "flex";
+    if (authTeamGroup) {
+      authTeamGroup.style.display = "flex";
+      
+      // 선택 변경에 따라 팀명 입력란 실시간 자동 계산/제어 이벤트 부착
+      const teamSelect = document.getElementById("auth-team-select");
+      const teamInput = document.getElementById("auth-team");
+      const nameInput = document.getElementById("auth-name");
+      const schoolInput = document.getElementById("auth-school");
+
+      const updateTeamPlaceholder = () => {
+        if (!teamSelect || !teamInput) return;
+        const nameVal = nameInput ? nameInput.value.trim() : "";
+        const schoolVal = schoolInput ? schoolInput.value.trim() : "";
+
+        if (teamSelect.value === "name-school") {
+          teamInput.value = (nameVal && schoolVal) ? `${nameVal} (${schoolVal})` : "";
+          teamInput.disabled = true;
+          teamInput.placeholder = "교사명 (학교명)으로 자동 계산되어 채워집니다.";
+        } else if (teamSelect.value === "school-only") {
+          teamInput.value = schoolVal;
+          teamInput.disabled = true;
+          teamInput.placeholder = "소속 학교명으로 자동 채워집니다.";
+        } else {
+          teamInput.disabled = false;
+          teamInput.placeholder = "소속 팀명 또는 학교명을 직접 입력하십시오.";
+        }
+      };
+
+      if (teamSelect && teamInput) {
+        // 이미 핸들러가 걸려있지 않다면 부착
+        if (!teamSelect.dataset.hasListener) {
+          teamSelect.dataset.hasListener = "true";
+          teamSelect.addEventListener("change", updateTeamPlaceholder);
+          
+          if (nameInput) nameInput.addEventListener("input", updateTeamPlaceholder);
+          if (schoolInput) schoolInput.addEventListener("input", updateTeamPlaceholder);
+        }
+        updateTeamPlaceholder();
+      }
+    }
+
     submitBtn.textContent = "회원 가입 완료";
     switchBox.innerHTML = `이미 계정이 있으신가요? <span class="auth-switch-link" id="link-switch-auth">로그인 전환</span>`;
   }
@@ -597,10 +650,20 @@ function updateAuthUI() {
     radioTeacher.addEventListener("change", () => {
       labelTeacher.style.borderColor = "var(--accent-color)";
       labelEnterprise.style.borderColor = "var(--border-color)";
+      
+      // 교사가 아닌 기업이면 이름/학교/팀명 입력 숨기기
+      if (authNameGroup) authNameGroup.style.display = "flex";
+      if (authSchoolGroup) authSchoolGroup.style.display = "flex";
+      if (authTeamGroup) authTeamGroup.style.display = "flex";
     });
     radioEnterprise.addEventListener("change", () => {
       labelEnterprise.style.borderColor = "var(--accent-color)";
       labelTeacher.style.borderColor = "var(--border-color)";
+      
+      // 기업 선택 시 불필요한 입력 그룹 가리기
+      if (authNameGroup) authNameGroup.style.display = "none";
+      if (authSchoolGroup) authSchoolGroup.style.display = "none";
+      if (authTeamGroup) authTeamGroup.style.display = "none";
     });
   }
 }
@@ -626,6 +689,7 @@ function handleAuthSubmit() {
         email: "admin", 
         name: "관리자", 
         school: "서울에듀테크소프트랩 본부", 
+        team: "서울에듀테크소프트랩 본부",
         isAdmin: true 
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -641,6 +705,7 @@ function handleAuthSubmit() {
         email: "company", 
         name: "에듀테크 개발사", 
         school: "실증 개발사 파트너", 
+        team: "실증 개발사 파트너",
         isEnterprise: true 
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -656,6 +721,7 @@ function handleAuthSubmit() {
         email, 
         name: user.name || email.split("@")[0], 
         school: user.school || "서울에듀테크소프트랩",
+        team: user.team || user.school || "서울에듀테크소프트랩",
         isEnterprise: user.role === "enterprise" || user.isEnterprise
       };
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -671,7 +737,7 @@ function handleAuthSubmit() {
       alert("이메일 주소 또는 비밀번호가 일치하지 않습니다.");
     }
   }
-  // 2. 최소 정보 회원 가입 단계
+  // 2. 정보 입력 회원 가입 단계
   else if (state.authMode === "signup") {
     if (!email || !password) {
       alert("가입할 이메일 주소와 비밀번호를 모두 입력해 주십시오.");
@@ -693,14 +759,32 @@ function handleAuthSubmit() {
     const roleElement = document.querySelector('input[name="auth-role"]:checked');
     const selectedRole = roleElement ? roleElement.value : "teacher";
 
-    // 역할별 소속 처리
-    const displayName = email.split("@")[0];
-    const defaultSchool = selectedRole === "enterprise" ? "협력 에듀테크 기업" : "서울에듀테크소프트랩";
+    let displayName = email.split("@")[0];
+    let defaultSchool = "서울에듀테크소프트랩";
+    let defaultTeam = "서울에듀테크소프트랩";
+
+    if (selectedRole === "teacher") {
+      const authName = document.getElementById("auth-name").value.trim();
+      const authSchool = document.getElementById("auth-school").value.trim();
+      const authTeam = document.getElementById("auth-team").value.trim();
+
+      if (!authName || !authSchool || !authTeam) {
+        alert("교사 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.");
+        return;
+      }
+      displayName = authName;
+      defaultSchool = authSchool;
+      defaultTeam = authTeam;
+    } else {
+      defaultSchool = "협력 에듀테크 기업";
+      defaultTeam = "협력 에듀테크 기업";
+    }
     
     usersDB[email] = { 
       password, 
       name: displayName, 
       school: defaultSchool,
+      team: defaultTeam,
       role: selectedRole
     };
     localStorage.setItem(USERS_DB_KEY, JSON.stringify(usersDB));
@@ -709,6 +793,7 @@ function handleAuthSubmit() {
       email, 
       name: displayName, 
       school: defaultSchool,
+      team: defaultTeam,
       isEnterprise: selectedRole === "enterprise"
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
@@ -1715,8 +1800,8 @@ function loadSampleData() {
     state.activeProject.items = welcome.items;
     
     // 교사명 및 학교는 현재 계정 정보로 연동 보완
-    state.activeProject.meta.teacherName = state.currentUser.name;
-    state.activeProject.meta.schoolName = state.currentUser.school;
+    state.activeProject.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
+    state.activeProject.meta.schoolName = state.currentUser.team || state.currentUser.school || "";
 
     saveActiveProject();
     loadActiveProject();
@@ -1737,8 +1822,8 @@ function clearAllData() {
       modelName: "Lenovo Duet",
       network: "학내 무선 AP",
       usageEnv: "",
-      teacherName: state.currentUser.name,
-      schoolName: state.currentUser.school,
+      teacherName: (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || ""),
+      schoolName: state.currentUser.team || state.currentUser.school || "",
       reportDate: new Date().toISOString().split('T')[0]
     };
     saveActiveProject();
