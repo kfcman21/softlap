@@ -588,7 +588,7 @@ function loadActiveProject() {
 }
 
 // 새 실증 보고서 추가 (30개 실증 평가 기준 문항 자동 탑재)
-function createNewProject(shouldToast = true) {
+async function createNewProject(shouldToast = true) {
   const newProj = {
     id: "proj_" + Date.now(),
     meta: {
