@@ -1869,7 +1869,7 @@ function switchTab(tabId) {
   }
 }
 
-// A4 실시간 인쇄용 프리뷰 렌더러 (다중 페이지 완벽 분할 페이징 처리 엔진)
+// A4 실시간 인쇄용 프리뷰 렌더러 (다중 페이지 완벽 분할 페이징 처리 엔진 - 동적 높이 기반 자동 절분 도입)
 function renderA4Preview() {
   const container = document.getElementById("preview-container");
   container.innerHTML = "";
@@ -1909,67 +1909,141 @@ function renderA4Preview() {
     return;
   }
 
-  // 페이징 분할 설계 (1페이지는 메타카드 포함하므로 7개, 2페이지부터는 11개씩 균등 분할)
-  const ITEMS_PAGE_1 = 7;
-  const ITEMS_PAGE_REST = 11;
-
-  let currentPageIndex = 1;
-  let currentItemOffset = 0;
-
-  while (currentItemOffset < items.length) {
+  // 1페이지 메인 컨텐츠 빌더
+  const createPageOne = () => {
     const page = document.createElement("div");
     page.className = "report-a4-page";
     
-    // A. 1페이지 구성 (로고 배너, 대제목, 메타 테이블 포함)
-    if (currentPageIndex === 1) {
-      const badge = document.createElement("span");
-      badge.className = "report-title-badge";
-      badge.textContent = `에듀테크 소프트랩 교사 실증 결과 리포트`;
-      page.appendChild(badge);
+    const badge = document.createElement("span");
+    badge.className = "report-title-badge";
+    badge.textContent = `에듀테크 소프트랩 교사 실증 결과 리포트`;
+    page.appendChild(badge);
 
-      const h1 = document.createElement("h1");
-      h1.className = "report-h1";
-      h1.textContent = `${meta.targetProduct || "미지정 에듀테크"} 공교육 적합성 개별 실증 평가서`;
-      page.appendChild(h1);
+    const h1 = document.createElement("h1");
+    h1.className = "report-h1";
+    h1.textContent = `${meta.targetProduct || "미지정 에듀테크"} 공교육 적합성 개별 실증 평가서`;
+    page.appendChild(h1);
 
-      const metaTable = createMetaTableA4(meta);
-      page.appendChild(metaTable);
+    const metaTable = createMetaTableA4(meta);
+    page.appendChild(metaTable);
 
-      const sectionTitle = document.createElement("h3");
-      sectionTitle.className = "report-section-title";
-      sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
-      page.appendChild(sectionTitle);
+    const sectionTitle = document.createElement("h3");
+    sectionTitle.className = "report-section-title";
+    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
+    page.appendChild(sectionTitle);
 
-      // 1페이지용 아이템 슬라이싱 (최대 7개)
-      const pageItems = items.slice(currentItemOffset, currentItemOffset + ITEMS_PAGE_1);
-      renderTableForPage(page, pageItems);
-      currentItemOffset += pageItems.length;
-    } 
-    // B. 2페이지 이상 구성 (미니 헤더 및 추가 아이템 테이블 슬롯)
-    else {
-      const miniHeader = document.createElement("div");
-      miniHeader.style.display = "flex";
-      miniHeader.style.justifyContent = "space-between";
-      miniHeader.style.alignItems = "center";
-      miniHeader.style.fontSize = "0.74rem";
-      miniHeader.style.color = "#64748b";
-      miniHeader.style.borderBottom = "1px solid #e2e8f0";
-      miniHeader.style.paddingBottom = "8px";
-      miniHeader.style.marginBottom = "20px";
-      miniHeader.innerHTML = `
-        <span><strong>${meta.targetProduct || "에듀테크"}</strong> 공교육 적합성 평가서 (계속)</span>
-        <span>Page ${currentPageIndex}</span>
-      `;
-      page.appendChild(miniHeader);
+    return page;
+  };
 
-      // 2페이지 이후용 아이템 슬라이싱 (최대 11개)
-      const pageItems = items.slice(currentItemOffset, currentItemOffset + ITEMS_PAGE_REST);
-      renderTableForPage(page, pageItems);
-      currentItemOffset += pageItems.length;
+  // 2페이지 이후 컨텐츠 빌더
+  const createPageRest = (pageNum) => {
+    const page = document.createElement("div");
+    page.className = "report-a4-page";
+
+    const miniHeader = document.createElement("div");
+    miniHeader.style.display = "flex";
+    miniHeader.style.justifyContent = "space-between";
+    miniHeader.style.alignItems = "center";
+    miniHeader.style.fontSize = "0.74rem";
+    miniHeader.style.color = "#64748b";
+    miniHeader.style.borderBottom = "1px solid #e2e8f0";
+    miniHeader.style.paddingBottom = "8px";
+    miniHeader.style.marginBottom = "20px";
+    miniHeader.innerHTML = `
+      <span><strong>${meta.targetProduct || "에듀테크"}</strong> 공교육 적합성 평가서 (계속)</span>
+      <span>Page ${pageNum}</span>
+    `;
+    page.appendChild(miniHeader);
+
+    return page;
+  };
+
+  // 테이블 요소 골격 생성기
+  const createTableWrapper = () => {
+    const table = document.createElement("table");
+    table.className = "report-checklist-grid";
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th style="width: 10%">대분류 (요소)</th>
+          <th style="width: 12%">중분류 (실증항목)</th>
+          <th style="width: 22%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
+          <th style="width: 6%">구분</th>
+          <th style="width: 20%">실제 교실 분석내용 및 현상</th>
+          <th style="width: 6%">심각성</th>
+          <th style="width: 10%">개선 요청사항</th>
+          <th style="width: 7%">상황설명 사진</th>
+          <th style="width: 7%">유튜브 동영상</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    return table;
+  };
+
+  let currentPageNum = 1;
+  let currentPage = createPageOne();
+  container.appendChild(currentPage);
+
+  let currentTable = createTableWrapper();
+  currentPage.appendChild(currentTable);
+  let currentTbody = currentTable.querySelector("tbody");
+
+  for (let i = 0; i < items.length; i++) {
+    const r = items[i];
+    
+    // tr 요소를 노드로 직접 파싱해서 실시간 삽입/제거
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
+          ${r.element}
+        </span>
+      </td>
+      <td><strong>${r.item}</strong></td>
+      <td style="font-size:0.75rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
+      <td style="text-align:center;">${r.type}</td>
+      <td style="white-space: pre-wrap; vertical-align: top;">
+        <div>${r.analysis || "<span style='color:#94a3b8'>현상분석 없음</span>"}</div>
+      </td>
+      <td style="text-align:center;">
+        <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
+      </td>
+      <td style="white-space: pre-wrap; vertical-align: top;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
+      <td style="text-align:center; vertical-align: middle;">
+        ${r.screenshot ? `
+          <div class="print-evidence-img-box" style="margin-top: 4px;">
+            <img src="${r.screenshot}" class="print-evidence-img" style="max-width: 50px; max-height: 50px; border-radius: 4px;">
+          </div>
+        ` : "<span style='color:#94a3b8; font-size:0.7rem;'>없음</span>"}
+      </td>
+      <td style="text-align:center; vertical-align: middle; font-size:0.7rem;">
+        ${r.videoLink ? `
+          <a href="${r.videoLink}" target="_blank" style="color: var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
+        ` : "<span style='color:#94a3b8;'>없음</span>"}
+      </td>
+    `;
+
+    currentTbody.appendChild(tr);
+
+    // 1120px를 초과할 경우 실시간 레이아웃 계산에 의해 즉시 다음 페이지로 이월
+    if (currentPage.scrollHeight > 1120) {
+      // 1. 현재 오버플로우 페이지에서 해당 tr 노드 제거
+      currentTbody.removeChild(tr);
+
+      // 2. 신규 페이지 껍데기 개설 및 컨테이너 삽입
+      currentPageNum++;
+      currentPage = createPageRest(currentPageNum);
+      container.appendChild(currentPage);
+
+      // 3. 신규 페이지 전용 테이블 및 tbody 개설
+      currentTable = createTableWrapper();
+      currentPage.appendChild(currentTable);
+      currentTbody = currentTable.querySelector("tbody");
+
+      // 4. 새 페이지의 tbody로 노드 이관 이월
+      currentTbody.appendChild(tr);
     }
-
-    container.appendChild(page);
-    currentPageIndex++;
   }
 }
 
@@ -2010,61 +2084,6 @@ function createMetaTableA4(meta) {
     </tr>
   `;
   return metaTable;
-}
-
-// 테이블 렌더링 서브 헬퍼
-function renderTableForPage(pageElement, pageItems) {
-  const table = document.createElement("table");
-  table.className = "report-checklist-grid";
-  table.innerHTML = `
-    <thead>
-      <tr>
-        <th style="width: 10%">대분류 (요소)</th>
-        <th style="width: 12%">중분류 (실증항목)</th>
-        <th style="width: 22%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
-        <th style="width: 6%">구분</th>
-        <th style="width: 20%">실제 교실 분석내용 및 현상</th>
-        <th style="width: 6%">심각성</th>
-        <th style="width: 10%">개선 요청사항</th>
-        <th style="width: 7%">상황설명 사진</th>
-        <th style="width: 7%">유튜브 동영상</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${pageItems.map(r => `
-        <tr>
-          <td>
-            <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
-              ${r.element}
-            </span>
-          </td>
-          <td><strong>${r.item}</strong></td>
-          <td style="font-size:0.75rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
-          <td style="text-align:center;">${r.type}</td>
-          <td style="white-space: pre-wrap; vertical-align: top;">
-            <div>${r.analysis || "<span style='color:#94a3b8'>현상분석 없음</span>"}</div>
-          </td>
-          <td style="text-align:center;">
-            <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
-          </td>
-          <td style="white-space: pre-wrap; vertical-align: top;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
-          <td style="text-align:center; vertical-align: middle;">
-            ${r.screenshot ? `
-              <div class="print-evidence-img-box" style="margin-top: 4px;">
-                <img src="${r.screenshot}" class="print-evidence-img" style="max-width: 50px; max-height: 50px; border-radius: 4px;">
-              </div>
-            ` : "<span style='color:#94a3b8; font-size:0.7rem;'>없음</span>"}
-          </td>
-          <td style="text-align:center; vertical-align: middle; font-size:0.7rem;">
-            ${r.videoLink ? `
-              <a href="${r.videoLink}" target="_blank" style="color: var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
-            ` : "<span style='color:#94a3b8;'>없음</span>"}
-          </td>
-        </tr>
-      `).join("")}
-    </tbody>
-  `;
-  pageElement.appendChild(table);
 }
 
 // 클립보드 마크다운 복사
