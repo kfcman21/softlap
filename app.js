@@ -1310,9 +1310,6 @@ function setupEventListeners() {
   // 사이드바 액션
   document.getElementById("btn-load-sample").addEventListener("click", loadSampleData);
   document.getElementById("btn-clear-all").addEventListener("click", clearAllData);
-  document.getElementById("btn-export-json").addEventListener("click", exportJSON);
-  document.getElementById("btn-import-json").addEventListener("click", () => document.getElementById("import-file-input").click());
-  document.getElementById("import-file-input").addEventListener("change", importJSON);
 
   // 필터 및 단추
   document.getElementById("editor-filter-select").addEventListener("change", (e) => {
@@ -2233,46 +2230,6 @@ function clearAllData() {
   }
 }
 
-// 오프라인 백업 JSON 추출
-function exportJSON() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.activeProject, null, 2));
-  const dl = document.createElement("a");
-  dl.setAttribute("href", dataStr);
-  const name = (state.activeProject.meta.targetProduct || "empirical_report").replace(/\s+/g, '_');
-  dl.setAttribute("download", `empirical_${name}_individual.json`);
-  document.body.appendChild(dl);
-  dl.click();
-  dl.remove();
-  showToast("보고서 백업 JSON 다운로드를 개시했습니다.");
-}
-
-// 오프라인 백업 JSON 복원
-function importJSON(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    try {
-      const parsed = JSON.parse(evt.target.result);
-      if (parsed && parsed.meta && parsed.items) {
-        state.activeProject.meta = parsed.meta;
-        state.activeProject.items = parsed.items;
-        
-        saveActiveProject();
-        loadActiveProject();
-        if (state.currentTab === "preview") renderA4Preview();
-        showToast("오프라인 JSON 백업 데이터가 정상 복원되어 로드되었습니다.");
-      } else {
-        alert("이 파일은 올바른 개별 실증 보고서 백업 규격이 아닙니다.");
-      }
-    } catch (err) {
-      alert("백업 파일 파싱 중 오류: " + err.message);
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = "";
-}
 
 // 메시지용 알림 토스트
 function showToast(msg) {
