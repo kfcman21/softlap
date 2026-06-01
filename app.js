@@ -653,7 +653,7 @@ function loadActiveProject() {
   document.getElementById("footer-active-product").textContent = meta.targetProduct || "제품명 미기재";
 }
 
-// 새 실증 보고서 추가 (예시 텍스트는 인풋 박스의 회색 플레이스홀더를 통해 보이고, 실제 데이터는 비어 있는 클린 캔버스 상태로 개설)
+// 새 실증 보고서 추가 (30개 실증 평가 기준 문항 자동 탑재)
 function createNewProject(shouldToast = true) {
   const newProj = {
     id: "proj_" + Date.now(),
@@ -672,6 +672,28 @@ function createNewProject(shouldToast = true) {
     items: []
   };
 
+  // 6대 요소 30개 상세 실증 항목 자동 세팅
+  Object.keys(EMPIRICAL_STANDARDS).forEach(elementName => {
+    const items = EMPIRICAL_STANDARDS[elementName].items;
+    Object.keys(items).forEach(itemName => {
+      const criteriaList = items[itemName].criteria;
+      const defaultCrit = criteriaList[0];
+      
+      newProj.items.push({
+        id: Date.now() + Math.random(),
+        element: elementName,
+        item: itemName,
+        criterion: defaultCrit,
+        type: "점검기준",
+        analysis: "",
+        severity: "하",
+        improvement: "",
+        writer: state.currentUser.name || "평가교사",
+        selected: true // 기본적으로 A4 인쇄물에 바로 포함되도록 활성화
+      });
+    });
+  });
+
   state.projects.push(newProj);
   state.activeProjectId = newProj.id;
   
@@ -682,7 +704,7 @@ function createNewProject(shouldToast = true) {
   loadActiveProject();
 
   if (shouldToast) {
-    showToast("새로운 실증 보고서가 보관함에 개설되었습니다.");
+    showToast("새로운 실증 보고서가 30개 실증 항목과 함께 보관함에 개설되었습니다.");
   }
 }
 
@@ -2275,6 +2297,29 @@ function loadSampleData() {
 function clearAllData() {
   if (confirm("정말 현재 활성화된 실증 보고서 목록의 저장 내역을 모두 영구히 삭제하겠습니까?")) {
     state.activeProject.items = [];
+    
+    // 6대 요소 30개 상세 실증 항목 자동 재충전
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elementName => {
+      const items = EMPIRICAL_STANDARDS[elementName].items;
+      Object.keys(items).forEach(itemName => {
+        const criteriaList = items[itemName].criteria;
+        const defaultCrit = criteriaList[0];
+        
+        state.activeProject.items.push({
+          id: Date.now() + Math.random(),
+          element: elementName,
+          item: itemName,
+          criterion: defaultCrit,
+          type: "점검기준",
+          analysis: "",
+          severity: "하",
+          improvement: "",
+          writer: state.currentUser.name || "평가교사",
+          selected: true
+        });
+      });
+    });
+
     state.activeProject.meta = {
       targetProduct: "새로운 에듀테크 프로그램",
       developer: "",
@@ -2290,7 +2335,7 @@ function clearAllData() {
     saveActiveProject();
     loadActiveProject();
     if (state.currentTab === "preview") renderA4Preview();
-    showToast("선택된 보고서가 완전 포맷되었습니다.");
+    showToast("보고서가 포맷되었으며, 30개 실증 항목으로 기본 리로드되었습니다.");
   }
 }
 
