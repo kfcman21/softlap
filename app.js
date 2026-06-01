@@ -661,19 +661,25 @@ function updateAuthUI() {
       labelTeacher.style.borderColor = "var(--accent-color)";
       labelEnterprise.style.borderColor = "var(--border-color)";
       
-      // 교사가 아닌 기업이면 이름/학교/팀명 입력 숨기기
-      if (authNameGroup) authNameGroup.style.display = "flex";
-      if (authSchoolGroup) authSchoolGroup.style.display = "flex";
-      if (authTeamGroup) authTeamGroup.style.display = "flex";
+      // 교사 선택 시 이름/학교/팀명 입력 보이기
+      const nameGrp = document.getElementById("group-auth-name");
+      const schoolGrp = document.getElementById("group-auth-school");
+      const teamGrp = document.getElementById("group-auth-team");
+      if (nameGrp) nameGrp.style.display = "flex";
+      if (schoolGrp) schoolGrp.style.display = "flex";
+      if (teamGrp) teamGrp.style.display = "flex";
     });
     radioEnterprise.addEventListener("change", () => {
       labelEnterprise.style.borderColor = "var(--accent-color)";
       labelTeacher.style.borderColor = "var(--border-color)";
       
       // 기업 선택 시 불필요한 입력 그룹 가리기
-      if (authNameGroup) authNameGroup.style.display = "none";
-      if (authSchoolGroup) authSchoolGroup.style.display = "none";
-      if (authTeamGroup) authTeamGroup.style.display = "none";
+      const nameGrp = document.getElementById("group-auth-name");
+      const schoolGrp = document.getElementById("group-auth-school");
+      const teamGrp = document.getElementById("group-auth-team");
+      if (nameGrp) nameGrp.style.display = "none";
+      if (schoolGrp) schoolGrp.style.display = "none";
+      if (teamGrp) teamGrp.style.display = "none";
     });
   }
 }
