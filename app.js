@@ -1312,8 +1312,26 @@ function setupEventListeners() {
   }
   
   const teamNameSelect = document.getElementById("team-name-select");
+  const teamNameDirect = document.getElementById("team-name-direct");
   if (teamNameSelect) {
     teamNameSelect.addEventListener("change", () => {
+      if (teamNameSelect.value === "direct") {
+        if (teamNameDirect) {
+          teamNameDirect.style.display = "block";
+          teamNameDirect.value = "";
+          teamNameDirect.focus();
+        }
+      } else {
+        if (teamNameDirect) {
+          teamNameDirect.style.display = "none";
+        }
+      }
+      populateTeamProducts();
+    });
+  }
+  
+  if (teamNameDirect) {
+    teamNameDirect.addEventListener("input", () => {
       populateTeamProducts();
     });
   }
@@ -3692,12 +3710,24 @@ async function fetchTeamReportData(silent = false) {
   populateTeamNames();
 }
 
+// 2-A. 팀 보고서 작성용 팀명 헬퍼
+function getTeamReportTeamName() {
+  const select = document.getElementById("team-name-select");
+  if (!select) return "";
+  if (select.value === "direct") {
+    const directInput = document.getElementById("team-name-direct");
+    return directInput ? directInput.value.trim() : "";
+  }
+  return select.value.trim();
+}
+
 // 2-B. 서버 자료를 바탕으로 고유 실증 팀명 목록을 추출하여 셀렉터 구성
 function populateTeamNames() {
   const select = document.getElementById("team-name-select");
   if (!select) return;
   
-  const originalValue = select.value || state.currentUser?.team || state.currentUser?.school || "";
+  const savedTeam = localStorage.getItem("softlap_team_report_last_team");
+  const originalValue = select.value || savedTeam || state.currentUser?.team || state.currentUser?.school || "";
   select.innerHTML = '<option value="">-- 실증 팀을 선택하세요 --</option>';
   
   const teams = [...new Set((state.submittedList || []).map(p => p.schoolName).filter(Boolean))];
@@ -3710,13 +3740,40 @@ function populateTeamNames() {
     select.appendChild(opt);
   });
   
-  if (teams.length > 0 && !select.value) {
-    const userTeam = state.currentUser?.team || state.currentUser?.school || "";
-    const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
-    if (matchedTeam) {
-      select.value = matchedTeam;
-    } else {
-      select.value = teams[0];
+  // 직접 입력 옵션 추가
+  const optDirect = document.createElement("option");
+  optDirect.value = "direct";
+  optDirect.textContent = "✍️ 직접 팀명 기재하기...";
+  select.appendChild(optDirect);
+
+  const directInput = document.getElementById("team-name-direct");
+  const inList = teams.includes(originalValue);
+  
+  if (!inList && originalValue && originalValue !== "direct") {
+    select.value = "direct";
+    if (directInput) {
+      directInput.style.display = "block";
+      directInput.value = originalValue;
+    }
+  } else {
+    if (inList) {
+      select.value = originalValue;
+    } else if (teams.length > 0) {
+      const userTeam = state.currentUser?.team || state.currentUser?.school || "";
+      const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
+      if (matchedTeam) {
+        select.value = matchedTeam;
+      } else {
+        select.value = teams[0];
+      }
+    }
+    if (directInput) {
+      if (select.value === "direct") {
+        directInput.style.display = "block";
+      } else {
+        directInput.style.display = "none";
+        directInput.value = "";
+      }
     }
   }
 
@@ -3725,21 +3782,23 @@ function populateTeamNames() {
 
 // 3. 현재 선택된 팀명의 모든 제품 목록을 스캔하여 셀렉터 구성
 function populateTeamProducts() {
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim().toLowerCase();
+  const teamName = getTeamReportTeamName();
+  if (teamName) {
+    localStorage.setItem("softlap_team_report_last_team", teamName);
+  }
+  const teamNameLower = teamName.toLowerCase();
   const select = document.getElementById("team-product-select");
   if (!select) return;
   
   const originalValue = select.value;
   select.innerHTML = '<option value="">-- 제품을 선택하세요 --</option>';
   
-  if (!teamName) {
+  if (!teamNameLower) {
     return;
   }
   
   const filtered = (state.submittedList || []).filter(p => 
-    p.schoolName && p.schoolName.toLowerCase().includes(teamName)
+    p.schoolName && p.schoolName.toLowerCase().includes(teamNameLower)
   );
   
   const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
@@ -3761,9 +3820,7 @@ function populateTeamProducts() {
 
 // 4. 선택된 팀명 + 제품 조합의 상세 취합 결과 화면 렌더링
 function renderTeamReportCompiled() {
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim();
+  const teamName = getTeamReportTeamName();
   const productName = document.getElementById("team-product-select").value;
   const teachersDisplay = document.getElementById("team-teachers-display");
   const itemsContainer = document.getElementById("team-aggregated-items");
@@ -3913,9 +3970,7 @@ function renderTeamReportCompiled() {
 
 // 5. 로컬스토리지에 종합 결론 저장
 function saveTeamInputs() {
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim();
+  const teamName = getTeamReportTeamName();
   const productName = document.getElementById("team-product-select").value;
   
   if (!teamName || !productName) return;
@@ -3929,9 +3984,7 @@ function saveTeamInputs() {
 
 // 6. 로컬스토리지로부터 종합 결론 로드
 function loadTeamInputs() {
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim();
+  const teamName = getTeamReportTeamName();
   const productName = document.getElementById("team-product-select").value;
   
   const conclusionText = document.getElementById("team-conclusion-input");
@@ -3963,9 +4016,7 @@ function loadTeamInputs() {
 
 // 7. 팀별 종합 보고서 인쇄
 function printTeamReport() {
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim();
+  const teamName = getTeamReportTeamName();
   const productName = document.getElementById("team-product-select").value;
   
   if (!teamName || !productName) {
@@ -4000,9 +4051,7 @@ function renderTeamA4Preview() {
   const container = document.getElementById("preview-container");
   container.innerHTML = "";
   
-  const teamSelect = document.getElementById("team-name-select");
-  if (!teamSelect) return;
-  const teamName = teamSelect.value.trim();
+  const teamName = getTeamReportTeamName();
   const productName = document.getElementById("team-product-select").value;
   const teachers = document.getElementById("team-teachers-display").value;
   const conclusion = document.getElementById("team-conclusion-input").value;

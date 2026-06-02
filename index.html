@@ -514,9 +514,12 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end;">
               <div class="form-item">
                 <label style="font-size:0.75rem;">실증 팀명</label>
-                <select id="team-name-select" class="input-control" style="padding:6px 10px; font-size:0.78rem;">
-                  <option value="">-- 먼저 데이터 가져오기를 클릭하세요 --</option>
-                </select>
+                <div style="display: flex; gap: 4px; width: 100%;">
+                  <select id="team-name-select" class="input-control" style="padding:6px 10px; font-size:0.78rem; width: 100%; flex: 1;">
+                    <option value="">-- 먼저 데이터 가져오기를 클릭하세요 --</option>
+                  </select>
+                  <input type="text" id="team-name-direct" class="input-control" style="display:none; padding:6px 10px; font-size:0.78rem; width: 100%;" placeholder="직접 입력 팀명">
+                </div>
               </div>
               <div class="form-item">
                 <label style="font-size:0.75rem;">실증 대상 제품</label>
