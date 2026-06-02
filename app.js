@@ -1390,6 +1390,10 @@ function setupEventListeners() {
   // 비밀번호 변경 액션 바인딩
   document.getElementById("btn-change-pw").addEventListener("click", handleChangePassword);
   document.getElementById("btn-company-change-pw").addEventListener("click", handleChangePassword);
+  const btnClearFeedback = document.getElementById("btn-company-clear-feedback");
+  if (btnClearFeedback) {
+    btnClearFeedback.addEventListener("click", handleClearCompanyFeedback);
+  }
 }
 
 // 테마 관리
@@ -3301,7 +3305,78 @@ function closeLightbox() {
     lightbox.style.display = "none";
   }
 }
-window.closeLightbox = closeLightbox;
+// 🧹 [신규] 기업이 등록한 모든 피드백 데이터를 초기화(리셋)하는 처리기
+async function handleClearCompanyFeedback() {
+  if (!state.currentUser || state.currentUser.role !== "enterprise") {
+    alert("에듀테크 기업 로그인 권한이 없습니다.");
+    return;
+  }
+
+  const companyProduct = state.currentUser.name; // 기업 회원의 대표명이 에듀테크 제품명과 동일함
+  
+  if (!confirm(`🚨 [피드백 데이터 전체 초기화]\n\n제품 '${companyProduct}'에 등록하신 모든 피드백 내용을 삭제(초기화)하시겠습니까?\n\n이 작업은 복구가 불가능하며, 완료된 피드백들이 다시 '피드백 대기' 상태로 원복됩니다.`)) {
+    return;
+  }
+
+  // 1. 최신 제출 목록을 다시 로드하여 동시성 충돌 방지
+  let freshList = [];
+  try {
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      freshList = await res.json();
+    } else {
+      throw new Error("서버 응답 실패");
+    }
+  } catch (err) {
+    alert("서버에서 제출 목록을 불러오는 데 실패했습니다: " + err.message);
+    return;
+  }
+
+  // 2. 이 기업의 제품에 해당하는 제출물의 피드백과 상태 리셋
+  let modifiedCount = 0;
+  const updatedList = freshList.map(p => {
+    // targetProduct 명칭 매칭
+    const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+    const cProduct = companyProduct.trim().toLowerCase().replace(/\s+/g, '');
+
+    if (pProduct === cProduct) {
+      if ((p.feedback && p.feedback.trim().length > 0) || p.status === "피드백 완료") {
+        modifiedCount++;
+      }
+      return {
+        ...p,
+        status: "피드백 대기",
+        feedback: ""
+      };
+    }
+    return p;
+  });
+
+  if (modifiedCount === 0) {
+    alert("초기화할 기존 피드백 데이터가 존재하지 않습니다.");
+    return;
+  }
+
+  // 3. 서버에 일괄 저장 요청
+  try {
+    const response = await fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList: updatedList })
+    });
+
+    if (response.ok) {
+      showToast(`🎉 제품 '${companyProduct}'의 피드백 데이터 ${modifiedCount}건이 완벽하게 초기화되었습니다!`);
+      // 대시보드 새로 렌더링
+      await renderEnterpriseDashboard();
+    } else {
+      const errData = await response.json();
+      alert("피드백 초기화 서버 반영 실패: " + (errData.error || "알 수 없는 오류"));
+    }
+  } catch (err) {
+    alert("서버 연결 실패: " + err.message);
+  }
+}
 
 // 초기 로딩 바인딩
 if (document.readyState === "loading") {
