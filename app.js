@@ -3384,6 +3384,8 @@ async function handleClearCompanyFeedback() {
   } catch (err) {
     alert("서버 연결 실패: " + err.message);
   }
+}
+
 // ↩️ [신규] 에듀테크 기업 최종 제출 취소 처리기
 async function cancelProjectSubmission() {
   if (!state.activeProjectId) return;
