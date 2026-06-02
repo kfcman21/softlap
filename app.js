@@ -456,8 +456,35 @@ async function loadUserProjects() {
       const remoteProjects = await res.json();
       state.projects = remoteProjects || [];
       
-      // 양쪽 다 데이터가 전혀 없을 때 웰컴 샘플 프로젝트 자동 배포
-      if (state.projects.length === 0) {
+      const isAdmin = state.currentUser.isAdmin || state.currentUser.role === "admin";
+      
+      if (isAdmin) {
+        // 관리자인 경우, 다른 교사들이 제출한 모든 리포트도 보관함 목록에 합쳐서 조회 및 제출 취소할 수 있게 덤프
+        try {
+          const subRes = await fetch(`${centralDbUrl}/api/submitted`);
+          if (subRes.ok) {
+            const submittedList = await subRes.json();
+            submittedList.forEach(p => {
+              if (!state.projects.some(myP => myP.id === p.id)) {
+                state.projects.push({
+                  id: p.id,
+                  meta: p.meta,
+                  items: p.items,
+                  submitted: p.submitted,
+                  status: p.status,
+                  submitDate: p.submitDate,
+                  email: p.email // 원작성자 이메일 보존
+                });
+              }
+            });
+          }
+        } catch (subErr) {
+          console.error("관리자용 제출 완료 목록 로딩 실패:", subErr);
+        }
+      }
+      
+      // 양쪽 다 데이터가 전혀 없을 때 웰컴 샘플 프로젝트 자동 배포 (관리자 제외)
+      if (state.projects.length === 0 && !isAdmin) {
         const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
         welcomeProj.id = "welcome_" + Date.now();
         welcomeProj.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
@@ -3391,39 +3418,77 @@ async function cancelProjectSubmission() {
   if (!state.activeProjectId) return;
 
   const status = state.activeProject.status || "제출완료";
-  if (status === "피드백 완료") {
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  
+  if (status === "피드백 완료" && !isAdmin) {
     alert("⚠️ 이미 협력 개발사로부터 피드백 및 보완 대책 조치결과가 등록 완료된 보고서는 제출을 취소할 수 없습니다.");
     return;
   }
 
-  if (!confirm("↩️ [최종 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.")) {
+  const confirmMsg = isAdmin
+    ? "↩️ [관리자 권한 - 최종 제출 강제 취소]\n\n해당 보고서의 제출을 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 원래 작성자의 보관함에서 '작성중' 상태로 원복되며, 추가 편집이 가능해집니다."
+    : "↩️ [최종 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.";
+
+  if (!confirm(confirmMsg)) {
     return;
   }
 
-  // 1. 상태 원복
-  state.activeProject.submitted = false;
-  state.activeProject.status = "작성중";
-  delete state.activeProject.submitDate;
-
-  // 교사용 프로젝트 리스트 메모리 갱신 및 데이터베이스 서버 저장
-  const projIndex = state.projects.findIndex(p => p.id === state.activeProjectId);
-  if (projIndex !== -1) {
-    state.projects[projIndex] = JSON.parse(JSON.stringify(state.activeProject));
-    await saveProjectsList();
-  }
-
+  // 1. 서버 제출된 목록 fetch하여 원작성자 정보 식별
+  let submittedList = [];
+  let targetEmail = state.activeProject.email || state.currentUser.email; // 기본값
+  
   try {
-    // 2. 서버 제출된 목록에서 본인 데이터 삭제
-    let submittedList = [];
     const res = await fetch(`${centralDbUrl}/api/submitted`);
     if (res.ok) {
       submittedList = await res.json();
     }
+  } catch (err) {
+    console.error("제출 목록 로드 실패:", err);
+  }
 
-    // 내 프로젝트 제외
+  const matchSubmit = submittedList.find(p => p.id === state.activeProjectId);
+  if (matchSubmit && matchSubmit.email) {
+    targetEmail = matchSubmit.email;
+  }
+
+  // 2. 상태 원복 처리
+  state.activeProject.submitted = false;
+  state.activeProject.status = "작성중";
+  delete state.activeProject.submitDate;
+  delete state.activeProject.feedback;
+
+  // 원작성자(교사)의 프로젝트 보관함 리스트 원격 복원 저장
+  try {
+    const projRes = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(targetEmail)}`);
+    if (projRes.ok) {
+      const targetProjects = await projRes.json() || [];
+      const projIndex = targetProjects.findIndex(p => p.id === state.activeProjectId);
+      
+      const restoredProj = JSON.parse(JSON.stringify(state.activeProject));
+      restoredProj.email = targetEmail;
+
+      if (projIndex !== -1) {
+        targetProjects[projIndex] = restoredProj;
+      } else {
+        targetProjects.push(restoredProj);
+      }
+
+      await fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, projects: targetProjects })
+      });
+    }
+  } catch (projErr) {
+    console.error("원작성자 보관함 복원 실패:", projErr);
+    alert("⚠️ 원작성자의 개인 보관함 데이터 복원에 실패했습니다: " + projErr.message);
+    return;
+  }
+
+  // 3. 서버 제출된 목록에서 본인 데이터 삭제 및 POST 저장
+  try {
     const updatedSubmittedList = submittedList.filter(p => p.id !== state.activeProjectId);
 
-    // 3. 서버에 수정된 제출 목록 POST 저장
     const postRes = await fetch(`${centralDbUrl}/api/submitted`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3432,6 +3497,7 @@ async function cancelProjectSubmission() {
 
     if (postRes.ok) {
       showToast("🎉 성공적으로 제출이 취소되어 편집 가능한 작성중 상태로 복원되었습니다.");
+      await loadUserProjects();
       await loadProject(state.activeProjectId);
     } else {
       throw new Error("서버 제출 목록 갱신 실패");
