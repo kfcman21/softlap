@@ -213,7 +213,11 @@
       <!-- 상단 액션 바 -->
       <header id="topbar">
         
-        <div class="topbar-left">
+        <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+          <!-- 📂 사이드바 접기/펼치기 토글 단추 -->
+          <button id="btn-toggle-sidebar" class="btn" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; font-weight: 700; border-color: var(--border-color); background-color: var(--bg-primary); transition: all 0.2s ease;" title="사이드바 접기/펼치기">
+            <span id="sidebar-toggle-icon">◀</span> <span id="sidebar-toggle-text">사이드바 접기</span>
+          </button>
           <div class="tab-group" role="tablist">
             <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true">📝 개별 실증지 작성</button>
             <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false">👁️ A4 보고서 프리뷰</button>
@@ -352,17 +356,17 @@
               <table class="checklist-table">
                 <thead>
                   <tr>
-                    <th style="width: 4%">인쇄</th>
-                    <th style="width: 9%">대분류(요소)</th>
-                    <th style="width: 10%">중분류(항목)</th>
-                    <th style="width: 18%">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
-                    <th style="width: 5%">구분</th>
-                    <th style="width: 18%">분석 내용 (실제결과/현상)</th>
-                    <th style="width: 6%">심각성</th>
-                    <th style="width: 12%">개선 사항 (기대결과)</th>
-                    <th style="width: 7%">상황설명 사진 캡쳐</th>
-                    <th style="width: 7%">동영상 링크 (유튜브)</th>
-                    <th style="width: 4%">삭제</th>
+                    <th style="width: 3%; min-width: 45px; text-align: center;">인쇄</th>
+                    <th style="width: 8%; min-width: 90px;">대분류(요소)</th>
+                    <th style="width: 9%; min-width: 100px;">중분류(항목)</th>
+                    <th style="width: 22%; min-width: 350px;">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
+                    <th style="width: 5%; min-width: 65px;">구분</th>
+                    <th style="width: 24%; min-width: 380px;">분석 내용 (실제결과/현상)</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">심각성</th>
+                    <th style="width: 15%; min-width: 260px;">개선 사항 (기대결과)</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">사진</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">동영상</th>
+                    <th style="width: 3%; min-width: 40px; text-align: center;">삭제</th>
                   </tr>
                 </thead>
                 <tbody id="checklist-tbody">

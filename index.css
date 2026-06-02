@@ -245,6 +245,15 @@ body {
   flex-direction: column;
   flex-shrink: 0;
   z-index: 10;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-right 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+
+#sidebar.collapsed {
+  width: 0px !important;
+  border-right: 0px solid transparent !important;
+  opacity: 0 !important;
+  pointer-events: none;
 }
 
 .brand-section {
@@ -599,7 +608,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
-  min-width: 1200px;
+  min-width: 1650px;
 }
 
 .checklist-table th {

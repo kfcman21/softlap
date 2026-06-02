@@ -178,6 +178,19 @@ let state = {
 
 // 앱 최초 로드 시 실행되는 초기화 라이프사이클
 async function initApp() {
+  // 로컬 저장소로부터 저장된 대분류 필터 및 사이드바 접힘 상태 복구
+  state.filterElement = localStorage.getItem("softlap_filter_element") || "전체";
+  
+  const sidebarCollapsed = localStorage.getItem("softlap_sidebar_collapsed") === "true";
+  const sidebar = document.getElementById("sidebar");
+  const toggleIcon = document.getElementById("sidebar-toggle-icon");
+  const toggleText = document.getElementById("sidebar-toggle-text");
+  if (sidebar && sidebarCollapsed) {
+    sidebar.classList.add("collapsed");
+    if (toggleIcon) toggleIcon.textContent = "▶";
+    if (toggleText) toggleText.textContent = "사이드바 펼치기";
+  }
+
   await checkCentralDbStatus();
   setupEventListeners();
   applyTheme();
@@ -1241,9 +1254,30 @@ function setupEventListeners() {
   safeBindClick("btn-load-sample", loadSampleData);
   safeBindClick("btn-clear-all", clearAllData);
 
+  // 📂 사이드바 접기/펼치기 토글
+  safeBindClick("btn-toggle-sidebar", () => {
+    const sidebar = document.getElementById("sidebar");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    if (!sidebar) return;
+    
+    if (sidebar.classList.contains("collapsed")) {
+      sidebar.classList.remove("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "◀";
+      if (toggleText) toggleText.textContent = "사이드바 접기";
+      localStorage.setItem("softlap_sidebar_collapsed", "false");
+    } else {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+      localStorage.setItem("softlap_sidebar_collapsed", "true");
+    }
+  });
+
   // 필터 및 단추
   safeBindChange("editor-filter-select", (e) => {
     state.filterElement = e.target.value;
+    localStorage.setItem("softlap_filter_element", state.filterElement);
     renderChecklistGrid();
   });
   safeBindClick("btn-add-row", () => {
@@ -1447,6 +1481,12 @@ function renderChecklistGrid() {
     btnAddRow.style.display = isSubmitted ? "none" : "inline-flex";
   }
 
+  // 필터 드롭다운 UI 값과 글로벌 상태 동기화
+  const filterSelect = document.getElementById("editor-filter-select");
+  if (filterSelect && filterSelect.value !== state.filterElement) {
+    filterSelect.value = state.filterElement;
+  }
+
   const rows = state.activeProject.items || [];
   const filtered = state.filterElement === "전체"
     ? rows
@@ -1455,7 +1495,7 @@ function renderChecklistGrid() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="9" style="text-align:center; padding:40px; color:var(--text-tertiary);">
+        <td colspan="11" style="text-align:center; padding:40px; color:var(--text-tertiary);">
           추가된 평가 기준 문항이 없습니다.<br>
           ${isSubmitted ? "제출 완료되어 새로운 평가 기준을 추가할 수 없습니다." : "왼쪽의 <strong>[클릭 시 보관함에 추가]</strong> 가이드를 통해 분석할 세부 항목들을 터치해 추가하세요."}
         </td>
