@@ -1263,6 +1263,7 @@ function setupEventListeners() {
   // 상단 탭 스위칭
   safeBindClick("btn-tab-edit", () => switchTab("edit"));
   safeBindClick("btn-tab-preview", () => switchTab("preview"));
+  safeBindClick("btn-tab-dashboard", () => switchTab("dashboard"));
 
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
@@ -1893,6 +1894,9 @@ function renderChecklistGrid() {
     tbody.appendChild(tr);
   });
   checkTeamDuplication();
+  if (state.currentTab === "dashboard") {
+    renderDashboard();
+  }
 }
 
 // 빈 점검 행 추가
@@ -1948,22 +1952,186 @@ function updateSummaryStats() {
   document.getElementById("count-low").textContent = `✅ (하): ${low}건`;
 }
 
-// 탭 스위칭
 function switchTab(tabId) {
   state.currentTab = tabId;
   document.getElementById("btn-tab-edit").classList.toggle("active", tabId === "edit");
   document.getElementById("btn-tab-preview").classList.toggle("active", tabId === "preview");
+  
+  const btnTabDb = document.getElementById("btn-tab-dashboard");
+  if (btnTabDb) {
+    btnTabDb.classList.toggle("active", tabId === "dashboard");
+  }
 
   const editorArea = document.getElementById("editor-area");
   const previewArea = document.getElementById("preview-area");
+  const dashboardArea = document.getElementById("dashboard-area");
 
   if (tabId === "edit") {
     editorArea.style.display = "block";
     previewArea.style.display = "none";
-  } else {
+    if (dashboardArea) dashboardArea.style.display = "none";
+  } else if (tabId === "preview") {
     editorArea.style.display = "none";
     previewArea.style.display = "block";
+    if (dashboardArea) dashboardArea.style.display = "none";
     renderA4Preview();
+  } else if (tabId === "dashboard") {
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) {
+      dashboardArea.style.display = "block";
+    }
+  }
+}
+
+// 📊 [신규] 실증 분석 종합 대시보드 렌더러
+function renderDashboard() {
+  const meta = state.activeProject?.meta || {};
+  const items = state.activeProject?.items || [];
+
+  // 대상 제품명 표시
+  const dbProductName = document.getElementById("db-product-name");
+  if (dbProductName) {
+    dbProductName.textContent = meta.targetProduct || "제품명 미기재";
+  }
+
+  // 1. KPI 통계 계산
+  const totalCount = items.length;
+  // 작성 완료율: 관찰내용(analysis)과 개선사항(improvement)이 모두 작성된 항목 개수 비율
+  const completedItems = items.filter(r => 
+    (r.analysis || "").trim().length > 0 && 
+    (r.improvement || "").trim().length > 0
+  );
+  const completedCount = completedItems.length;
+  const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const highCount = items.filter(r => r.severity === "상").length;
+  const midCount = items.filter(r => r.severity === "중").length;
+  const lowCount = items.filter(r => r.severity === "하").length;
+
+  // KPI UI 매핑
+  document.getElementById("db-stat-total").textContent = `${totalCount}개`;
+  document.getElementById("db-stat-completion").textContent = `${completionRate}% (${completedCount}/${totalCount})`;
+  document.getElementById("db-stat-high").textContent = `${highCount}건`;
+  document.getElementById("db-stat-mid").textContent = `${midCount}건`;
+
+  // 2. SVG 도넛 차트 그리기 (상, 중, 하 비율)
+  const donutSegments = document.getElementById("donut-segments");
+  const donutLegend = document.getElementById("donut-legend");
+  
+  if (donutSegments && donutLegend) {
+    donutSegments.innerHTML = "";
+    donutLegend.innerHTML = "";
+
+    if (totalCount === 0) {
+      // 데이터 없음 표시
+      donutSegments.innerHTML = `<text x="18" y="20.5" font-size="3" text-anchor="middle" fill="var(--text-tertiary)">데이터 없음</text>`;
+      donutLegend.innerHTML = `<div class="legend-item"><span class="legend-color" style="background-color: var(--bg-tertiary);"></span> 등록된 문항 없음</div>`;
+    } else {
+      const pHigh = (highCount / totalCount) * 100;
+      const pMid = (midCount / totalCount) * 100;
+      const pLow = (lowCount / totalCount) * 100;
+
+      let currentOffset = 0;
+
+      const segmentsData = [
+        { percentage: pHigh, color: "#ef4444", label: "🚨 개선 시급 (상)", count: highCount },
+        { percentage: pMid, color: "#f59e0b", label: "⚠️ 개선 권고 (중)", count: midCount },
+        { percentage: pLow, color: "#10b981", label: "✅ 양호/개선완료 (하)", count: lowCount }
+      ];
+
+      segmentsData.forEach(seg => {
+        if (seg.percentage > 0) {
+          // SVG circle 생성
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("class", "donut-segment");
+          circle.setAttribute("cx", "18");
+          circle.setAttribute("cy", "18");
+          circle.setAttribute("r", "15.915");
+          circle.setAttribute("fill", "transparent");
+          circle.setAttribute("stroke", seg.color);
+          circle.setAttribute("stroke-width", "3");
+          circle.setAttribute("stroke-dasharray", `${seg.percentage} 100`);
+          circle.setAttribute("stroke-dashoffset", `${currentOffset}`);
+          donutSegments.appendChild(circle);
+          
+          currentOffset -= seg.percentage;
+        }
+
+        // 범례 HTML 조립
+        const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
+        donutLegend.innerHTML += `
+          <div class="legend-item">
+            <span class="legend-color" style="background-color: ${seg.color};"></span>
+            <span style="font-weight:700;">${seg.label}:</span> 
+            <span>${seg.count}건 (${percentStr})</span>
+          </div>
+        `;
+      });
+    }
+  }
+
+  // 3. 6대 실증 요소별 항목 수 (수평 바 차트)
+  const barChartElements = document.getElementById("bar-chart-elements");
+  if (barChartElements) {
+    barChartElements.innerHTML = "";
+
+    // EMPIRICAL_STANDARDS의 대분류 목록 순회
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = items.filter(r => r.element === elName);
+      const totalEl = elItems.length;
+      
+      const compElItems = elItems.filter(r => 
+        (r.analysis || "").trim().length > 0 && 
+        (r.improvement || "").trim().length > 0
+      );
+      const compEl = compElItems.length;
+      const rateEl = totalEl > 0 ? Math.round((compEl / totalEl) * 100) : 0;
+
+      // 바 로우 HTML 구성
+      barChartElements.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-label-box">
+            <span>🛡️ ${elName}</span>
+            <span style="color: var(--text-secondary);">${rateEl}% (${compEl}/${totalEl}개 완료)</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // 4. 우선 개선 필요 항목(상) 목록 요약 렌더링
+  const urgentTbody = document.getElementById("db-urgent-tbody");
+  const urgentBadge = document.getElementById("db-urgent-badge");
+  
+  if (urgentTbody && urgentBadge) {
+    urgentTbody.innerHTML = "";
+    const urgentItems = items.filter(r => r.severity === "상");
+    urgentBadge.textContent = urgentItems.length;
+
+    if (urgentItems.length === 0) {
+      urgentTbody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align:center; padding:30px; color:var(--text-tertiary);">
+            🎉 심각도 '상'인 취약점이 발견되지 않았습니다. 매우 양호한 실증 상태입니다.
+          </td>
+        </tr>
+      `;
+    } else {
+      urgentItems.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="font-weight:700; color:var(--danger-color);">${r.element}</td>
+          <td style="font-weight:700;">${r.item}</td>
+          <td style="white-space: pre-wrap;">${r.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
+          <td style="white-space: pre-wrap;">${r.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
+        `;
+        urgentTbody.appendChild(tr);
+      });
+    }
   }
 }
 

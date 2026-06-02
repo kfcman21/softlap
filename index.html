@@ -225,6 +225,7 @@
           <div class="tab-group" role="tablist">
             <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true">📝 개별 실증지 작성</button>
             <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false">👁️ A4 보고서 프리뷰</button>
+            <button id="btn-tab-dashboard" class="tab-btn" role="tab" aria-selected="false">📊 실증 분석 대시보드</button>
           </div>
         </div>
 
@@ -387,6 +388,109 @@
         <div id="preview-area" class="preview-panel" style="display: none;">
           <div id="preview-container">
             <!-- A4 규격 종이가 동적으로 주입됩니다 -->
+          </div>
+        </div>
+
+        <!-- C. [신규] 실증 분석 대시보드 패널 -->
+        <div id="dashboard-area" class="dashboard-panel" style="display: none; padding: 20px; overflow-y: auto; height: 100%;">
+          <div class="dashboard-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 8px;">📊 실증 분석 종합 대시보드</h2>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 4px 0 0 0;">현재 작성 중인 실증 보고서의 통계적 진행도와 요소별 취약 지표를 시각적으로 분석합니다.</p>
+            </div>
+            <div style="font-size: 0.8rem; background-color: var(--bg-tertiary); padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 700;">
+              대상 제품: <span id="db-product-name" style="color: var(--accent-color);">미지정</span>
+            </div>
+          </div>
+
+          <!-- 대시보드 레이아웃: 그리드 구성 -->
+          <div class="dashboard-grid">
+            <!-- 1. 핵심 성과 카드들 (KPI) -->
+            <div class="kpi-row">
+              <div class="kpi-card glass">
+                <div class="kpi-icon">📝</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">전체 점검 문항</span>
+                  <span class="kpi-value" id="db-stat-total">0개</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--success-color);">🎯</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">작성 완료율</span>
+                  <span class="kpi-value" id="db-stat-completion">0%</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--danger-color);">🚨</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">개선 시급(상)</span>
+                  <span class="kpi-value" style="color: var(--danger-color);" id="db-stat-high">0건</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--warning-color);">⚠️</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">개선 권고(중)</span>
+                  <span class="kpi-value" style="color: var(--warning-color);" id="db-stat-mid">0건</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. 차트 구역 -->
+            <div class="charts-row">
+              <!-- 원형 진행률 차트 및 심각도 분포 -->
+              <div class="chart-card glass">
+                <h3>📉 심각도 분포 (상/중/하)</h3>
+                <div class="pie-chart-container">
+                  <!-- SVG 도넛 차트 -->
+                  <svg width="180" height="180" viewBox="0 0 36 36" class="donut-chart">
+                    <circle class="donut-hole" cx="18" cy="18" r="15.915" fill="transparent"></circle>
+                    <circle class="donut-ring" cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--bg-tertiary)" stroke-width="3"></circle>
+                    <!-- 세그먼트들이 JS로 동적 주입됩니다 -->
+                    <g id="donut-segments"></g>
+                  </svg>
+                  <div class="chart-legend" id="donut-legend">
+                    <!-- 범례가 동적으로 주입됩니다 -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- 6대 실증 요소별 항목 수 (수평 바 차트) -->
+              <div class="chart-card glass" style="flex: 1.5;">
+                <h3>🛡️ 6대 요소별 점검 현황 (문항 수)</h3>
+                <div class="bar-chart-container" id="bar-chart-elements">
+                  <!-- 요소별 진행률 바가 동적으로 주입됩니다 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. 핵심 개선 필요(상) 목록 요약 -->
+            <div class="summary-card glass">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:1rem; display:flex; align-items:center; gap:6px;">
+                  <span>🚨 우선 개선 필요 항목</span>
+                  <span class="badge badge-danger" id="db-urgent-badge">0</span>
+                </h3>
+                <span style="font-size:0.75rem; color:var(--text-secondary);">심각도 '상'인 항목들만 별도로 추출하여 신속한 조치를 도모합니다.</span>
+              </div>
+              
+              <div class="urgent-table-container">
+                <table class="urgent-table">
+                  <thead>
+                    <tr>
+                      <th style="width:15%;">대분류</th>
+                      <th style="width:20%;">중분류</th>
+                      <th style="width:35%;">관찰 내용 (현상)</th>
+                      <th style="width:30%;">개선 대책</th>
+                    </tr>
+                  </thead>
+                  <tbody id="db-urgent-tbody">
+                    <!-- 심각도 '상'인 항목들이 동적으로 주입됩니다 -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 

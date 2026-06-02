@@ -1102,4 +1102,228 @@ body {
   }
 }
 
+/* ==========================================
+   📊 [신규] 실증 분석 대시보드 전용 스타일
+   ========================================== */
+.dashboard-panel {
+  flex: 1;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Glassmorphism 효과 카드 */
+.dashboard-panel .glass {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-panel .glass:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.dashboard-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* KPI 행 */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.kpi-icon {
+  font-size: 2.2rem;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+}
+
+.kpi-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-top: 4px;
+}
+
+/* 차트 구역 */
+.charts-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.chart-card {
+  flex: 1;
+  min-width: 320px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-card h3 {
+  font-size: 1rem;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  border-left: 4px solid var(--accent-color);
+  padding-left: 8px;
+}
+
+/* 도넛 차트 컨테이너 */
+.pie-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.donut-chart {
+  transform: rotate(-90deg);
+}
+
+.donut-segment {
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+}
+
+/* 바 차트 요소들 */
+.bar-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bar-label-box {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.bar-bg {
+  width: 100%;
+  height: 10px;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.5s ease-out;
+  background-color: var(--accent-color);
+}
+
+/* 우선 개선 필요 테이블 */
+.summary-card {
+  padding: 20px;
+}
+
+.urgent-table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.urgent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.urgent-table th {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-weight: 700;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.urgent-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  line-height: 1.4;
+  vertical-align: top;
+}
+
+.urgent-table tr:last-child td {
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+}
+
+.badge-danger {
+  background-color: var(--danger-bg);
+  color: var(--danger-color);
+}
+
 
