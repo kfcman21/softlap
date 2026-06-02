@@ -1300,6 +1300,34 @@ function setupEventListeners() {
   safeBindClick("btn-tab-edit", () => switchTab("edit"));
   safeBindClick("btn-tab-preview", () => switchTab("preview"));
   safeBindClick("btn-tab-dashboard", () => switchTab("dashboard"));
+  safeBindClick("btn-tab-team", () => switchTab("team"));
+
+  // 팀별 보고서 취합 제어 바인딩
+  safeBindClick("btn-refresh-team", () => fetchTeamReportData(false));
+  safeBindClick("btn-print-team", printTeamReport);
+  
+  const teamProductSelect = document.getElementById("team-product-select");
+  if (teamProductSelect) {
+    teamProductSelect.addEventListener("change", renderTeamReportCompiled);
+  }
+  
+  const teamNameInput = document.getElementById("team-name-input");
+  if (teamNameInput) {
+    teamNameInput.addEventListener("input", () => {
+      saveTeamInputs();
+      populateTeamProducts();
+    });
+  }
+  
+  const teamConclusionInput = document.getElementById("team-conclusion-input");
+  if (teamConclusionInput) {
+    teamConclusionInput.addEventListener("input", saveTeamInputs);
+  }
+  
+  const teamMonitoringInput = document.getElementById("team-monitoring-input");
+  if (teamMonitoringInput) {
+    teamMonitoringInput.addEventListener("input", saveTeamInputs);
+  }
 
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
@@ -2014,18 +2042,26 @@ function switchTab(tabId) {
     btnTabDb.classList.toggle("active", tabId === "dashboard");
   }
 
+  const btnTabTeam = document.getElementById("btn-tab-team");
+  if (btnTabTeam) {
+    btnTabTeam.classList.toggle("active", tabId === "team");
+  }
+
   const editorArea = document.getElementById("editor-area");
   const previewArea = document.getElementById("preview-area");
   const dashboardArea = document.getElementById("dashboard-area");
+  const teamArea = document.getElementById("team-area");
 
   if (tabId === "edit") {
     editorArea.style.display = "block";
     previewArea.style.display = "none";
     if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "none";
   } else if (tabId === "preview") {
     editorArea.style.display = "none";
     previewArea.style.display = "block";
     if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "none";
     renderA4Preview();
   } else if (tabId === "dashboard") {
     editorArea.style.display = "none";
@@ -2034,13 +2070,22 @@ function switchTab(tabId) {
       dashboardArea.style.display = "block";
       renderDashboard();
     }
+    if (teamArea) teamArea.style.display = "none";
+  } else if (tabId === "team") {
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) {
+      teamArea.style.display = "block";
+      renderTeamWorkspace();
+    }
   }
 }
 
 // 📊 [신규] 실증 분석 종합 대시보드 렌더러
 function renderDashboard() {
   const meta = state.activeProject?.meta || {};
-  const items = state.activeProject?.items || [];
+  const allItems = state.activeProject?.items || [];
 
   // 대상 제품명 표시
   const dbProductName = document.getElementById("db-product-name");
@@ -2049,22 +2094,19 @@ function renderDashboard() {
   }
 
   // 1. KPI 통계 계산
-  const totalCount = items.length;
-  // 작성 완료율: 관찰내용(analysis)과 개선사항(improvement)이 모두 작성된 항목 개수 비율
-  const completedItems = items.filter(r => 
-    (r.analysis || "").trim().length > 0 && 
-    (r.improvement || "").trim().length > 0
-  );
-  const completedCount = completedItems.length;
-  const completionRate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const totalCount = allItems.length;
+  // 실증항목 선택율: 선택된 항목 개수 비율 (selected !== false)
+  const selectedItems = allItems.filter(r => r.selected !== false);
+  const selectedCount = selectedItems.length;
+  const selectionRate = totalCount > 0 ? Math.round((selectedCount / totalCount) * 100) : 0;
 
-  const highCount = items.filter(r => r.severity === "상").length;
-  const midCount = items.filter(r => r.severity === "중").length;
-  const lowCount = items.filter(r => r.severity === "하").length;
+  const highCount = selectedItems.filter(r => r.severity === "상").length;
+  const midCount = selectedItems.filter(r => r.severity === "중").length;
+  const lowCount = selectedItems.filter(r => r.severity === "하").length;
 
   // KPI UI 매핑
-  document.getElementById("db-stat-total").textContent = `${totalCount}개`;
-  document.getElementById("db-stat-completion").textContent = `${completionRate}% (${completedCount}/${totalCount})`;
+  document.getElementById("db-stat-total").textContent = `${selectedCount}개`;
+  document.getElementById("db-stat-completion").textContent = `${selectionRate}% (${selectedCount}/${totalCount})`;
   document.getElementById("db-stat-high").textContent = `${highCount}건`;
   document.getElementById("db-stat-mid").textContent = `${midCount}건`;
 
@@ -2076,14 +2118,14 @@ function renderDashboard() {
     donutSegments.innerHTML = "";
     donutLegend.innerHTML = "";
 
-    if (totalCount === 0) {
+    if (selectedCount === 0) {
       // 데이터 없음 표시
       donutSegments.innerHTML = `<text x="18" y="20.5" font-size="3" text-anchor="middle" fill="var(--text-tertiary)">데이터 없음</text>`;
-      donutLegend.innerHTML = `<div class="legend-item"><span class="legend-color" style="background-color: var(--bg-tertiary);"></span> 등록된 문항 없음</div>`;
+      donutLegend.innerHTML = `<div class="legend-item"><span class="legend-color" style="background-color: var(--bg-tertiary);"></span> 선택된 문항 없음</div>`;
     } else {
-      const pHigh = (highCount / totalCount) * 100;
-      const pMid = (midCount / totalCount) * 100;
-      const pLow = (lowCount / totalCount) * 100;
+      const pHigh = (highCount / selectedCount) * 100;
+      const pMid = (midCount / selectedCount) * 100;
+      const pLow = (lowCount / selectedCount) * 100;
 
       let currentOffset = 0;
 
@@ -2131,22 +2173,19 @@ function renderDashboard() {
 
     // EMPIRICAL_STANDARDS의 대분류 목록 순회
     Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
-      const elItems = items.filter(r => r.element === elName);
+      const elItems = allItems.filter(r => r.element === elName);
       const totalEl = elItems.length;
       
-      const compElItems = elItems.filter(r => 
-        (r.analysis || "").trim().length > 0 && 
-        (r.improvement || "").trim().length > 0
-      );
-      const compEl = compElItems.length;
-      const rateEl = totalEl > 0 ? Math.round((compEl / totalEl) * 100) : 0;
+      const selectedElItems = elItems.filter(r => r.selected !== false);
+      const selectedEl = selectedElItems.length;
+      const rateEl = totalEl > 0 ? Math.round((selectedEl / totalEl) * 100) : 0;
 
       // 바 로우 HTML 구성
       barChartElements.innerHTML += `
         <div class="bar-row">
           <div class="bar-label-box">
             <span>🛡️ ${elName}</span>
-            <span style="color: var(--text-secondary);">${rateEl}% (${compEl}/${totalEl}개 완료)</span>
+            <span style="color: var(--text-secondary);">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
           </div>
           <div class="bar-bg">
             <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
@@ -2162,7 +2201,7 @@ function renderDashboard() {
   
   if (urgentTbody && urgentBadge) {
     urgentTbody.innerHTML = "";
-    const urgentItems = items.filter(r => r.severity === "상");
+    const urgentItems = selectedItems.filter(r => r.severity === "상");
     urgentBadge.textContent = urgentItems.length;
 
     if (urgentItems.length === 0) {
@@ -2270,7 +2309,7 @@ function renderA4Preview() {
     miniHeader.style.marginBottom = "20px";
     miniHeader.innerHTML = `
       <span><strong>${meta.targetProduct || "에듀테크"}</strong> 공교육 적합성 평가서 (계속)</span>
-      <span>Page ${pageNum}</span>
+      <span>${pageNum} 페이지</span>
     `;
     page.appendChild(miniHeader);
 
@@ -3321,7 +3360,7 @@ async function checkTeamDuplication() {
   }
 }
 
-// 📷 [신규] Canvas 2D 이용 고성능 이미지 비례 축소 및 JPEG 0.7 경량화 압축 엔진 (30KB급 보존)
+// 📷 [신규] Canvas 2D 이용 고성능 이미지 비례 축소 및 JPEG 0.85 고화질 압축 엔진 (HD급 보존)
 function compressImageToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -3333,8 +3372,8 @@ function compressImageToBase64(file) {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
-        // 최적 해상도: 가로 480px 기준으로 비례 축소 리사이징
-        const MAX_WIDTH = 480;
+        // 고화질 개선: 가로 1280px 기준으로 비례 축소 리사이징
+        const MAX_WIDTH = 1280;
         let width = img.width;
         let height = img.height;
 
@@ -3349,8 +3388,8 @@ function compressImageToBase64(file) {
         // 캔버스에 이미지 렌더링
         ctx.drawImage(img, 0, 0, width, height);
 
-        // JPEG 포맷 + 0.7 압축률 최적 가변 품질 압축 ➔ 고해상도 시각성을 보장하면서 파일 용량은 30KB~50KB 내외로 극적 축소
-        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        // JPEG 포맷 + 0.85 고품질 가변 압축
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
         resolve(compressedBase64);
       };
       img.onerror = (err) => reject(err);
@@ -3628,6 +3667,481 @@ async function deleteSubmittedProject(projectId) {
   }
 }
 window.deleteSubmittedProject = deleteSubmittedProject;
+
+// 👥 [신규] 팀별 보고서 취합 시스템 함수군
+
+// 1. 팀별 보고서 워크스페이스 렌더링 시작점
+async function renderTeamWorkspace() {
+  const teamInput = document.getElementById("team-name-input");
+  if (teamInput && !teamInput.value.trim()) {
+    teamInput.value = state.currentUser?.team || state.currentUser?.school || "";
+  }
+  await fetchTeamReportData(true);
+}
+
+// 2. 서버에서 제출된 실시간 데이터 로드
+async function fetchTeamReportData(silent = false) {
+  try {
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      state.submittedList = await res.json();
+      if (!silent) showToast("🔄 원격 서버로부터 제출 목록 데이터를 동기화했습니다.");
+    } else {
+      throw new Error("조회 에러");
+    }
+  } catch (e) {
+    console.error("제출 목록 로드 실패:", e);
+    if (!silent) showToast("⚠️ 실시간 제출 목록을 데이터베이스에서 불러오지 못했습니다.");
+    state.submittedList = [];
+  }
+  populateTeamProducts();
+}
+
+// 3. 현재 입력된 팀명의 모든 제품 목록을 스캔하여 셀렉터 구성
+function populateTeamProducts() {
+  const teamName = document.getElementById("team-name-input").value.trim().toLowerCase();
+  const select = document.getElementById("team-product-select");
+  if (!select) return;
+  
+  const originalValue = select.value;
+  select.innerHTML = '<option value="">-- 제품을 선택하세요 --</option>';
+  
+  if (!teamName) {
+    return;
+  }
+  
+  const filtered = (state.submittedList || []).filter(p => 
+    p.schoolName && p.schoolName.toLowerCase().includes(teamName)
+  );
+  
+  const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
+  
+  products.forEach(prod => {
+    const opt = document.createElement("option");
+    opt.value = prod;
+    opt.textContent = prod;
+    if (prod === originalValue) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  if (products.length > 0 && !select.value) {
+    select.value = products[0];
+  }
+  
+  renderTeamReportCompiled();
+}
+
+// 4. 선택된 팀명 + 제품 조합의 상세 취합 결과 화면 렌더링
+function renderTeamReportCompiled() {
+  const teamName = document.getElementById("team-name-input").value.trim();
+  const productName = document.getElementById("team-product-select").value;
+  const teachersDisplay = document.getElementById("team-teachers-display");
+  const itemsContainer = document.getElementById("team-aggregated-items");
+  const feedbackContainer = document.getElementById("team-aggregated-feedbacks");
+  
+  if (!itemsContainer || !feedbackContainer) return;
+  
+  itemsContainer.innerHTML = "";
+  feedbackContainer.innerHTML = "";
+  
+  if (!teamName || !productName) {
+    itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-tertiary); font-size: 0.85rem;">실증 팀명과 대상 제품을 선택하여 취합 내역을 로드해 주세요.</div>`;
+    feedbackContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 0.85rem;">등록된 기업 피드백이 없습니다.</div>`;
+    if (teachersDisplay) teachersDisplay.value = "";
+    document.getElementById("team-stat-reports-count").textContent = "0개";
+    document.getElementById("team-stat-items-count").textContent = "0개";
+    
+    const barChart = document.getElementById("team-bar-chart");
+    if (barChart) barChart.innerHTML = "";
+    return;
+  }
+  
+  const matchingProjects = (state.submittedList || []).filter(p => 
+    p.schoolName === teamName && 
+    p.meta?.targetProduct === productName
+  );
+  
+  const uniqueTeachers = [...new Set(matchingProjects.map(p => p.teacherName).filter(Boolean))];
+  if (teachersDisplay) {
+    teachersDisplay.value = uniqueTeachers.join(", ") || "교사 없음";
+  }
+  
+  document.getElementById("team-stat-reports-count").textContent = `${matchingProjects.length}개`;
+  
+  const allAggregatedItems = [];
+  matchingProjects.forEach(proj => {
+    (proj.items || []).forEach(item => {
+      allAggregatedItems.push({
+        ...item,
+        teacherName: proj.teacherName
+      });
+    });
+  });
+  document.getElementById("team-stat-items-count").textContent = `${allAggregatedItems.length}개`;
+  
+  const barChart = document.getElementById("team-bar-chart");
+  if (barChart) {
+    barChart.innerHTML = "";
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = allAggregatedItems.filter(i => i.element === elName);
+      const rateEl = allAggregatedItems.length > 0 ? Math.round((elItems.length / allAggregatedItems.length) * 100) : 0;
+      
+      barChart.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-label-box">
+            <span>🛡️ ${elName}</span>
+            <span style="color: var(--text-secondary);">${rateEl}% (${elItems.length}개)</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  if (allAggregatedItems.length === 0) {
+    itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-tertiary); font-size: 0.85rem;">수집된 세부 실증 항목이 없습니다.</div>`;
+  } else {
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = allAggregatedItems.filter(i => i.element === elName);
+      if (elItems.length > 0) {
+        const elSection = document.createElement("div");
+        elSection.style.marginBottom = "14px";
+        elSection.innerHTML = `
+          <h4 style="font-size:0.85rem; font-weight:800; color:var(--accent-color); margin-bottom:8px; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+            🛡️ ${elName} (${elItems.length}건)
+          </h4>
+        `;
+        
+        const cardGrid = document.createElement("div");
+        cardGrid.style.display = "grid";
+        cardGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+        cardGrid.style.gap = "10px";
+        
+        elItems.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "kpi-card glass";
+          card.style.flexDirection = "column";
+          card.style.alignItems = "stretch";
+          card.style.padding = "14px";
+          card.style.gap = "8px";
+          
+          let sevClass = item.severity === '상' ? 'high' : item.severity === '중' ? 'mid' : 'low';
+          
+          card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:0.82rem; color:var(--text-primary);">${item.item}</strong>
+              <span class="severity-badge ${sevClass}">${item.severity}</span>
+            </div>
+            <div style="font-size:0.74rem; color:var(--text-tertiary); background-color:var(--bg-tertiary); padding:6px; border-radius:4px;">
+              <strong>기준:</strong> ${item.criterion}
+            </div>
+            <div style="font-size:0.78rem; line-height:1.4;">
+              <strong>분석내용:</strong> ${item.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">현상 미기록</span>'}
+            </div>
+            <div style="font-size:0.78rem; line-height:1.4;">
+              <strong>개선의견:</strong> ${item.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">개선안 미기록</span>'}
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:6px; margin-top:4px; font-size:0.7rem; color:var(--text-secondary);">
+              <span>교사: <strong>${item.teacherName}</strong></span>
+              <span>구분: ${item.type}</span>
+            </div>
+          `;
+          cardGrid.appendChild(card);
+        });
+        elSection.appendChild(cardGrid);
+        itemsContainer.appendChild(elSection);
+      }
+    });
+  }
+  
+  const matchingFeedbacks = matchingProjects.filter(p => p.feedback);
+  if (matchingFeedbacks.length === 0) {
+    feedbackContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 0.85rem;">⏳ 접수 및 조치 완료된 기업 피드백이 아직 존재하지 않습니다.</div>`;
+  } else {
+    matchingFeedbacks.forEach(proj => {
+      const fb = proj.feedback;
+      const fbCard = document.createElement("div");
+      fbCard.className = "feedback-receipt-card";
+      fbCard.style.margin = "0";
+      fbCard.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(142, 60%, 80%); padding-bottom:6px;">
+          <span style="font-weight:800; font-size:0.85rem; color:hsl(140, 80%, 25%);">
+            🏢 [기업 조치계획] ${fb.company || "제조기업"} (교사 ${proj.teacherName} 평가 대상)
+          </span>
+          <span style="font-size:0.72rem; color:var(--text-secondary);">${fb.date || ""}</span>
+        </div>
+        <p style="font-size:0.82rem; color:var(--text-primary); line-height:1.4; margin:0; white-space:pre-wrap;">${fb.text}</p>
+      `;
+      feedbackContainer.appendChild(fbCard);
+    });
+  }
+  
+  loadTeamInputs();
+}
+
+// 5. 로컬스토리지에 종합 결론 저장
+function saveTeamInputs() {
+  const teamName = document.getElementById("team-name-input").value.trim();
+  const productName = document.getElementById("team-product-select").value;
+  
+  if (!teamName || !productName) return;
+  
+  const conclusion = document.getElementById("team-conclusion-input").value;
+  const monitoring = document.getElementById("team-monitoring-input").value;
+  
+  const data = { conclusion, monitoring };
+  localStorage.setItem(`softlap_team_report_${teamName}_${productName}`, JSON.stringify(data));
+}
+
+// 6. 로컬스토리지로부터 종합 결론 로드
+function loadTeamInputs() {
+  const teamName = document.getElementById("team-name-input").value.trim();
+  const productName = document.getElementById("team-product-select").value;
+  
+  const conclusionText = document.getElementById("team-conclusion-input");
+  const monitoringText = document.getElementById("team-monitoring-input");
+  
+  if (!conclusionText || !monitoringText) return;
+  
+  if (!teamName || !productName) {
+    conclusionText.value = "";
+    monitoringText.value = "";
+    return;
+  }
+  
+  const saved = localStorage.getItem(`softlap_team_report_${teamName}_${productName}`);
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      conclusionText.value = data.conclusion || "";
+      monitoringText.value = data.monitoring || "";
+    } catch(e) {
+      conclusionText.value = "";
+      monitoringText.value = "";
+    }
+  } else {
+    conclusionText.value = "";
+    monitoringText.value = "";
+  }
+}
+
+// 7. 팀별 종합 보고서 인쇄
+function printTeamReport() {
+  const teamName = document.getElementById("team-name-input").value.trim();
+  const productName = document.getElementById("team-product-select").value;
+  
+  if (!teamName || !productName) {
+    alert("취합할 실증 팀명과 대상 에듀테크 제품을 선택한 후 인쇄하십시오.");
+    return;
+  }
+  
+  renderTeamA4Preview();
+  
+  const editorArea = document.getElementById("editor-area");
+  const previewArea = document.getElementById("preview-area");
+  const dashboardArea = document.getElementById("dashboard-area");
+  const teamArea = document.getElementById("team-area");
+  
+  editorArea.style.display = "none";
+  previewArea.style.display = "block";
+  if (dashboardArea) dashboardArea.style.display = "none";
+  if (teamArea) teamArea.style.display = "none";
+  
+  setTimeout(() => {
+    window.print();
+    
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "block";
+  }, 350);
+}
+
+// 8. 팀별 A4 인쇄 프리뷰 렌더링
+function renderTeamA4Preview() {
+  const container = document.getElementById("preview-container");
+  container.innerHTML = "";
+  
+  const teamName = document.getElementById("team-name-input").value.trim();
+  const productName = document.getElementById("team-product-select").value;
+  const teachers = document.getElementById("team-teachers-display").value;
+  const conclusion = document.getElementById("team-conclusion-input").value;
+  const monitoring = document.getElementById("team-monitoring-input").value;
+  
+  const matchingProjects = (state.submittedList || []).filter(p => 
+    p.schoolName === teamName && 
+    p.meta?.targetProduct === productName
+  );
+  
+  const page1 = document.createElement("div");
+  page1.className = "report-a4-page";
+  page1.innerHTML = `
+    <span class="report-title-badge">에듀테크 소프트랩 공동 실증 종합 리포트</span>
+    <h1 class="report-h1" style="font-size:1.5rem; margin-top: 10px;">${productName || "에듀테크"} 공교육 적합성 공동 실증 종합 보고서</h1>
+    
+    <table class="report-meta-table" style="margin-top: 20px;">
+      <tr>
+        <td class="label-td">실증 팀명</td>
+        <td><strong>${teamName}</strong></td>
+        <td class="label-td">작성 일자</td>
+        <td><strong>${new Date().toISOString().split('T')[0]}</strong></td>
+      </tr>
+      <tr>
+        <td class="label-td">실증 대상 제품</td>
+        <td><strong>${productName}</strong></td>
+        <td class="label-td">참여 실증교사</td>
+        <td><strong>${teachers}</strong></td>
+      </tr>
+    </table>
+    
+    <h3 class="report-section-title" style="margin-top: 30px;">👥 팀 종합 실증 결론 및 제안</h3>
+    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
+      ${conclusion || "기재된 종합 실증 의견이 없습니다."}
+    </p>
+    
+    <h3 class="report-section-title" style="margin-top: 30px;">🔄 기업 피드백에 따른 모니터링 계획</h3>
+    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
+      ${monitoring || "기재된 모니터링 계획이 없습니다."}
+    </p>
+  `;
+  container.appendChild(page1);
+  
+  let currentPageNum = 2;
+  let currentPage = createTeamPageRest(currentPageNum, productName, teamName);
+  container.appendChild(currentPage);
+  
+  let currentTable = createTeamTableWrapper();
+  currentPage.appendChild(currentTable);
+  let currentTbody = currentTable.querySelector("tbody");
+  
+  const allAggregatedItems = [];
+  matchingProjects.forEach(p => {
+    (p.items || []).forEach(item => {
+      allAggregatedItems.push({
+        ...item,
+        teacherName: p.teacherName
+      });
+    });
+  });
+  
+  if (allAggregatedItems.length === 0) {
+    currentTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">수집된 세부 실증 항목이 없습니다.</td></tr>`;
+  } else {
+    for (let i = 0; i < allAggregatedItems.length; i++) {
+      const r = allAggregatedItems[i];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>
+          <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
+            ${r.element}
+          </span>
+        </td>
+        <td><strong>${r.item}</strong></td>
+        <td style="font-size:0.7rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
+        <td style="font-weight:700;">${r.teacherName || "실증교사"}</td>
+        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.analysis || "분석내용 없음"}</td>
+        <td style="text-align:center;">
+          <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
+        </td>
+        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.improvement || "개선요청 없음"}</td>
+      `;
+      
+      currentPage.style.height = "auto";
+      currentPage.style.overflow = "visible";
+      currentTbody.appendChild(tr);
+      
+      if (currentPage.scrollHeight > 1115) {
+        currentTbody.removeChild(tr);
+        currentPage.style.height = "";
+        currentPage.style.overflow = "";
+        
+        currentPageNum++;
+        currentPage = createTeamPageRest(currentPageNum, productName, teamName);
+        container.appendChild(currentPage);
+        
+        currentTable = createTeamTableWrapper();
+        currentPage.appendChild(currentTable);
+        currentTbody = currentTable.querySelector("tbody");
+        
+        currentPage.style.height = "auto";
+        currentPage.style.overflow = "visible";
+        currentTbody.appendChild(tr);
+      }
+    }
+  }
+  
+  if (currentPage) {
+    currentPage.style.height = "";
+    currentPage.style.overflow = "";
+  }
+  
+  const feedbackPage = document.createElement("div");
+  feedbackPage.className = "report-a4-page";
+  feedbackPage.innerHTML = `
+    <span class="report-title-badge">수신 기업 피드백 내역</span>
+    <h3 class="report-section-title" style="margin-top:10px;">🏢 기업 공식 조치계획 및 피드백</h3>
+    <div style="display:flex; flex-direction:column; gap:16px; margin-top:20px;">
+      ${matchingProjects.map(p => {
+        const fb = p.feedback;
+        return `
+          <div style="border:1px solid #cbd5e1; border-radius:6px; padding:12px; background-color:#f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:8px;">
+              <span style="font-weight:800; font-size:0.8rem; color:#0f172a;">🏢 ${fb ? fb.company : "제조기업"} (${p.teacherName} 교사 제출 대상)</span>
+              <span style="font-size:0.7rem; color:#64748b;">${fb ? fb.date : "-"}</span>
+            </div>
+            <p style="font-size:0.78rem; line-height:1.5; color:#334155; white-space:pre-wrap; margin:0;">
+              ${fb ? fb.text : "⏳ 피드백이 아직 등록되지 않았습니다."}
+            </p>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  container.appendChild(feedbackPage);
+}
+
+function createTeamPageRest(pageNum, productName, teamName) {
+  const page = document.createElement("div");
+  page.className = "report-a4-page";
+  
+  const miniHeader = document.createElement("div");
+  miniHeader.style.display = "flex";
+  miniHeader.style.justifyContent = "space-between";
+  miniHeader.style.alignItems = "center";
+  miniHeader.style.fontSize = "0.74rem";
+  miniHeader.style.color = "#64748b";
+  miniHeader.style.borderBottom = "1px solid #e2e8f0";
+  miniHeader.style.paddingBottom = "8px";
+  miniHeader.style.marginBottom = "20px";
+  miniHeader.innerHTML = `
+    <span><strong>${productName || "에듀테크"}</strong> 공동 실증 세부 내역 (계속)</span>
+    <span>${pageNum} 페이지</span>
+  `;
+  page.appendChild(miniHeader);
+  return page;
+}
+
+function createTeamTableWrapper() {
+  const table = document.createElement("table");
+  table.className = "report-checklist-grid";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width: 10%">대분류</th>
+        <th style="width: 12%">중분류</th>
+        <th style="width: 20%">점검 기준</th>
+        <th style="width: 10%">작성자</th>
+        <th style="width: 22%">분석 내용 (현상)</th>
+        <th style="width: 8%">심각성</th>
+        <th style="width: 18%">개선 요청사항</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  return table;
+}
 
 // 초기 로딩 바인딩
 if (document.readyState === "loading") {
