@@ -1239,6 +1239,10 @@ function setupEventListeners() {
     showAuthScreen();
   });
   
+  safeBindClick("btn-admin-to-company", () => {
+    showEnterpriseDashboard();
+  });
+  
   safeBindClick("btn-admin-to-teacher", () => {
     // 관리자 모드에서 일반 실증용 화면으로 분기 진입
     document.getElementById("admin-container").style.display = "none";
@@ -2949,8 +2953,14 @@ function showEnterpriseDashboard() {
   document.getElementById("admin-container").style.display = "none";
   document.getElementById("company-container").style.display = "flex";
 
-  document.getElementById("company-profile-name").textContent = `${state.currentUser.name} (${state.currentUser.school})`;
+  document.getElementById("company-profile-name").textContent = `${state.currentUser.name} (${state.currentUser.school || state.currentUser.team || ""})`;
   
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  const btnToAdmin = document.getElementById("btn-company-to-admin");
+  if (btnToAdmin) {
+    btnToAdmin.style.display = isAdmin ? "inline-flex" : "none";
+  }
+
   updateOracleSyncCardVisibility();
   renderEnterpriseDashboard();
 }
@@ -3018,6 +3028,12 @@ async function renderEnterpriseDashboard() {
       badgeHtml = `<span class="status-badge status-submitted">피드백 대기</span>`;
     }
 
+    const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+    let actionButtons = `<button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="viewSubmittedProject('${p.id}')">🔍 검토 & 피드백</button>`;
+    if (isAdmin) {
+      actionButtons += ` <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem; background-color:var(--danger-color); border-color:var(--danger-color); margin-left:4px;" onclick="deleteSubmittedProject('${p.id}')">❌ 삭제</button>`;
+    }
+
     tr.innerHTML = `
       <td style="font-weight:600;">${p.teacherName} 교사</td>
       <td>${p.schoolName}</td>
@@ -3025,7 +3041,7 @@ async function renderEnterpriseDashboard() {
       <td>${p.submitDate || "-"}</td>
       <td>${badgeHtml}</td>
       <td>
-        <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="viewSubmittedProject('${p.id}')">🔍 검토 & 피드백</button>
+        ${actionButtons}
       </td>
     `;
     tbody.appendChild(tr);
@@ -3538,6 +3554,79 @@ async function cancelProjectSubmission() {
     alert("⚠️ 원격 서버 제출 갱신 실패: " + err.message + "\n\n네트워크 상황을 확인해 주십시오.");
   }
 }
+
+// ❌ [관리자 전용] 제출 완료 문서 완전히 삭제 처리기
+async function deleteSubmittedProject(projectId) {
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  if (!isAdmin) {
+    alert("관리자 권한이 필요합니다.");
+    return;
+  }
+
+  if (!confirm("⚠️ [경고 - 관리자 영구 삭제]\n\n해당 제출 문서를 시스템에서 완전히 삭제하시겠습니까?\n\n(삭제 시 기업 피드백 센터 목록에서 영구 제거되며, 원작성자의 개인 보관함에서도 해당 보고서 데이터가 완전히 삭제되어 복구할 수 없게 됩니다.)")) {
+    return;
+  }
+
+  // 1. 서버 제출된 목록 fetch하여 원작성자 정보 식별
+  let submittedList = [];
+  try {
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      submittedList = await res.json();
+    }
+  } catch (err) {
+    console.error("제출 목록 로드 실패:", err);
+  }
+
+  const matchSubmit = submittedList.find(p => p.id === projectId);
+  if (!matchSubmit) {
+    alert("삭제할 제출 문서를 찾을 수 없습니다.");
+    return;
+  }
+
+  const targetEmail = matchSubmit.email;
+
+  // 2. 원작성자(교사)의 프로젝트 보관함 리스트에서 해당 프로젝트 영구 삭제
+  try {
+    const projRes = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(targetEmail)}`);
+    if (projRes.ok) {
+      const targetProjects = await projRes.json() || [];
+      const updatedProjects = targetProjects.filter(p => p.id !== projectId);
+
+      await fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, projects: updatedProjects })
+      });
+    }
+  } catch (projErr) {
+    console.error("원작성자 보관함 삭제 실패:", projErr);
+    alert("⚠️ 원작성자의 개인 보관함 데이터 삭제에 실패했습니다: " + projErr.message);
+    return;
+  }
+
+  // 3. 서버 제출된 목록에서 데이터 삭제 및 POST 저장
+  try {
+    const updatedSubmittedList = submittedList.filter(p => p.id !== projectId);
+
+    const postRes = await fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList: updatedSubmittedList })
+    });
+
+    if (postRes.ok) {
+      showToast("🎉 해당 제출 문서가 시스템에서 완전히 삭제되었습니다.");
+      await renderEnterpriseDashboard();
+    } else {
+      throw new Error("서버 제출 목록 갱신 실패");
+    }
+  } catch (err) {
+    console.error("제출 삭제 중 오류:", err);
+    alert("⚠️ 원격 서버 제출 삭제 반영 실패: " + err.message);
+  }
+}
+window.deleteSubmittedProject = deleteSubmittedProject;
 
 // 초기 로딩 바인딩
 if (document.readyState === "loading") {
