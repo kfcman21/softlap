@@ -1440,13 +1440,21 @@ function setupEventListeners() {
   document.getElementById("btn-close-review-modal").addEventListener("click", closeReviewModal);
   document.getElementById("btn-submit-feedback").addEventListener("click", submitEnterpriseFeedback);
   
-  // 비밀번호 변경 액션 바인딩
-  document.getElementById("btn-change-pw").addEventListener("click", handleChangePassword);
-  document.getElementById("btn-company-change-pw").addEventListener("click", handleChangePassword);
+  // 회원 정보 및 비밀번호 변경 액션 바인딩
+  document.getElementById("btn-change-pw").addEventListener("click", openProfileModal);
+  document.getElementById("btn-company-change-pw").addEventListener("click", openProfileModal);
   const btnAdminChangePw = document.getElementById("btn-admin-change-pw");
   if (btnAdminChangePw) {
-    btnAdminChangePw.addEventListener("click", handleChangePassword);
+    btnAdminChangePw.addEventListener("click", openProfileModal);
   }
+  
+  // Profile Modal Close and Save
+  const btnCloseProfile = document.getElementById("btn-close-profile-modal");
+  if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeProfileModal);
+  const btnCancelProfile = document.getElementById("btn-cancel-profile-modal");
+  if (btnCancelProfile) btnCancelProfile.addEventListener("click", closeProfileModal);
+  const btnSaveProfile = document.getElementById("btn-save-profile");
+  if (btnSaveProfile) btnSaveProfile.addEventListener("click", saveUserProfile);
   const btnClearFeedback = document.getElementById("btn-company-clear-feedback");
   if (btnClearFeedback) {
     btnClearFeedback.addEventListener("click", handleClearCompanyFeedback);
@@ -3230,40 +3238,97 @@ async function submitEnterpriseFeedback() {
   }
 }
 
-// 🔒 [신규] 로그인된 현재 사용자의 비밀번호 변경 처리기
-async function handleChangePassword() {
+// 🔒 [신규] 회원정보 및 비밀번호 수정 처리 모달 제어
+function openProfileModal() {
   if (!state.currentUser) {
-    alert("로그인이 만료되었거나 사용자 정보가 올바르지 않습니다.");
+    alert("로그인이 필요합니다.");
     return;
   }
-
-  const userKey = state.currentUser.email; // 아이디가 이메일 주소 또는 제품 명칭
-
-  const newPass = prompt(`🔒 [비밀번호 보안 변경]\n\n현재 계정: ${userKey}\n\n변경하여 사용할 새 비밀번호를 입력해 주십시오 (최소 4자리 이상):`);
   
-  if (newPass === null) return; // 취소 버튼
+  const modal = document.getElementById("user-profile-modal");
+  if (!modal) return;
+  
+  // 필드 값 세팅
+  document.getElementById("prof-email").value = state.currentUser.email || "";
+  document.getElementById("prof-name").value = state.currentUser.name || "";
+  document.getElementById("prof-school").value = state.currentUser.school || "";
+  document.getElementById("prof-team").value = state.currentUser.team || "";
+  document.getElementById("prof-password").value = ""; // 비밀번호 필드 초기화
+  
+  // 역할에 따른 라벨 변경 및 팀 입력란 노출 여부
+  const schoolLabel = document.getElementById("prof-school-label");
+  const teamGroup = document.getElementById("prof-team-group");
+  
+  if (state.currentUser.role === "enterprise") {
+    if (schoolLabel) schoolLabel.textContent = "🏢 제조 기업명";
+    if (teamGroup) teamGroup.style.display = "none";
+  } else if (state.currentUser.role === "admin") {
+    if (schoolLabel) schoolLabel.textContent = "🛠️ 소속 기관명";
+    if (teamGroup) teamGroup.style.display = "none";
+  } else {
+    if (schoolLabel) schoolLabel.textContent = "🏫 소속 학교명";
+    if (teamGroup) teamGroup.style.display = "block";
+  }
+  
+  modal.style.display = "flex";
+}
 
-  const cleanedPass = newPass.trim();
-  if (cleanedPass.length < 4) {
-    alert("안전한 계정 보안을 위해 비밀번호는 공백 제외 최소 4자리 이상으로 지정해야 합니다.");
+function closeProfileModal() {
+  const modal = document.getElementById("user-profile-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveUserProfile() {
+  if (!state.currentUser) return;
+  
+  const email = state.currentUser.email;
+  const school = document.getElementById("prof-school").value.trim();
+  const team = state.currentUser.role === "teacher" ? document.getElementById("prof-team").value.trim() : "";
+  const password = document.getElementById("prof-password").value.trim();
+  
+  if (password && password.length < 4) {
+    alert("안전한 계정 보안을 위해 비밀번호는 공백 제외 최소 4자리 이상이어야 합니다.");
     return;
   }
-
+  
   try {
-    const response = await fetch(`${centralDbUrl}/api/auth/change-password`, {
+    const res = await fetch(`${centralDbUrl}/api/auth/update-profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userKey, newPassword: cleanedPass })
+      body: JSON.stringify({
+        email: email,
+        school: school,
+        team: team || school,
+        newPassword: password || undefined
+      })
     });
-
-    if (response.ok) {
-      showToast("비밀번호가 정상적으로 변경되었습니다. 다음 로그인부터 새 비밀번호가 적용됩니다.");
+    
+    if (res.ok) {
+      // 로컬 상태 및 세션 갱신
+      state.currentUser.school = school;
+      state.currentUser.team = team || school;
+      sessionStorage.setItem("softlap_user_session", JSON.stringify(state.currentUser));
+      
+      // UI 요소 실시간 갱신
+      const profileSchool = document.getElementById("profile-school");
+      if (profileSchool) {
+        profileSchool.textContent = state.currentUser.team || state.currentUser.school || "기관 없음";
+      }
+      
+      const compProfileName = document.getElementById("company-profile-name");
+      if (compProfileName) {
+        compProfileName.textContent = `${state.currentUser.name} (${state.currentUser.school || ""})`;
+      }
+      
+      showToast("🎉 회원 정보가 정상적으로 변경되었습니다.");
+      closeProfileModal();
     } else {
-      const errData = await response.json();
-      alert(errData.error || "비밀번호 변경 실패. 마스터 권한은 계정 제어 센터에서 관리자에게 문의하십시오.");
+      const err = await res.json();
+      alert(err.error || "회원 정보 수정 실패");
     }
-  } catch (err) {
-    alert("서버 연결 실패: " + err.message);
+  } catch (e) {
+    console.error(e);
+    alert("서버 통신 실패: " + e.message);
   }
 }
 

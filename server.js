@@ -94,6 +94,7 @@ async function createOracleTables() {
           PASSWORD VARCHAR2(100) NOT NULL,
           NAME VARCHAR2(100) NOT NULL,
           SCHOOL VARCHAR2(200),
+          TEAM VARCHAR2(200),
           ROLE VARCHAR2(50) DEFAULT 'teacher',
           IS_ENTERPRISE NUMBER(1) DEFAULT 0
         )
@@ -104,6 +105,16 @@ async function createOracleTables() {
       await seedDefaultOracleAccounts(conn);
     } catch (e) {
       if (e.message.indexOf("ORA-00955") === -1) throw e; // ORA-00955: table already exists
+      
+      // ALTER TABLE to ensure TEAM column exists
+      try {
+        await conn.execute(`ALTER TABLE SOFTLAP_USERS ADD (TEAM VARCHAR2(200))`);
+        console.log("📊 [DB] SOFTLAP_USERS 테이블에 TEAM 컬럼 추가 완료!");
+      } catch (alterError) {
+        if (alterError.message.indexOf("ORA-01430") === -1) {
+          console.error("TEAM 컬럼 추가 실패:", alterError);
+        }
+      }
     }
 
     // 2. Projects Table
@@ -196,8 +207,8 @@ async function seedDefaultOracleRegistry(conn) {
 async function seedDefaultOracleAccounts(conn) {
   // Seed admin
   await conn.execute(`
-    INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE) 
-    VALUES ('admin', 'admin123', '관리자', '에듀테크소프트랩', 'admin', 0)
+    INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
+    VALUES ('admin', 'admin123', '관리자', '에듀테크소프트랩', '에듀테크소프트랩', 'admin', 0)
   `);
 
   // Seed default companies
@@ -222,12 +233,13 @@ async function seedDefaultOracleAccounts(conn) {
 
   for (const item of defaultRegistry) {
     await conn.execute(`
-      INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE) 
-      VALUES (:email, '1234', :name, :school, 'enterprise', 1)
+      INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
+      VALUES (:email, '1234', :name, :school, :team, 'enterprise', 1)
     `, {
       email: item.name,
       name: item.name,
-      school: item.company
+      school: item.company,
+      team: item.company
     });
   }
   await conn.commit();
@@ -289,7 +301,7 @@ app.get('/api/health', (req, res) => {
 
 // B. Auth API
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name, school, role } = req.body;
+  const { email, password, name, school, team, role } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: "필수 정보가 누락되었습니다." });
   }
@@ -309,12 +321,12 @@ app.post('/api/auth/register', async (req, res) => {
       }
 
       await conn.execute(`
-        INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE)
-        VALUES (:email, :password, :name, :school, :role, :is_ent)
-      `, [lowerEmail, password, name, school || "", role || "teacher", isEnt]);
+        INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE)
+        VALUES (:email, :password, :name, :school, :team, :role, :is_ent)
+      `, [lowerEmail, password, name, school || "", team || "", role || "teacher", isEnt]);
       
       await conn.commit();
-      res.json({ success: true, user: { email: lowerEmail, name, school, role } });
+      res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
     } catch (err) {
       res.status(500).json({ error: "DB 처리 오류: " + err.message });
     } finally {
@@ -326,9 +338,9 @@ app.post('/api/auth/register', async (req, res) => {
     if (dbData.users[lowerEmail] || lowerEmail === "admin") {
       return res.status(400).json({ error: "이미 가입되어 있는 계정입니다." });
     }
-    dbData.users[lowerEmail] = { password, name, school: school || "", role: role || "teacher", isEnterprise: role === "enterprise" };
+    dbData.users[lowerEmail] = { password, name, school: school || "", team: team || "", role: role || "teacher", isEnterprise: role === "enterprise" };
     writeLocalDb(dbData);
-    res.json({ success: true, user: { email: lowerEmail, name, school, role } });
+    res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
   }
 });
 
@@ -346,7 +358,7 @@ app.post('/api/auth/login', async (req, res) => {
       conn = await pool.getConnection();
       // Match direct and lower
       const result = await conn.execute(
-        `SELECT EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
+        `SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
         [lowerEmail, email]
       );
 
@@ -365,7 +377,7 @@ app.post('/api/auth/login', async (req, res) => {
           email: user.EMAIL,
           name: user.NAME,
           school: user.SCHOOL || "",
-          team: user.SCHOOL || "",
+          team: user.TEAM || user.SCHOOL || "",
           role: user.ROLE || (user.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: user.IS_ENTERPRISE === 1 || user.ROLE === "enterprise",
           isAdmin: user.ROLE === "admin"
@@ -389,7 +401,7 @@ app.post('/api/auth/login', async (req, res) => {
         email: email,
         name: user.name,
         school: user.school || "",
-        team: user.school || "",
+        team: user.team || user.school || "",
         role: user.role || (user.isEnterprise ? "enterprise" : "teacher"),
         isEnterprise: user.isEnterprise || user.role === "enterprise",
         isAdmin: user.isAdmin || user.role === "admin"
@@ -426,6 +438,55 @@ app.post('/api/auth/change-password', async (req, res) => {
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
     user.password = newPassword;
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+app.post('/api/auth/update-profile', async (req, res) => {
+  const { email, school, team, newPassword } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "아이디가 누락되었습니다." });
+  }
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
+      if (check.rows.length === 0) {
+        return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+      }
+      const actualEmail = check.rows[0].EMAIL;
+      
+      if (newPassword) {
+        await conn.execute(
+          `UPDATE SOFTLAP_USERS SET SCHOOL = :school, TEAM = :team, PASSWORD = :pwd WHERE EMAIL = :email`,
+          [school || "", team || "", newPassword, actualEmail]
+        );
+      } else {
+        await conn.execute(
+          `UPDATE SOFTLAP_USERS SET SCHOOL = :school, TEAM = :team WHERE EMAIL = :email`,
+          [school || "", team || "", actualEmail]
+        );
+      }
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 회원정보 수정 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const user = dbData.users[email] || dbData.users[email.toLowerCase()];
+    if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+    
+    user.school = school || "";
+    user.team = team || "";
+    if (newPassword) {
+      user.password = newPassword;
+    }
     writeLocalDb(dbData);
     res.json({ success: true });
   }
@@ -905,7 +966,7 @@ app.get('/api/admin/users', async (req, res) => {
     let conn;
     try {
       conn = await pool.getConnection();
-      const result = await conn.execute(`SELECT EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS`);
+      const result = await conn.execute(`SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS`);
       
       // Query project counts per user
       const countsResult = await conn.execute(`SELECT EMAIL, COUNT(*) AS CNT FROM SOFTLAP_PROJECTS GROUP BY EMAIL`);
@@ -921,7 +982,7 @@ app.get('/api/admin/users', async (req, res) => {
           password: row.PASSWORD,
           name: row.NAME,
           school: row.SCHOOL || "",
-          team: row.SCHOOL || "",
+          team: row.TEAM || row.SCHOOL || "",
           role: row.ROLE || (row.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: row.IS_ENTERPRISE === 1 || row.ROLE === "enterprise",
           isAdmin: row.ROLE === "admin",
