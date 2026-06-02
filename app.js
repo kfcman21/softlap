@@ -911,42 +911,10 @@ function updateAuthUI() {
     if (authSchoolGroup) authSchoolGroup.style.display = "flex";
     if (authTeamGroup) {
       authTeamGroup.style.display = "flex";
-      
-      // 선택 변경에 따라 팀명 입력란 실시간 자동 계산/제어 이벤트 부착
-      const teamSelect = document.getElementById("auth-team-select");
       const teamInput = document.getElementById("auth-team");
-      const nameInput = document.getElementById("auth-name");
-      const schoolInput = document.getElementById("auth-school");
-
-      const updateTeamPlaceholder = () => {
-        if (!teamSelect || !teamInput) return;
-        const nameVal = nameInput ? nameInput.value.trim() : "";
-        const schoolVal = schoolInput ? schoolInput.value.trim() : "";
-
-        if (teamSelect.value === "name-school") {
-          teamInput.value = (nameVal && schoolVal) ? `${nameVal} (${schoolVal})` : "";
-          teamInput.disabled = true;
-          teamInput.placeholder = "교사명 (학교명)으로 자동 계산되어 채워집니다.";
-        } else if (teamSelect.value === "school-only") {
-          teamInput.value = schoolVal;
-          teamInput.disabled = true;
-          teamInput.placeholder = "소속 학교명으로 자동 채워집니다.";
-        } else {
-          teamInput.disabled = false;
-          teamInput.placeholder = "소속 팀명 또는 학교명을 직접 입력하십시오.";
-        }
-      };
-
-      if (teamSelect && teamInput) {
-        // 이미 핸들러가 걸려있지 않다면 부착
-        if (!teamSelect.dataset.hasListener) {
-          teamSelect.dataset.hasListener = "true";
-          teamSelect.addEventListener("change", updateTeamPlaceholder);
-          
-          if (nameInput) nameInput.addEventListener("input", updateTeamPlaceholder);
-          if (schoolInput) schoolInput.addEventListener("input", updateTeamPlaceholder);
-        }
-        updateTeamPlaceholder();
+      if (teamInput) {
+        teamInput.disabled = false;
+        teamInput.placeholder = "소속 팀명 또는 학교명을 직접 입력하십시오.";
       }
     }
 

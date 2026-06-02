@@ -73,15 +73,10 @@
           <input type="text" id="auth-school" class="auth-input" placeholder="예: 서울미래초등학교">
         </div>
 
-        <!-- 소속 팀명 선택 및 입력 (회원가입 시 노출) -->
+        <!-- 소속 팀명 직접 입력 (회원가입 시 노출) -->
         <div class="auth-input-group" id="group-auth-team" style="display: none; flex-direction: column; gap: 6px;">
-          <label for="auth-team-select">소속 팀명 설정</label>
-          <select id="auth-team-select" class="auth-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-secondary); font-size: 0.85rem; font-weight: 500; color: var(--text-primary);">
-            <option value="direct">✍️ 소속 팀명 직접 입력...</option>
-            <option value="name-school">교사명(소속) 형식 [교사명 (학교명)]</option>
-            <option value="school-only">소속 학교명 형식 [학교명]</option>
-          </select>
-          <input type="text" id="auth-team" class="auth-input" placeholder="소속 팀명 또는 학교명을 입력하십시오." style="margin-top: 4px;">
+          <label for="auth-team">소속 팀명 설정</label>
+          <input type="text" id="auth-team" class="auth-input" placeholder="소속 팀명 또는 학교명을 입력하십시오.">
         </div>
 
         <!-- 인증 번호 입력 (비밀번호 분실 시 노출) -->
