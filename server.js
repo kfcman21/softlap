@@ -734,6 +734,171 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
+app.post('/api/feedback/cancel', async (req, res) => {
+  const { projectId } = req.body;
+  if (!projectId) return res.status(400).json({ error: "프로젝트 ID 누락" });
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_SUBMITTED WHERE PROJECT_ID = :id`, [projectId]);
+      if (check.rows.length === 0) return res.status(404).json({ error: "제출물을 찾을 수 없습니다." });
+
+      const email = check.rows[0].EMAIL;
+
+      await conn.execute(
+        `UPDATE SOFTLAP_SUBMITTED SET STATUS = '제출완료', FEEDBACK = NULL WHERE PROJECT_ID = :id`,
+        [projectId]
+      );
+
+      const lowerEmail = email ? email.toLowerCase() : "";
+      if (lowerEmail) {
+        const userProjectsResult = await conn.execute(
+          `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+          [projectId, lowerEmail]
+        );
+
+        if (userProjectsResult.rows.length > 0) {
+          let oldProjData = "";
+          if (userProjectsResult.rows[0].PROJECT_DATA) {
+            oldProjData = await userProjectsResult.rows[0].PROJECT_DATA.getData();
+          }
+          if (oldProjData) {
+            const oldProjObj = JSON.parse(oldProjData);
+            oldProjObj.status = "제출완료";
+            delete oldProjObj.feedback;
+
+            await conn.execute(
+              `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+              [JSON.stringify(oldProjObj), projectId, lowerEmail]
+            );
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 피드백 취소 실패: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const item = dbData.submitted.find(p => p.id === projectId);
+    if (!item) return res.status(404).json({ error: "제출 내역 없음" });
+
+    delete item.feedback;
+    item.status = "제출완료";
+    
+    const teacherEmail = item.email ? item.email.toLowerCase() : "";
+    if (teacherEmail && dbData.projects[teacherEmail]) {
+      const proj = dbData.projects[teacherEmail].find(p => p.id === projectId);
+      if (proj) {
+        proj.status = "제출완료";
+        delete proj.feedback;
+      }
+    }
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+app.post('/api/feedback/clear-all', async (req, res) => {
+  const { companyProduct } = req.body;
+  if (!companyProduct) return res.status(400).json({ error: "기업 제품명 누락" });
+
+  const targetCompProduct = companyProduct.trim().toLowerCase().replace(/\s+/g, '');
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      const submissionsResult = await conn.execute(`SELECT PROJECT_ID, EMAIL, PROJECT_DATA FROM SOFTLAP_SUBMITTED`);
+      const rows = submissionsResult.rows;
+      
+      let modifiedCount = 0;
+      for (const row of rows) {
+        let projData = "";
+        if (row.PROJECT_DATA) projData = await row.PROJECT_DATA.getData();
+        if (projData) {
+          const projObj = JSON.parse(projData);
+          const pProduct = (projObj.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+          if (pProduct === targetCompProduct) {
+            const projectId = row.PROJECT_ID;
+            const email = row.EMAIL;
+
+            await conn.execute(
+              `UPDATE SOFTLAP_SUBMITTED SET STATUS = '제출완료', FEEDBACK = NULL WHERE PROJECT_ID = :id`,
+              [projectId]
+            );
+
+            const lowerEmail = email ? email.toLowerCase() : "";
+            if (lowerEmail) {
+              const userProjectsResult = await conn.execute(
+                `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+                [projectId, lowerEmail]
+              );
+              if (userProjectsResult.rows.length > 0) {
+                let oldProjData = "";
+                if (userProjectsResult.rows[0].PROJECT_DATA) {
+                  oldProjData = await userProjectsResult.rows[0].PROJECT_DATA.getData();
+                }
+                if (oldProjData) {
+                  const oldProjObj = JSON.parse(oldProjData);
+                  oldProjObj.status = "제출완료";
+                  delete oldProjObj.feedback;
+
+                  await conn.execute(
+                    `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+                    [JSON.stringify(oldProjObj), projectId, lowerEmail]
+                  );
+                }
+              }
+            }
+            modifiedCount++;
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ success: true, count: modifiedCount });
+    } catch (err) {
+      res.status(500).json({ error: "DB 피드백 전체 초기화 실패: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    let modifiedCount = 0;
+    
+    dbData.submitted.forEach(p => {
+      const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+      if (pProduct === targetCompProduct) {
+        delete p.feedback;
+        p.status = "제출완료";
+
+        const teacherEmail = p.email ? p.email.toLowerCase() : "";
+        if (teacherEmail && dbData.projects[teacherEmail]) {
+          const proj = dbData.projects[teacherEmail].find(projItem => projItem.id === p.id);
+          if (proj) {
+            proj.status = "제출완료";
+            delete proj.feedback;
+          }
+        }
+        modifiedCount++;
+      }
+    });
+
+    writeLocalDb(dbData);
+    res.json({ success: true, count: modifiedCount });
+  }
+});
+
+
 // F. Admin Dashboard API
 app.get('/api/admin/users', async (req, res) => {
   if (useOracle) {

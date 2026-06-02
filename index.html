@@ -787,8 +787,11 @@
             <textarea id="rev-feedback-textarea" class="input-control" style="flex:1; width:100%; min-height: 120px; font-size: 0.8rem; line-height: 1.4; resize:none; padding:10px;" placeholder="교사님의 실증 분석에 감사를 전합니다. 건의해 주신 HTTPS 통신구간 암호화 미비 및 쿠키 수집 정보는 다음 v2.1 패치 버전에 즉각 수정하여 배포 예정입니다..."></textarea>
             
             <div style="display: flex; gap: 10px;">
-              <button id="btn-submit-feedback" class="btn btn-success" style="flex: 1; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem;">
+              <button id="btn-submit-feedback" class="btn btn-success" style="flex: 2; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem;">
                 📢 피드백 전송 및 상태 갱신
+              </button>
+              <button id="btn-cancel-feedback" class="btn btn-danger" style="display: none; flex: 1; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem; background-color: var(--danger-color); border-color: var(--danger-color);" title="등록된 피드백을 삭제하고 대기중 상태로 되돌립니다">
+                ↩️ 피드백 취소
               </button>
             </div>
           </div>

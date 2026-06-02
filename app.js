@@ -1434,6 +1434,10 @@ function setupEventListeners() {
   if (btnClearFeedback) {
     btnClearFeedback.addEventListener("click", handleClearCompanyFeedback);
   }
+  const btnCancelFeedback = document.getElementById("btn-cancel-feedback");
+  if (btnCancelFeedback) {
+    btnCancelFeedback.addEventListener("click", cancelEnterpriseFeedback);
+  }
 }
 
 // 테마 관리
@@ -3059,6 +3063,16 @@ function viewSubmittedProject(projectId) {
   const feedbackArea = document.getElementById("rev-feedback-textarea");
   feedbackArea.value = project.feedback ? project.feedback.text : "";
 
+  // 피드백 취소 버튼 제어
+  const btnCancelFeedback = document.getElementById("btn-cancel-feedback");
+  if (btnCancelFeedback) {
+    if (project.feedback || project.status === "피드백 완료") {
+      btnCancelFeedback.style.display = "inline-flex";
+    } else {
+      btnCancelFeedback.style.display = "none";
+    }
+  }
+
   // 점검 항목 바인딩
   const tbody = document.getElementById("rev-checklist-tbody");
   tbody.innerHTML = "";
@@ -3358,63 +3372,76 @@ async function handleClearCompanyFeedback() {
     return;
   }
 
-  // 1. 최신 제출 목록을 다시 로드하여 동시성 충돌 방지
-  let freshList = [];
   try {
-    const res = await fetch(`${centralDbUrl}/api/submitted`);
-    if (res.ok) {
-      freshList = await res.json();
-    } else {
-      throw new Error("서버 응답 실패");
-    }
-  } catch (err) {
-    alert("서버에서 제출 목록을 불러오는 데 실패했습니다: " + err.message);
-    return;
-  }
-
-  // 2. 이 기업의 제품에 해당하는 제출물의 피드백과 상태 리셋
-  let modifiedCount = 0;
-  const updatedList = freshList.map(p => {
-    // targetProduct 명칭 매칭
-    const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
-    const cProduct = companyProduct.trim().toLowerCase().replace(/\s+/g, '');
-
-    if (pProduct === cProduct) {
-      if ((p.feedback && p.feedback.trim().length > 0) || p.status === "피드백 완료") {
-        modifiedCount++;
-      }
-      return {
-        ...p,
-        status: "피드백 대기",
-        feedback: ""
-      };
-    }
-    return p;
-  });
-
-  if (modifiedCount === 0) {
-    alert("초기화할 기존 피드백 데이터가 존재하지 않습니다.");
-    return;
-  }
-
-  // 3. 서버에 일괄 저장 요청
-  try {
-    const response = await fetch(`${centralDbUrl}/api/submitted`, {
+    const response = await fetch(`${centralDbUrl}/api/feedback/clear-all`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submittedList: updatedList })
+      body: JSON.stringify({ companyProduct: companyProduct })
     });
 
     if (response.ok) {
-      showToast(`🎉 제품 '${companyProduct}'의 피드백 데이터 ${modifiedCount}건이 완벽하게 초기화되었습니다!`);
-      // 대시보드 새로 렌더링
-      await renderEnterpriseDashboard();
+      const data = await response.json();
+      if (data.count === 0) {
+        alert("초기화할 기존 피드백 데이터가 존재하지 않습니다.");
+      } else {
+        showToast(`🎉 제품 '${companyProduct}'의 피드백 데이터 ${data.count}건이 완벽하게 초기화되었습니다!`);
+        await renderEnterpriseDashboard();
+      }
     } else {
       const errData = await response.json();
       alert("피드백 초기화 서버 반영 실패: " + (errData.error || "알 수 없는 오류"));
     }
   } catch (err) {
     alert("서버 연결 실패: " + err.message);
+  }
+}
+
+// ↩️ 에듀테크 기업 피드백 취소 처리기
+async function cancelEnterpriseFeedback() {
+  if (!activeReviewProjectId) return;
+
+  if (!confirm("↩️ [피드백 취소]\n\n해당 실증 보고서에 등록된 조치 계획 및 피드백을 삭제하고 다시 '피드백 대기' 상태로 되돌리시겠습니까?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${centralDbUrl}/api/feedback/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: activeReviewProjectId })
+    });
+
+    if (response.ok) {
+      // 만약 OCI 클라우드가 활성화되어 있다면, OCI 동기화 데이터 송신
+      if (oracleConfig.enabled && oracleConfig.endpoint) {
+        const targetProj = state.submittedList.find(p => p.id === activeReviewProjectId);
+        if (targetProj) {
+          targetProj.status = "제출완료";
+          delete targetProj.feedback;
+          
+          const prevActive = state.activeProject;
+          const prevActiveId = state.activeProjectId;
+          
+          state.activeProjectId = activeReviewProjectId;
+          state.activeProject = targetProj;
+          
+          syncToOracleCloud();
+          
+          state.activeProject = prevActive;
+          state.activeProjectId = prevActiveId;
+        }
+      }
+
+      closeReviewModal();
+      await renderEnterpriseDashboard();
+      showToast("🎉 피드백이 정상적으로 취소되어 피드백 대기 상태로 원복되었습니다.");
+    } else {
+      const errData = await response.json();
+      alert(errData.error || "⚠️ 피드백 취소에 실패했습니다.");
+    }
+  } catch (err) {
+    console.error("피드백 취소 중 오류:", err);
+    alert("⚠️ 서버 연결 오류로 피드백을 취소하지 못했습니다.");
   }
 }
 
