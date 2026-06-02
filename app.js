@@ -602,7 +602,8 @@ function loadActiveProject() {
     if (status === "피드백 완료") {
       txtStatus.textContent = "피드백 완료";
       txtStatus.className = "status-badge status-completed";
-      if (btnCancelSubmit) btnCancelSubmit.style.display = "none";
+      const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+      if (btnCancelSubmit) btnCancelSubmit.style.display = isAdmin ? "inline-flex" : "none";
       
       // 피드백 패널 노출 및 매핑
       if (feedback) {
@@ -1425,6 +1426,10 @@ function setupEventListeners() {
   // 비밀번호 변경 액션 바인딩
   document.getElementById("btn-change-pw").addEventListener("click", handleChangePassword);
   document.getElementById("btn-company-change-pw").addEventListener("click", handleChangePassword);
+  const btnAdminChangePw = document.getElementById("btn-admin-change-pw");
+  if (btnAdminChangePw) {
+    btnAdminChangePw.addEventListener("click", handleChangePassword);
+  }
   const btnClearFeedback = document.getElementById("btn-company-clear-feedback");
   if (btnClearFeedback) {
     btnClearFeedback.addEventListener("click", handleClearCompanyFeedback);
@@ -2862,7 +2867,7 @@ async function submitProjectToEnterprise() {
     return;
   }
 
-  if (!confirm("⚠️ [경고] 기업 최종 제출하기\n\n최종 제출 시 보고서 데이터가 암묵적으로 잠금(Read-only) 처리되어 이후 수정이 불가능해집니다.\n\n해당 실증 분석 결과를 에듀테크 기업 피드백 센터로 최종 발송하시겠습니까?")) {
+  if (!confirm("⚠️ [경고] 기업 제출하기\n\n제출 시 보고서 데이터가 암묵적으로 잠금(Read-only) 처리되어 이후 수정이 불가능해집니다.\n\n해당 실증 분석 결과를 에듀테크 기업 피드백 센터로 발송하시겠습니까?")) {
     return;
   }
 
@@ -2916,7 +2921,7 @@ async function submitProjectToEnterprise() {
     });
 
     if (postRes.ok) {
-      showToast("🎉 실증 보고서가 협력 개발사에 최종 제출되었습니다! 피드백 대기중.");
+      showToast("🎉 실증 보고서가 협력 개발사에 제출되었습니다! 피드백 대기중.");
     } else {
       throw new Error("서버 제출 실패");
     }
@@ -3426,8 +3431,8 @@ async function cancelProjectSubmission() {
   }
 
   const confirmMsg = isAdmin
-    ? "↩️ [관리자 권한 - 최종 제출 강제 취소]\n\n해당 보고서의 제출을 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 원래 작성자의 보관함에서 '작성중' 상태로 원복되며, 추가 편집이 가능해집니다."
-    : "↩️ [최종 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.";
+    ? "↩️ [관리자 권한 - 기업 제출 강제 취소]\n\n해당 보고서의 제출을 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 원래 작성자의 보관함에서 '작성중' 상태로 원복되며, 추가 편집이 가능해집니다."
+    : "↩️ [기업에 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.";
 
   if (!confirm(confirmMsg)) {
     return;
@@ -3498,7 +3503,6 @@ async function cancelProjectSubmission() {
     if (postRes.ok) {
       showToast("🎉 성공적으로 제출이 취소되어 편집 가능한 작성중 상태로 복원되었습니다.");
       await loadUserProjects();
-      await loadProject(state.activeProjectId);
     } else {
       throw new Error("서버 제출 목록 갱신 실패");
     }
