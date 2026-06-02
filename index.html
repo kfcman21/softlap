@@ -108,6 +108,15 @@
         아직 계정이 없으신가요? 
         <span class="auth-switch-link" id="link-switch-auth">회원 가입</span>
       </div>
+
+      <!-- 🔗 로그인 하단 정보 링크 영역 -->
+      <div style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; justify-content: center; gap: 10px; font-size: 0.72rem; color: var(--text-tertiary);">
+        <span onclick="openInfoModal('dev')" style="cursor: pointer; text-decoration: underline;" title="개발자 정보 확인">👨‍💻 개발자 정보</span>
+        <span>|</span>
+        <span onclick="openInfoModal('intro')" style="cursor: pointer; text-decoration: underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+        <span>|</span>
+        <span onclick="openInfoModal('privacy')" style="cursor: pointer; text-decoration: underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+      </div>
     </div>
   </div>
 
@@ -590,8 +599,15 @@
       </div>
 
       <!-- 하단 꼬리말 -->
-      <footer style="height:32px; background-color:var(--bg-secondary); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; padding:0 24px; font-size:0.75rem; color:var(--text-tertiary);">
+      <footer style="height:auto; min-height:36px; background-color:var(--bg-secondary); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; padding:8px 24px; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
         <div>서울 에듀테크 소프트랩 개별 교사 실증용 공식 보고서 도구</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('dev')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개발자 정보 확인">👨‍💻 개발자 정보</span>
+          <span>|</span>
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
         <div>보관함 활성 파일: <span id="footer-active-product" style="font-weight:700; color:var(--text-secondary);">미선택</span></div>
       </footer>
 
@@ -670,6 +686,18 @@
           </tbody>
         </table>
       </div>
+      <!-- 하단 꼬리말 -->
+      <footer style="margin-top:auto; padding:16px 0 0 0; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
+        <div>서울 에듀테크 소프트랩 관리 모드 제어 센터</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('dev')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개발자 정보 확인">👨‍💻 개발자 정보</span>
+          <span>|</span>
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
+        <div>v1.0.5 Admin Control</div>
+      </footer>
     </div>
   </div>
 
@@ -748,6 +776,18 @@
           </tbody>
         </table>
       </div>
+      <!-- 하단 꼬리말 -->
+      <footer style="margin-top:auto; padding:16px 0 0 0; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
+        <div>서울 에듀테크 소프트랩 기업 피드백 전용 센터</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('dev')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개발자 정보 확인">👨‍💻 개발자 정보</span>
+          <span>|</span>
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
+        <div>v1.0.5 Company Control</div>
+      </footer>
     </div>
   </div>
 
@@ -938,6 +978,24 @@
       <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
         <button id="btn-cancel-profile-modal" class="btn" style="border-color: var(--border-color); font-size: 0.8rem;">취소</button>
         <button id="btn-save-profile" class="btn btn-primary" style="font-size: 0.8rem; font-weight: 700;">💾 변경사항 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== I. 개발자 정보 / 서비스 소개 / 개인정보 처리방침 안내 모달 ==================== -->
+  <div id="info-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2500; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div class="auth-card" style="max-width: 500px; width: 90%; display: flex; flex-direction: column; padding: 24px; gap: 16px; border: 2px solid var(--accent-color); max-height: 80vh; overflow-y: auto;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <h3 id="info-modal-title" style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">ℹ️ 안내 정보</h3>
+        <button onclick="closeInfoModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-secondary); outline: none;">&times;</button>
+      </div>
+      
+      <div id="info-modal-content" style="font-size: 0.82rem; line-height: 1.6; color: var(--text-primary);">
+        <!-- 내용 동적 기입 -->
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+        <button onclick="closeInfoModal()" class="btn btn-primary" style="font-size: 0.8rem; padding: 6px 16px;">닫기</button>
       </div>
     </div>
   </div>

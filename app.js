@@ -4269,3 +4269,67 @@ if (document.readyState === "loading") {
 } else {
   initApp();
 }
+
+// ℹ️ [신규] 안내 정보 모달 제어 (개발자 정보, 서비스 소개, 개인정보 처리방침)
+function openInfoModal(type) {
+  const modal = document.getElementById("info-modal");
+  const title = document.getElementById("info-modal-title");
+  const content = document.getElementById("info-modal-content");
+  
+  if (!modal || !title || !content) return;
+  
+  if (type === 'dev') {
+    title.innerHTML = "👨‍💻 개발자 정보";
+    content.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <p style="font-weight:700; font-size:0.9rem; color:var(--accent-color);">서울에듀테크소프트랩 공동 실증 지원팀</p>
+        <p>본 플랫폼의 기획, UI/UX 설계, 전체 개발 및 시스템 운영 관리는 서울에듀테크소프트랩 기술 지원팀 및 엔지니어링 파트에서 수행합니다.</p>
+        <div style="background-color:var(--bg-secondary); padding:14px; border-radius:8px; font-size:0.78rem; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:6px; line-height:1.5;">
+          <div>• <strong>운영 기관:</strong> 서울에듀테크소프트랩</div>
+          <div>• <strong>오프라인 주소:</strong> 서울특별시 종로구 송월길 48 서울시교육청 교육연구정보원 내</div>
+          <div>• <strong>기술지원 이메일:</strong> <a href="mailto:softlap_dev@seoul.go.kr" style="color:var(--accent-color); text-decoration:underline;">softlap_dev@seoul.go.kr</a></div>
+          <div>• <strong>고객센터 연락처:</strong> 02-1234-5678 (평일 09:00 ~ 18:00)</div>
+        </div>
+      </div>
+    `;
+  } else if (type === 'intro') {
+    title.innerHTML = "🏫 서비스 소개";
+    content.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <p style="font-weight:700; font-size:0.9rem; color:var(--accent-color);">서울에듀테크소프트랩 통합 평가 대시보드</p>
+        <p>본 서비스는 공교육 현장에 도입 및 적용되는 다양한 에듀테크 프로그램의 적합성, 인프라 부하, 데이터 안전성을 현장 교사들의 검증 보고서 데이터를 통해 분석 및 추적하는 전문 협업 관리 플랫폼입니다.</p>
+        <div style="background-color:var(--bg-secondary); padding:14px; border-radius:8px; font-size:0.78rem; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:8px;">
+          <strong>🎯 핵심 서비스 타겟 및 연동 흐름</strong>
+          <div>1) <strong>실증 교사:</strong> 교육 현장의 사용성 및 보안 개선 사항 체크리스트 등록</div>
+          <div>2) <strong>개발사(기업):</strong> 수집된 결함 요소 확인 및 보완 조치 계획 피드백 실시간 전송</div>
+          <div>3) <strong>소속 팀장:</strong> 각 평가 및 피드백을 실시간 자동 수집하여 A4 규격 공동 보고서 자동 편집/발행</div>
+        </div>
+      </div>
+    `;
+  } else if (type === 'privacy') {
+    title.innerHTML = "🔒 개인정보 처리방침";
+    content.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:45vh; overflow-y:auto; padding-right:6px; line-height:1.6;">
+        <p>서울에듀테크소프트랩은 개인정보보호법에 의거하여 이용자의 개인정보 및 권익을 보호하고 개인정보와 관련한 이용자의 고충을 원활하게 처리할 수 있도록 다음과 같은 처리 방침을 수립·공개합니다.</p>
+        <p><strong>1. 개인정보 수집 항목</strong><br>
+        회원가입 시 입력된 이메일(ID), 이름, 소속학교(기관명), 실증 팀명 및 플랫폼 접속 환경 정보(접속로그), 작성하신 개별 보고서 정보가 안전하게 수집됩니다.</p>
+        <p><strong>2. 개인정보의 이용 목적</strong><br>
+        수집된 정보는 본인 식별, 평가 보고서 데이터의 계정 매칭 및 클라우드 동기화, 기업 피드백 실시간 연동, 부정 가입 방지 이외의 목적으로는 사용되지 않습니다.</p>
+        <p><strong>3. 보유 및 이용 기간</strong><br>
+        이용자의 회원 탈퇴 처리 요청 시 또는 본 실증 프로그램 사업의 공식 종료 시까지 보유 및 활용되며, 파기 요청 시 복원할 수 없는 방식으로 영구 파기됩니다.</p>
+        <p><strong>4. 제3자 제공 고지</strong><br>
+        플랫폼은 이용자의 명시적 동의나 법령에 정한 경우를 제외하고는 수집 목적의 범위를 초과하여 제3자에게 개인정보를 양도하거나 유출하지 않습니다.</p>
+      </div>
+    `;
+  }
+  
+  modal.style.display = "flex";
+}
+
+function closeInfoModal() {
+  const modal = document.getElementById("info-modal");
+  if (modal) modal.style.display = "none";
+}
+
+window.openInfoModal = openInfoModal;
+window.closeInfoModal = closeInfoModal;
