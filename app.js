@@ -59,6 +59,12 @@ async function checkCentralDbStatus() {
       connection = await tryUrl("https://api.kfcman.link");
     }
     if (!connection) {
+      connection = await tryUrl("https://softlap.seoul.kr");
+    }
+    if (!connection) {
+      connection = await tryUrl("https://www.softlap.seoul.kr");
+    }
+    if (!connection) {
       connection = await tryUrl("https://api.softlap.seoul.kr");
     }
     
