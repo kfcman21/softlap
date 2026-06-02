@@ -1311,10 +1311,9 @@ function setupEventListeners() {
     teamProductSelect.addEventListener("change", renderTeamReportCompiled);
   }
   
-  const teamNameInput = document.getElementById("team-name-input");
-  if (teamNameInput) {
-    teamNameInput.addEventListener("input", () => {
-      saveTeamInputs();
+  const teamNameSelect = document.getElementById("team-name-select");
+  if (teamNameSelect) {
+    teamNameSelect.addEventListener("change", () => {
       populateTeamProducts();
     });
   }
@@ -3672,10 +3671,6 @@ window.deleteSubmittedProject = deleteSubmittedProject;
 
 // 1. 팀별 보고서 워크스페이스 렌더링 시작점
 async function renderTeamWorkspace() {
-  const teamInput = document.getElementById("team-name-input");
-  if (teamInput && !teamInput.value.trim()) {
-    teamInput.value = state.currentUser?.team || state.currentUser?.school || "";
-  }
   await fetchTeamReportData(true);
 }
 
@@ -3694,12 +3689,45 @@ async function fetchTeamReportData(silent = false) {
     if (!silent) showToast("⚠️ 실시간 제출 목록을 데이터베이스에서 불러오지 못했습니다.");
     state.submittedList = [];
   }
+  populateTeamNames();
+}
+
+// 2-B. 서버 자료를 바탕으로 고유 실증 팀명 목록을 추출하여 셀렉터 구성
+function populateTeamNames() {
+  const select = document.getElementById("team-name-select");
+  if (!select) return;
+  
+  const originalValue = select.value || state.currentUser?.team || state.currentUser?.school || "";
+  select.innerHTML = '<option value="">-- 실증 팀을 선택하세요 --</option>';
+  
+  const teams = [...new Set((state.submittedList || []).map(p => p.schoolName).filter(Boolean))];
+  
+  teams.forEach(team => {
+    const opt = document.createElement("option");
+    opt.value = team;
+    opt.textContent = team;
+    if (team === originalValue) opt.selected = true;
+    select.appendChild(opt);
+  });
+  
+  if (teams.length > 0 && !select.value) {
+    const userTeam = state.currentUser?.team || state.currentUser?.school || "";
+    const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
+    if (matchedTeam) {
+      select.value = matchedTeam;
+    } else {
+      select.value = teams[0];
+    }
+  }
+
   populateTeamProducts();
 }
 
-// 3. 현재 입력된 팀명의 모든 제품 목록을 스캔하여 셀렉터 구성
+// 3. 현재 선택된 팀명의 모든 제품 목록을 스캔하여 셀렉터 구성
 function populateTeamProducts() {
-  const teamName = document.getElementById("team-name-input").value.trim().toLowerCase();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim().toLowerCase();
   const select = document.getElementById("team-product-select");
   if (!select) return;
   
@@ -3733,7 +3761,9 @@ function populateTeamProducts() {
 
 // 4. 선택된 팀명 + 제품 조합의 상세 취합 결과 화면 렌더링
 function renderTeamReportCompiled() {
-  const teamName = document.getElementById("team-name-input").value.trim();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim();
   const productName = document.getElementById("team-product-select").value;
   const teachersDisplay = document.getElementById("team-teachers-display");
   const itemsContainer = document.getElementById("team-aggregated-items");
@@ -3883,7 +3913,9 @@ function renderTeamReportCompiled() {
 
 // 5. 로컬스토리지에 종합 결론 저장
 function saveTeamInputs() {
-  const teamName = document.getElementById("team-name-input").value.trim();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim();
   const productName = document.getElementById("team-product-select").value;
   
   if (!teamName || !productName) return;
@@ -3897,7 +3929,9 @@ function saveTeamInputs() {
 
 // 6. 로컬스토리지로부터 종합 결론 로드
 function loadTeamInputs() {
-  const teamName = document.getElementById("team-name-input").value.trim();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim();
   const productName = document.getElementById("team-product-select").value;
   
   const conclusionText = document.getElementById("team-conclusion-input");
@@ -3929,7 +3963,9 @@ function loadTeamInputs() {
 
 // 7. 팀별 종합 보고서 인쇄
 function printTeamReport() {
-  const teamName = document.getElementById("team-name-input").value.trim();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim();
   const productName = document.getElementById("team-product-select").value;
   
   if (!teamName || !productName) {
@@ -3964,7 +4000,9 @@ function renderTeamA4Preview() {
   const container = document.getElementById("preview-container");
   container.innerHTML = "";
   
-  const teamName = document.getElementById("team-name-input").value.trim();
+  const teamSelect = document.getElementById("team-name-select");
+  if (!teamSelect) return;
+  const teamName = teamSelect.value.trim();
   const productName = document.getElementById("team-product-select").value;
   const teachers = document.getElementById("team-teachers-display").value;
   const conclusion = document.getElementById("team-conclusion-input").value;
