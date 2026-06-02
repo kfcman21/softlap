@@ -2032,6 +2032,7 @@ function switchTab(tabId) {
     previewArea.style.display = "none";
     if (dashboardArea) {
       dashboardArea.style.display = "block";
+      renderDashboard();
     }
   }
 }
