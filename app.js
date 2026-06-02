@@ -14,6 +14,8 @@ let oracleConfig = {
 
 let isCentralDbActive = false;
 let centralDbUrl = "";
+let lastSubmittedFetchTime = 0;
+let cachedSubmittedList = [];
 
 async function checkCentralDbStatus() {
   const configuredUrl = localStorage.getItem("softlap_central_db_url");
@@ -1890,6 +1892,7 @@ function renderChecklistGrid() {
 
     tbody.appendChild(tr);
   });
+  checkTeamDuplication();
 }
 
 // 빈 점검 행 추가
@@ -3007,37 +3010,69 @@ async function checkTeamDuplication() {
   if (!schoolInput) return;
 
   const schoolName = schoolInput.value.trim().toLowerCase().replace(/\s+/g, '');
-  const productName = (state.activeProject.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+  const productName = (state.activeProject?.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
 
-  if (!schoolName || !productName || productName === "새로운에듀테크프로그램") {
+  if (!schoolName || !productName || productName === "새로운에듀테크프로그램" || productName === "새로운 에듀테크 프로그램") {
     warningBanner.style.display = "none";
     return;
   }
 
-  let submittedList = [];
-  try {
-    // 실시간으로 중복 체크를 위해 원격 서버에서 덤프
-    const res = await fetch(`${centralDbUrl}/api/submitted`);
-    if (res.ok) {
-      submittedList = await res.json();
-    }
-  } catch (e) {
-    console.error("중복 판별용 제출 목록 로드 실패:", e);
+  const activeItems = state.activeProject?.items || [];
+  if (activeItems.length === 0) {
+    warningBanner.style.display = "none";
+    return;
   }
-  
-  const duplicateReport = submittedList.find(p => {
-    // 본인의 지금 활성화된 프로젝트 ID는 배제
-    if (p.id === state.activeProjectId) return false;
 
-    const pSchool = (p.schoolName || "").trim().toLowerCase().replace(/\s+/g, '');
-    const pProduct = (p.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+  const now = Date.now();
+  // 5초 캐시 적용하여 타이핑/렌더링 시 과도한 API Fetch 방지
+  if (now - lastSubmittedFetchTime > 5000 || cachedSubmittedList.length === 0) {
+    try {
+      const res = await fetch(`${centralDbUrl}/api/submitted`);
+      if (res.ok) {
+        cachedSubmittedList = await res.json();
+        lastSubmittedFetchTime = now;
+      }
+    } catch (e) {
+      console.error("중복 판별용 제출 목록 로드 실패:", e);
+    }
+  }
+
+  // 동일한 학교명 및 동일한 에듀테크 제품을 실증한 다른 사람의 제출된 보고서들 필터링 (본인 ID 제외)
+  const matchingReports = cachedSubmittedList.filter(p => {
+    if (p.id === state.activeProjectId || p.id === state.activeProject.id) return false;
+
+    const pSchool = (p.schoolName || p.meta?.schoolName || "").trim().toLowerCase().replace(/\s+/g, '');
+    const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
     
     return pSchool === schoolName && pProduct === productName;
   });
 
-  if (duplicateReport) {
+  const duplicates = [];
+  matchingReports.forEach(report => {
+    const reportItems = report.items || [];
+    reportItems.forEach(repItem => {
+      // 대분류와 중분류가 모두 동일한 항목이 현재 프로젝트에 있는지 확인
+      const hasDup = activeItems.some(actItem => 
+        actItem.element === repItem.element && actItem.item === repItem.item
+      );
+      if (hasDup) {
+        duplicates.push({
+          teacherName: report.meta?.teacherName || report.teacherName || "다른 교사",
+          element: repItem.element,
+          item: repItem.item
+        });
+      }
+    });
+  });
+
+  if (duplicates.length > 0) {
     warningBanner.style.display = "flex";
-    warningText.textContent = `동일 실증 팀 [${duplicateReport.schoolName}]의 다른 교사 [${duplicateReport.teacherName}]님이 본 제품 '${duplicateReport.meta.targetProduct}'에 대해 실증지 작성을 마쳤습니다. 중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
+    // 중복된 실증 항목들을 보기 좋게 포맷팅
+    const dupStr = duplicates.map(d => `[${d.teacherName} 교사: ${d.element} ➔ ${d.item}]`).join(", ");
+    warningText.innerHTML = `⚠️ <strong>동일 실증 팀 내 중복 실증 항목 감지!</strong><br>
+    동일 실증 팀 내 다른 교사분이 제출 완료한 보고서와 <strong>실증항목이 중복</strong>됩니다.<br>
+    <strong>중복 항목:</strong> ${dupStr}<br>
+    중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
   } else {
     warningBanner.style.display = "none";
   }
