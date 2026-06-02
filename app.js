@@ -191,6 +191,23 @@ async function initApp() {
     if (toggleText) toggleText.textContent = "사이드바 펼치기";
   }
 
+  // 나의 실증 보관함 및 가이드 트리 접힘 상태 복구
+  const cabinetCollapsed = localStorage.getItem("softlap_cabinet_collapsed") === "true";
+  const list = document.getElementById("project-cabinet-list");
+  const cabArrow = document.getElementById("cabinet-toggle-arrow");
+  if (list && cabinetCollapsed) {
+    list.style.display = "none";
+    if (cabArrow) cabArrow.style.transform = "rotate(-90deg)";
+  }
+
+  const guideCollapsed = localStorage.getItem("softlap_guide_collapsed") === "true";
+  const nav = document.getElementById("preset-tree-nav");
+  const guiArrow = document.getElementById("guide-toggle-arrow");
+  if (nav && guideCollapsed) {
+    nav.style.display = "none";
+    if (guiArrow) guiArrow.style.transform = "rotate(-90deg)";
+  }
+
   await checkCentralDbStatus();
   setupEventListeners();
   applyTheme();
@@ -1271,6 +1288,38 @@ function setupEventListeners() {
       if (toggleIcon) toggleIcon.textContent = "▶";
       if (toggleText) toggleText.textContent = "사이드바 펼치기";
       localStorage.setItem("softlap_sidebar_collapsed", "true");
+    }
+  });
+
+  // 📁 나의 실증 보관함 접기/펼치기 토글
+  safeBindClick("cabinet-toggle-header", () => {
+    const list = document.getElementById("project-cabinet-list");
+    const arrow = document.getElementById("cabinet-toggle-arrow");
+    if (!list) return;
+    if (list.style.display === "none") {
+      list.style.display = "block";
+      if (arrow) arrow.style.transform = "rotate(0deg)";
+      localStorage.setItem("softlap_cabinet_collapsed", "false");
+    } else {
+      list.style.display = "none";
+      if (arrow) arrow.style.transform = "rotate(-90deg)";
+      localStorage.setItem("softlap_cabinet_collapsed", "true");
+    }
+  });
+
+  // 🎯 클릭 시 보관함에 추가 (30대 기준) 접기/펼치기 토글
+  safeBindClick("guide-toggle-header", () => {
+    const nav = document.getElementById("preset-tree-nav");
+    const arrow = document.getElementById("guide-toggle-arrow");
+    if (!nav) return;
+    if (nav.style.display === "none") {
+      nav.style.display = "block";
+      if (arrow) arrow.style.transform = "rotate(0deg)";
+      localStorage.setItem("softlap_guide_collapsed", "false");
+    } else {
+      nav.style.display = "none";
+      if (arrow) arrow.style.transform = "rotate(-90deg)";
+      localStorage.setItem("softlap_guide_collapsed", "true");
     }
   });
 

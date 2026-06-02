@@ -145,10 +145,13 @@
         </div>
       </div>
 
-      <!-- 다중 실증 프로젝트 관리 보관함 (📁 나의 실증 보관함) -->
-      <div class="project-cabinet-header">
-        <span>📁 나의 실증 보관함</span>
-        <button id="btn-new-project" class="cabinet-action-btn" style="color:var(--accent-color); font-weight:bold; font-size:1.1rem;" title="새 실증 보고서 추가">➕</button>
+      <!-- 다중 실증 프로젝트 관리 보관함 (📁 나의 실증 보관함 - 접기/펼치기 가능) -->
+      <div class="project-cabinet-header" id="cabinet-toggle-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span id="cabinet-toggle-arrow" style="font-size: 0.65rem; transition: transform 0.2s ease; display: inline-block;">▼</span>
+          <span>📁 나의 실증 보관함</span>
+        </div>
+        <button id="btn-new-project" class="cabinet-action-btn" style="color:var(--accent-color); font-weight:bold; font-size:1.1rem; padding: 2px 8px;" title="새 실증 보고서 추가" onclick="event.stopPropagation();">➕</button>
       </div>
       <div class="project-cabinet-list" id="project-cabinet-list">
         <!-- 로그인된 사용자의 다중 프로젝트 목록 카드 슬롯 -->
@@ -184,9 +187,10 @@
         </div>
       </div>
 
-      <!-- 실증 가이드 라이브러리 트리 (30대 세부항목 즉시 추가 버튼 역할) -->
-      <div style="padding: 10px 16px 4px 16px; font-size:0.75rem; font-weight:800; color:var(--text-tertiary); background-color:var(--bg-tertiary); border-bottom:1px solid var(--border-color);">
-        🎯 클릭 시 보관함에 추가 (30대 기준)
+      <!-- 실증 가이드 라이브러리 트리 (30대 세부항목 즉시 추가 버튼 역할 - 접기/펼치기 가능) -->
+      <div id="guide-toggle-header" style="padding: 10px 16px; font-size:0.75rem; font-weight:800; color:var(--text-tertiary); background-color:var(--bg-tertiary); border-bottom:1px solid var(--border-color); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px;">
+        <span id="guide-toggle-arrow" style="font-size: 0.65rem; transition: transform 0.2s ease; display: inline-block;">▼</span>
+        <span>🎯 클릭 시 보관함에 추가 (30대 기준)</span>
       </div>
       
       <nav class="nav-scroll-area" aria-label="점검 기준 퀵 로더" id="preset-tree-nav">
