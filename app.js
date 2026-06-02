@@ -564,6 +564,7 @@ function loadActiveProject() {
   const feedback = state.activeProject.feedback;
 
   const btnSubmit = document.getElementById("btn-submit-to-company");
+  const btnCancelSubmit = document.getElementById("btn-cancel-submit");
   const txtStatus = document.getElementById("txt-submitted-status");
   const panelFeedback = document.getElementById("feedback-receipt-panel");
 
@@ -574,6 +575,7 @@ function loadActiveProject() {
     if (status === "피드백 완료") {
       txtStatus.textContent = "피드백 완료";
       txtStatus.className = "status-badge status-completed";
+      if (btnCancelSubmit) btnCancelSubmit.style.display = "none";
       
       // 피드백 패널 노출 및 매핑
       if (feedback) {
@@ -586,10 +588,12 @@ function loadActiveProject() {
     } else {
       txtStatus.textContent = "제출완료 (대기중)";
       txtStatus.className = "status-badge status-submitted";
+      if (btnCancelSubmit) btnCancelSubmit.style.display = "inline-flex";
       panelFeedback.style.display = "none";
     }
   } else {
     btnSubmit.style.display = "inline-flex";
+    if (btnCancelSubmit) btnCancelSubmit.style.display = "none";
     txtStatus.style.display = "none";
     panelFeedback.style.display = "none";
   }
@@ -1379,6 +1383,10 @@ function setupEventListeners() {
   
   // 교사 제출하기
   document.getElementById("btn-submit-to-company").addEventListener("click", submitProjectToEnterprise);
+  const btnCancelSubmit = document.getElementById("btn-cancel-submit");
+  if (btnCancelSubmit) {
+    btnCancelSubmit.addEventListener("click", cancelProjectSubmission);
+  }
   
   // 기업 대시보드 바인딩
   document.getElementById("btn-company-logout").addEventListener("click", () => showAuthScreen());
@@ -3375,6 +3383,60 @@ async function handleClearCompanyFeedback() {
     }
   } catch (err) {
     alert("서버 연결 실패: " + err.message);
+  }
+// ↩️ [신규] 에듀테크 기업 최종 제출 취소 처리기
+async function cancelProjectSubmission() {
+  if (!state.activeProjectId) return;
+
+  const status = state.activeProject.status || "제출완료";
+  if (status === "피드백 완료") {
+    alert("⚠️ 이미 협력 개발사로부터 피드백 및 보완 대책 조치결과가 등록 완료된 보고서는 제출을 취소할 수 없습니다.");
+    return;
+  }
+
+  if (!confirm("↩️ [최종 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.")) {
+    return;
+  }
+
+  // 1. 상태 원복
+  state.activeProject.submitted = false;
+  state.activeProject.status = "작성중";
+  delete state.activeProject.submitDate;
+
+  // 교사용 프로젝트 리스트 메모리 갱신 및 데이터베이스 서버 저장
+  const projIndex = state.projects.findIndex(p => p.id === state.activeProjectId);
+  if (projIndex !== -1) {
+    state.projects[projIndex] = JSON.parse(JSON.stringify(state.activeProject));
+    await saveProjectsList();
+  }
+
+  try {
+    // 2. 서버 제출된 목록에서 본인 데이터 삭제
+    let submittedList = [];
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      submittedList = await res.json();
+    }
+
+    // 내 프로젝트 제외
+    const updatedSubmittedList = submittedList.filter(p => p.id !== state.activeProjectId);
+
+    // 3. 서버에 수정된 제출 목록 POST 저장
+    const postRes = await fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList: updatedSubmittedList })
+    });
+
+    if (postRes.ok) {
+      showToast("🎉 성공적으로 제출이 취소되어 편집 가능한 작성중 상태로 복원되었습니다.");
+      await loadProject(state.activeProjectId);
+    } else {
+      throw new Error("서버 제출 목록 갱신 실패");
+    }
+  } catch (err) {
+    console.error("제출 취소 중 오류:", err);
+    alert("⚠️ 원격 서버 제출 갱신 실패: " + err.message + "\n\n네트워크 상황을 확인해 주십시오.");
   }
 }
 
