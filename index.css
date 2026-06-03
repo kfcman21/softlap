@@ -14,9 +14,9 @@
   --text-secondary: #475569;
   --text-tertiary: #94a3b8;
   
-  --accent-color: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-light: #e0e7ff;
+  --accent-color: #eab308;
+  --accent-hover: #ca8a04;
+  --accent-light: #fef9c3;
   
   --danger-color: #ef4444;
   --danger-bg: #fee2e2;
@@ -52,9 +52,9 @@
   --text-secondary: #cbd5e1;
   --text-tertiary: #64748b;
   
-  --accent-color: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-light: #1e1b4b;
+  --accent-color: #eab308;
+  --accent-hover: #facc15;
+  --accent-light: #422006;
   
   --glass-bg: rgba(18, 24, 36, 0.75);
   --glass-border: rgba(40, 53, 72, 0.4);
@@ -495,6 +495,17 @@ body {
   background-color: var(--bg-secondary);
   color: var(--accent-color);
   box-shadow: var(--shadow-sm);
+}
+
+/* 🍌 나노바나나 테마용 SVG 마이크로 인터랙션 */
+.tab-btn svg, .mobile-nav-btn svg, .section-title svg {
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.tab-btn:hover svg, .mobile-nav-btn:hover svg, .section-title:hover svg {
+  transform: scale(1.15) rotate(-5deg); /* 호버 시 바나나처럼 귀엽게 갸웃 및 커짐 */
+}
+.tab-btn:active svg, .mobile-nav-btn:active svg {
+  transform: scale(0.9) rotate(0deg);
 }
 
 /* 실증 대상 헤더 글로벌 아이콘화 */
