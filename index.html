@@ -11,7 +11,7 @@
   <meta name="author" content="Antigravity WebLab">
   
   <!-- 스타일시트 연동 -->
-  <link rel="stylesheet" href="index.css?v=1.0.5">
+  <link rel="stylesheet" href="index.css?v=1.0.6">
 </head>
 <body>
 
@@ -1006,8 +1006,31 @@
     <span class="toast-message">알림 메시지</span>
   </div>
 
+  <!-- 모바일 사이드바 드로어용 백드롭 overlay -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <!-- 모바일 전역 하단 내비게이션 탭 바 -->
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-btn active" id="btn-m-tab-edit">
+      <span class="mobile-nav-icon">📝</span>
+      <span class="mobile-nav-label">작성</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-dashboard">
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">대시보드</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-team">
+      <span class="mobile-nav-icon">👥</span>
+      <span class="mobile-nav-label">팀 취합</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-preview">
+      <span class="mobile-nav-icon">👁️</span>
+      <span class="mobile-nav-label">미리보기</span>
+    </button>
+  </nav>
+
   <!-- 스크립트 로드 -->
-  <script src="data.js?v=1.0.5"></script>
-  <script src="app.js?v=1.0.5"></script>
+  <script src="data.js?v=1.0.6"></script>
+  <script src="app.js?v=1.0.6"></script>
 </body>
 </html>

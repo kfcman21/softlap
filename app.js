@@ -848,6 +848,7 @@ function renderCabinetList() {
         renderCabinetList();
         loadActiveProject();
         if (state.currentTab === "preview") renderA4Preview();
+        closeMobileSidebarIfOpen();
       });
 
       container.appendChild(item);
@@ -1328,6 +1329,7 @@ function setupEventListeners() {
     const sidebar = document.getElementById("sidebar");
     const toggleIcon = document.getElementById("sidebar-toggle-icon");
     const toggleText = document.getElementById("sidebar-toggle-text");
+    const backdrop = document.getElementById("sidebar-backdrop");
     if (!sidebar) return;
     
     if (sidebar.classList.contains("collapsed")) {
@@ -1335,11 +1337,35 @@ function setupEventListeners() {
       if (toggleIcon) toggleIcon.textContent = "◀";
       if (toggleText) toggleText.textContent = "사이드바 접기";
       localStorage.setItem("softlap_sidebar_collapsed", "false");
+      if (backdrop) backdrop.classList.add("active");
     } else {
       sidebar.classList.add("collapsed");
       if (toggleIcon) toggleIcon.textContent = "▶";
       if (toggleText) toggleText.textContent = "사이드바 펼치기";
       localStorage.setItem("softlap_sidebar_collapsed", "true");
+      if (backdrop) backdrop.classList.remove("active");
+    }
+  });
+
+  // 모바일 하단 탭 스위칭 바인딩
+  safeBindClick("btn-m-tab-edit", () => switchTab("edit"));
+  safeBindClick("btn-m-tab-preview", () => switchTab("preview"));
+  safeBindClick("btn-m-tab-dashboard", () => switchTab("dashboard"));
+  safeBindClick("btn-m-tab-team", () => switchTab("team"));
+
+  // 모바일 사이드바 백드롭 클릭 시 사이드바 닫기
+  safeBindClick("sidebar-backdrop", () => {
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
     }
   });
 
@@ -1579,6 +1605,7 @@ function addPresetItemRow(elementName, itemName) {
   saveActiveProject();
   renderChecklistGrid();
   showToast(`[${elementName} - ${itemName}]이 실증지에 추가되었습니다.`);
+  closeMobileSidebarIfOpen();
 }
 
 // 상단 필터 셀렉터 빌드
@@ -1635,6 +1662,7 @@ function renderChecklistGrid() {
 
     // 0. 인쇄용 선택 체크박스 (rowData.selected === undefined 이면 true가 디폴트)
     const tdSelect = document.createElement("td");
+    tdSelect.setAttribute("data-label", "인쇄");
     tdSelect.style.textAlign = "center";
     tdSelect.style.verticalAlign = "middle";
     
@@ -1673,6 +1701,7 @@ function renderChecklistGrid() {
 
     // 1. 대분류 요소 선택
     const tdElement = document.createElement("td");
+    tdElement.setAttribute("data-label", "대분류(요소)");
     const elSelect = document.createElement("select");
     elSelect.className = "table-select";
     if (isSubmitted) elSelect.disabled = true;
@@ -1696,6 +1725,7 @@ function renderChecklistGrid() {
 
     // 2. 중분류 항목 선택
     const tdItem = document.createElement("td");
+    tdItem.setAttribute("data-label", "중분류(항목)");
     const itemSelect = document.createElement("select");
     itemSelect.className = "table-select";
     if (isSubmitted) itemSelect.disabled = true;
@@ -1719,6 +1749,7 @@ function renderChecklistGrid() {
 
     // 3. 점검 기준 (교사가 자기 표현 문장으로 직접 수정할 수 있는 커스텀 텍스트 에디터)
     const tdCriterion = document.createElement("td");
+    tdCriterion.setAttribute("data-label", "점검 기준 / 내용 정의 (자유 편집가능 ✍️)");
     const critWrapper = document.createElement("div");
     critWrapper.style.display = "flex";
     critWrapper.style.flexDirection = "column";
@@ -1765,6 +1796,7 @@ function renderChecklistGrid() {
 
     // 4. 구분 (점검기준 / 점검결과)
     const tdType = document.createElement("td");
+    tdType.setAttribute("data-label", "구분");
     const typeSelect = document.createElement("select");
     typeSelect.className = "table-select";
     if (isSubmitted) typeSelect.disabled = true;
@@ -1784,6 +1816,7 @@ function renderChecklistGrid() {
 
     // 5. 분석 내용 (실제결과/현상)
     const tdAnalysis = document.createElement("td");
+    tdAnalysis.setAttribute("data-label", "분석 내용 (실제결과/현상)");
     const analysisArea = document.createElement("textarea");
     analysisArea.className = "table-textarea";
     analysisArea.value = rowData.analysis || "";
@@ -1799,6 +1832,7 @@ function renderChecklistGrid() {
 
     // 6. 심각성
     const tdSeverity = document.createElement("td");
+    tdSeverity.setAttribute("data-label", "심각성");
     const sevSelect = document.createElement("select");
     sevSelect.className = "table-select";
     sevSelect.style.fontWeight = "bold";
@@ -1836,6 +1870,7 @@ function renderChecklistGrid() {
 
     // 7. 개선 사항 (기대결과)
     const tdImprovement = document.createElement("td");
+    tdImprovement.setAttribute("data-label", "개선 사항 (기대결과)");
     const impArea = document.createElement("textarea");
     impArea.className = "table-textarea";
     impArea.value = rowData.improvement || "";
@@ -1851,6 +1886,7 @@ function renderChecklistGrid() {
 
     // 8. [신규] 증빙 사진 스크린샷 업로드 및 캡처 열 추가
     const tdEvidence = document.createElement("td");
+    tdEvidence.setAttribute("data-label", "사진");
     tdEvidence.style.textAlign = "center";
     tdEvidence.style.verticalAlign = "middle";
 
@@ -1927,6 +1963,7 @@ function renderChecklistGrid() {
 
     // 8-B. [신규] 동영상 링크 입력 공간 (유튜브 등 링크)
     const tdVideo = document.createElement("td");
+    tdVideo.setAttribute("data-label", "동영상");
     tdVideo.style.textAlign = "center";
     tdVideo.style.verticalAlign = "middle";
 
@@ -1950,6 +1987,7 @@ function renderChecklistGrid() {
 
     // 9. 행 삭제
     const tdDelete = document.createElement("td");
+    tdDelete.setAttribute("data-label", "삭제");
     const delBtn = document.createElement("button");
     delBtn.className = "btn-delete";
     delBtn.innerHTML = "🗑️";
@@ -2040,6 +2078,16 @@ function switchTab(tabId) {
     btnTabTeam.classList.toggle("active", tabId === "team");
   }
 
+  // 모바일 하단 탭 바 동기화
+  const mobEdit = document.getElementById("btn-m-tab-edit");
+  const mobDb = document.getElementById("btn-m-tab-dashboard");
+  const mobTeam = document.getElementById("btn-m-tab-team");
+  const mobPreview = document.getElementById("btn-m-tab-preview");
+  if (mobEdit) mobEdit.classList.toggle("active", tabId === "edit");
+  if (mobDb) mobDb.classList.toggle("active", tabId === "dashboard");
+  if (mobTeam) mobTeam.classList.toggle("active", tabId === "team");
+  if (mobPreview) mobPreview.classList.toggle("active", tabId === "preview");
+
   const editorArea = document.getElementById("editor-area");
   const previewArea = document.getElementById("preview-area");
   const dashboardArea = document.getElementById("dashboard-area");
@@ -2071,6 +2119,25 @@ function switchTab(tabId) {
     if (teamArea) {
       teamArea.style.display = "block";
       renderTeamWorkspace();
+    }
+  }
+}
+
+// 모바일 드로어 사이드바 닫기 헬퍼
+function closeMobileSidebarIfOpen() {
+  const sidebar = document.getElementById("sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  const toggleIcon = document.getElementById("sidebar-toggle-icon");
+  const toggleText = document.getElementById("sidebar-toggle-text");
+  
+  if (window.innerWidth <= 768) {
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
     }
   }
 }
@@ -3142,29 +3209,29 @@ function viewSubmittedProject(projectId) {
       }
 
       tr.innerHTML = `
-        <td>
+        <td data-label="평가 요소 및 항목">
           <div style="font-weight:700;">${item.element}</div>
           <div style="font-size:0.7rem; color:var(--text-secondary);">${item.item}</div>
         </td>
-        <td>
+        <td data-label="현장 테스트 관찰 내용">
           <div style="font-weight:600; color:var(--text-primary); margin-bottom:4px;">Q. ${item.criterion}</div>
           <div style="background-color:var(--bg-secondary); border-radius:4px; padding:6px; font-size:0.75rem; border-left:3px solid var(--accent-color);">
             <strong>실증 분석:</strong> ${item.analysis || "(관찰 정보 없음)"}
           </div>
           ${item.improvement ? `<div style="margin-top:4px; font-size:0.72rem; color:var(--text-secondary);">💡 권장 대책: ${item.improvement}</div>` : ""}
         </td>
-        <td style="text-align:center; vertical-align:middle;">${severityBadge}</td>
-        <td style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
+        <td data-label="심각도" style="text-align:center; vertical-align:middle;">${severityBadge}</td>
+        <td data-label="기재 여부" style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
           ${item.selected !== false ? "🟢 기재" : "🔴 미인쇄"}
         </td>
-        <td style="text-align:center; vertical-align:middle; font-size:0.72rem; color:var(--text-tertiary);">
+        <td data-label="사진" style="text-align:center; vertical-align:middle; font-size:0.72rem; color:var(--text-tertiary);">
           ${item.screenshot ? `
             <div class="evidence-thumb-container" style="display: inline-block; position: relative;">
               <img src="${item.screenshot}" class="evidence-thumb" style="max-width: 50px; max-height: 50px; border-radius: 4px; cursor: pointer; object-fit: cover; border: 1px solid var(--border-color);" title="클릭하여 원본 크기 증빙 검토" onclick="openLightbox('${item.screenshot}')">
             </div>
           ` : "사진 없음"}
         </td>
-        <td style="text-align:center; vertical-align:middle; font-size:0.75rem;">
+        <td data-label="동영상" style="text-align:center; vertical-align:middle; font-size:0.75rem;">
           ${item.videoLink ? `
             <a href="${item.videoLink}" target="_blank" style="color:var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
           ` : "<span style='color:var(--text-tertiary); font-size:0.72rem;'>없음</span>"}
