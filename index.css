@@ -1386,7 +1386,7 @@ body {
 @media (max-width: 768px) {
   /* 1. 바디 및 기본 레이아웃 조정 (하단 내비게이션 바 공간 확보) */
   body {
-    padding-bottom: 66px !important; /* 슬림 탭바 공간 */
+    padding-bottom: 76px !important; /* 슬림 탭바 공간 */
   }
 
   #app-container {
@@ -1394,7 +1394,7 @@ body {
   }
 
   #main-content {
-    height: calc(100vh - 56px) !important; /* 하단 탭 바 높이 차감 */
+    height: calc(100vh - 66px) !important; /* 하단 탭 바 높이 차감 */
   }
 
   /* 2. 모바일 상단 바 최적화 */
@@ -1588,7 +1588,7 @@ body {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px; /* 높이를 슬림화 */
+    height: 66px; /* 높이를 슬림화 */
     z-index: 9999;
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
