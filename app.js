@@ -183,7 +183,8 @@ async function initApp() {
   // 로컬 저장소로부터 저장된 대분류 필터 및 사이드바 접힘 상태 복구
   state.filterElement = localStorage.getItem("softlap_filter_element") || "전체";
   
-  const sidebarCollapsed = localStorage.getItem("softlap_sidebar_collapsed") === "true";
+  const isMobile = window.innerWidth <= 768;
+  const sidebarCollapsed = isMobile || localStorage.getItem("softlap_sidebar_collapsed") === "true";
   const sidebar = document.getElementById("sidebar");
   const toggleIcon = document.getElementById("sidebar-toggle-icon");
   const toggleText = document.getElementById("sidebar-toggle-text");
