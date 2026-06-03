@@ -271,6 +271,11 @@ body {
   display: none;
 }
 
+/* 모바일 하단 내비게이션 바 기본 숨김 */
+.mobile-bottom-nav {
+  display: none;
+}
+
 .brand-logo {
   background: linear-gradient(135deg, #4f46e5, #06b6d4);
   color: #fff;
