@@ -1370,6 +1370,22 @@ function setupEventListeners() {
     }
   });
 
+  // 모바일 사이드바 내 X 닫기 단추 클릭 시 사이드바 닫기
+  safeBindClick("btn-close-sidebar-mobile", () => {
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
+    }
+  });
+
   // 📁 나의 실증 보관함 접기/펼치기 토글
   safeBindClick("cabinet-toggle-header", () => {
     const list = document.getElementById("project-cabinet-list");

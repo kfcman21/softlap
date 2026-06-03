@@ -11,7 +11,7 @@
   <meta name="author" content="Antigravity WebLab">
   
   <!-- 스타일시트 연동 -->
-  <link rel="stylesheet" href="index.css?v=1.0.6">
+  <link rel="stylesheet" href="index.css?v=1.0.7">
 </head>
 <body>
 
@@ -128,12 +128,15 @@
     <aside id="sidebar" aria-label="메뉴 및 가이드">
       
       <!-- 브랜딩 헤더 -->
-      <div class="brand-section">
-        <div class="brand-logo" aria-hidden="true">ET</div>
-        <div class="brand-info">
-          <h1>개별 실증 보고서</h1>
-          <p>공교육 적합성 개별 평가 도구</p>
+      <div class="brand-section" style="position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="brand-logo" aria-hidden="true">ET</div>
+          <div class="brand-info">
+            <h1>개별 실증 보고서</h1>
+            <p>공교육 적합성 개별 평가 도구</p>
+          </div>
         </div>
+        <button id="btn-close-sidebar-mobile" class="btn-close-mobile" title="사이드바 닫기">✕</button>
       </div>
 
       <!-- 실증 진행 상황 요약 패널 -->
@@ -224,13 +227,21 @@
         <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
           <!-- 📂 사이드바 접기/펼치기 토글 단추 -->
           <button id="btn-toggle-sidebar" class="btn" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; font-weight: 700; border-color: var(--border-color); background-color: var(--bg-primary); transition: all 0.2s ease;" title="사이드바 접기/펼치기">
-            <span id="sidebar-toggle-icon">◀</span> <span id="sidebar-toggle-text">사이드바 접기</span>
+            <span id="sidebar-toggle-icon">◀</span> <span id="sidebar-toggle-text" class="btn-text">사이드바 접기</span>
           </button>
           <div class="tab-group" role="tablist">
-            <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true">📝 개별 실증지 작성</button>
-            <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false">👁️ A4 보고서 프리뷰</button>
-            <button id="btn-tab-dashboard" class="tab-btn" role="tab" aria-selected="false">📊 실증 분석 대시보드</button>
-            <button id="btn-tab-team" class="tab-btn" role="tab" aria-selected="false">👥 팀별 보고서 취합</button>
+            <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true" title="개별 실증지 작성">
+              <span class="tab-icon">📝</span><span class="tab-text"> 개별 실증지 작성</span>
+            </button>
+            <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false" title="A4 보고서 프리뷰">
+              <span class="tab-icon">👁️</span><span class="tab-text"> A4 보고서 프리뷰</span>
+            </button>
+            <button id="btn-tab-dashboard" class="tab-btn" role="tab" aria-selected="false" title="실증 분석 대시보드">
+              <span class="tab-icon">📊</span><span class="tab-text"> 실증 분석 대시보드</span>
+            </button>
+            <button id="btn-tab-team" class="tab-btn" role="tab" aria-selected="false" title="팀별 보고서 취합">
+              <span class="tab-icon">👥</span><span class="tab-text"> 팀별 보고서 취합</span>
+            </button>
           </div>
         </div>
 
@@ -281,7 +292,9 @@
           <!-- 실증 대상 & 환경 메타데이터 카드 -->
           <div class="form-header-box" style="margin-bottom:16px; padding: 14px 20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-              <h2 style="font-size:1.15rem; margin:0;">📊 에듀테크 실증 대상 및 환경 정보 입력</h2>
+              <h2 style="font-size:1.15rem; margin:0;" class="section-title" title="에듀테크 실증 대상 및 환경 정보 입력">
+                <span class="title-icon">📊</span><span class="title-text"> 에듀테크 실증 대상 및 환경 정보 입력</span>
+              </h2>
               <div style="display:flex; gap:8px; align-items:center;">
                 <button type="button" id="btn-submit-to-company" class="btn btn-primary" style="font-size:0.75rem; padding: 4px 10px; background-color: var(--success-color); border-color: var(--success-color); font-weight:700;" title="완성된 실증 보고서를 기업에 제출하고 피드백을 요청">🏢 기업에 제출</button>
                 <button type="button" id="btn-cancel-submit" class="btn btn-danger" style="display:none; font-size:0.75rem; padding: 4px 10px; background-color: var(--danger-color); border-color: var(--danger-color); font-weight:700;" title="제출을 취소하고 다시 수정 가능한 상태로 되돌립니다">🏢 기업에 제출 취소</button>
@@ -1030,7 +1043,7 @@
   </nav>
 
   <!-- 스크립트 로드 -->
-  <script src="data.js?v=1.0.6"></script>
-  <script src="app.js?v=1.0.6"></script>
+  <script src="data.js?v=1.0.7"></script>
+  <script src="app.js?v=1.0.7"></script>
 </body>
 </html>

@@ -266,6 +266,11 @@ body {
   gap: 12px;
 }
 
+/* 모바일 전용 닫기 단추 기본 숨김 */
+.btn-close-mobile {
+  display: none;
+}
+
 .brand-logo {
   background: linear-gradient(135deg, #4f46e5, #06b6d4);
   color: #fff;
@@ -1327,6 +1332,31 @@ body {
 }
 
 /* ==================== J. 모바일 하이브리드 앱 반응형 스타일 시스템 ==================== */
+@media (max-width: 1024px) {
+  /* 사이드바 토글 버튼 -> 아이콘화 (글자 숨김) */
+  #sidebar-toggle-text {
+    display: none !important;
+  }
+  #btn-toggle-sidebar {
+    padding: 8px !important;
+    width: 38px;
+    height: 38px;
+    justify-content: center;
+    border-radius: var(--radius-full) !important;
+  }
+  /* 상단 탭 버튼 -> 아이콘화 (글자 숨김) */
+  .tab-btn .tab-text {
+    display: none !important;
+  }
+  .tab-btn {
+    padding: 8px 10px !important;
+    font-size: 1.1rem !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 768px) {
   /* 1. 바디 및 기본 레이아웃 조정 (하단 내비게이션 바 공간 확보) */
   body {
@@ -1350,9 +1380,22 @@ body {
     align-items: center;
   }
 
-  /* 데스크톱용 상단 탭 숨김 */
+  /* 상단 탭을 모바일에서도 아이콘으로 노출 */
   #topbar .tab-group {
-    display: none !important;
+    display: flex !important;
+    gap: 4px;
+    background-color: var(--bg-tertiary);
+    padding: 3px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    margin: 0 4px;
+  }
+
+  #topbar .tab-btn {
+    padding: 6px 8px !important;
+    font-size: 1rem !important;
+    min-width: 32px;
+    height: 32px;
   }
 
   /* 사이드바 토글 버튼 -> 아이콘 변환 (열렸을 때 ✕, 닫혔을 때 ☰) */
@@ -1486,6 +1529,40 @@ body {
   .sidebar-backdrop.active {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* 모바일 사이드바 닫기 버튼 노출 및 스타일 */
+  .btn-close-mobile {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    margin-left: auto;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-close-mobile:hover, .btn-close-mobile:active {
+    background-color: var(--border-color);
+    transform: scale(0.95);
+  }
+
+  /* 실증 대상 및 환경 정보 입력 헤더 텍스트 숨김 */
+  .section-title .title-text {
+    display: none !important;
+  }
+  .section-title {
+    display: flex;
+    align-items: center;
+    font-size: 1.25rem !important;
   }
 
   /* 4. 모바일 persistent 하단 내비게이션 바 (슬림 아이콘 바 구성) */
