@@ -1330,7 +1330,7 @@ body {
 @media (max-width: 768px) {
   /* 1. 바디 및 기본 레이아웃 조정 (하단 내비게이션 바 공간 확보) */
   body {
-    padding-bottom: 75px !important;
+    padding-bottom: 66px !important; /* 슬림 탭바 공간 */
   }
 
   #app-container {
@@ -1338,7 +1338,7 @@ body {
   }
 
   #main-content {
-    height: calc(100vh - 64px); /* 하단 탭 바 높이 차감 */
+    height: calc(100vh - 56px) !important; /* 하단 탭 바 높이 차감 */
   }
 
   /* 2. 모바일 상단 바 최적화 */
@@ -1488,14 +1488,14 @@ body {
     pointer-events: auto;
   }
 
-  /* 4. 모바일 persistent 하단 내비게이션 바 */
+  /* 4. 모바일 persistent 하단 내비게이션 바 (슬림 아이콘 바 구성) */
   .mobile-bottom-nav {
     display: flex !important;
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 64px;
+    height: 56px; /* 높이를 슬림화 */
     z-index: 9999;
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
@@ -1520,20 +1520,18 @@ body {
     height: 100%;
     color: var(--text-secondary);
     cursor: pointer;
-    gap: 4px;
     position: relative;
     transition: all 0.2s ease;
     -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-nav-icon {
-    font-size: 1.25rem;
+    font-size: 1.55rem !important; /* 아이콘 크기 확대 */
     transition: transform 0.2s ease;
   }
 
   .mobile-nav-label {
-    font-size: 0.68rem;
-    font-weight: 600;
+    display: none !important; /* 텍스트 숨김 처리하여 완벽한 아이콘화 구현 */
   }
 
   .mobile-nav-btn.active {
