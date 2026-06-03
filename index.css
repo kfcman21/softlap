@@ -497,14 +497,17 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-/* 🍌 나노바나나 테마용 SVG 마이크로 인터랙션 */
-.tab-btn svg, .mobile-nav-btn svg, .section-title svg {
+/* 🚀 AI 생성 아이콘 및 이미지 마이크로 인터랙션 */
+.tab-btn svg, .mobile-nav-btn svg, .section-title svg,
+.tab-btn img, .mobile-nav-btn img, .section-title img {
   transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.tab-btn:hover svg, .mobile-nav-btn:hover svg, .section-title:hover svg {
-  transform: scale(1.15) rotate(-5deg); /* 호버 시 바나나처럼 귀엽게 갸웃 및 커짐 */
+.tab-btn:hover svg, .mobile-nav-btn:hover svg, .section-title:hover svg,
+.tab-btn:hover img, .mobile-nav-btn:hover img, .section-title:hover img {
+  transform: scale(1.15) rotate(-3deg); /* 호버 시 귀엽게 확대 및 회전 */
 }
-.tab-btn:active svg, .mobile-nav-btn:active svg {
+.tab-btn:active svg, .mobile-nav-btn:active svg,
+.tab-btn:active img, .mobile-nav-btn:active img {
   transform: scale(0.9) rotate(0deg);
 }
 
