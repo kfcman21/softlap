@@ -4354,7 +4354,7 @@ if (document.readyState === "loading") {
   initApp();
 }
 
-// ℹ️ [신규] 안내 정보 모달 제어 (개발자 정보, 서비스 소개, 개인정보 처리방침)
+// ℹ️ [신규] 안내 정보 모달 제어 (서비스 소개, 개인정보 처리방침)
 function openInfoModal(type) {
   const modal = document.getElementById("info-modal");
   const title = document.getElementById("info-modal-title");
@@ -4362,21 +4362,7 @@ function openInfoModal(type) {
   
   if (!modal || !title || !content) return;
   
-  if (type === 'dev') {
-    title.innerHTML = "👨‍💻 개발자 정보";
-    content.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        <p style="font-weight:700; font-size:0.9rem; color:var(--accent-color);">서울에듀테크소프트랩 공동 실증 지원팀</p>
-        <p>본 플랫폼의 기획, UI/UX 설계, 전체 개발 및 시스템 운영 관리는 서울에듀테크소프트랩 기술 지원팀 및 엔지니어링 파트에서 수행합니다.</p>
-        <div style="background-color:var(--bg-secondary); padding:14px; border-radius:8px; font-size:0.78rem; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:6px; line-height:1.5;">
-          <div>• <strong>운영 기관:</strong> 서울에듀테크소프트랩</div>
-          <div>• <strong>오프라인 주소:</strong> 서울특별시 종로구 송월길 48 서울시교육청 교육연구정보원 내</div>
-          <div>• <strong>기술지원 이메일:</strong> <a href="mailto:softlap_dev@seoul.go.kr" style="color:var(--accent-color); text-decoration:underline;">softlap_dev@seoul.go.kr</a></div>
-          <div>• <strong>고객센터 연락처:</strong> 02-1234-5678 (평일 09:00 ~ 18:00)</div>
-        </div>
-      </div>
-    `;
-  } else if (type === 'intro') {
+  if (type === 'intro') {
     title.innerHTML = "🏫 서비스 소개";
     content.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:10px;">
