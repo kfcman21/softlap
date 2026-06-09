@@ -403,32 +403,85 @@ async function renderAdminUsersList() {
     const user = usersDB[email];
     const tr = document.createElement("tr");
 
-    // 역할 배지 결정
+    // 현재 역할 결정
     const role = user.role || (user.isEnterprise ? "enterprise" : "teacher");
-    let roleBadge = "";
-    if (role === "admin") {
-      roleBadge = `<span style="font-size:0.65rem; background:hsl(210,100%,50%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">🛠️ 관리자</span>`;
-    } else if (role === "team_leader" || user.isLeader) {
-      roleBadge = `<span style="font-size:0.65rem; background:linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%)); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">👑 팀장</span>`;
-    } else if (role === "enterprise" || user.isEnterprise) {
-      roleBadge = `<span style="font-size:0.65rem; background:hsl(142,70%,40%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">🏢 기업</span>`;
-    } else {
-      roleBadge = `<span style="font-size:0.65rem; background:hsl(220,70%,50%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">👨‍🏫 교사</span>`;
-    }
+
+    // 역할 배지 색상 맵
+    const roleBadgeMap = {
+      admin:       { icon: "🛠️", label: "관리자", bg: "hsl(210,100%,50%)" },
+      team_leader: { icon: "👑", label: "팀장",   bg: "linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%))" },
+      enterprise:  { icon: "🏢", label: "기업",   bg: "hsl(142,70%,40%)" },
+      teacher:     { icon: "👨‍🏫", label: "교사",  bg: "hsl(220,70%,50%)" }
+    };
+    const badgeInfo = roleBadgeMap[role] || roleBadgeMap.teacher;
+    const roleBadge = `<span id="role-badge-${email.replace(/[@.]/g,'-')}" style="display:inline-flex;align-items:center;gap:3px;font-size:0.63rem;background:${badgeInfo.bg};color:#fff;padding:2px 6px;border-radius:4px;font-weight:800;margin-left:4px;">${badgeInfo.icon} ${badgeInfo.label}</span>`;
+
+    // 역할 변경 드롭다운
+    const safeEmail = email.replace(/'/g, "\\'");
+    const roleSelect = `
+      <select id="role-select-${email.replace(/[@.]/g,'-')}"
+        onchange="adminChangeRole('${safeEmail}', this)"
+        style="padding:3px 6px; font-size:0.72rem; border:1px solid var(--border-color); border-radius:5px; background:var(--bg-secondary); color:var(--text-primary); cursor:pointer; font-weight:700;">
+        <option value="teacher"     ${role === "teacher"     ? "selected" : ""}>👨‍🏫 교사</option>
+        <option value="team_leader" ${role === "team_leader" ? "selected" : ""}>👑 팀장</option>
+        <option value="enterprise"  ${role === "enterprise"  ? "selected" : ""}>🏢 기업</option>
+        <option value="admin"       ${role === "admin"       ? "selected" : ""}>🛠️ 관리자</option>
+      </select>`;
 
     tr.innerHTML = `
       <td><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
       <td><strong>${user.name || "-"}</strong>${roleBadge}</td>
       <td>${user.school || "서울에듀테크소프트랩"}</td>
+      <td>${roleSelect}</td>
       <td><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
       <td>
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${email}')">🔑 비번변경</button>
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${email}')">🗑️ 계정삭제</button>
+        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${safeEmail}')">🔑 비번변경</button>
+        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${safeEmail}')">🗑️ 계정삭제</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+// 관리자 전용: 회원 역할 즉시 변경 처리기
+async function adminChangeRole(email, selectEl) {
+  const newRole = selectEl.value;
+  const roleBadgeMap = {
+    admin:       { icon: "🛠️", label: "관리자", bg: "hsl(210,100%,50%)" },
+    team_leader: { icon: "👑", label: "팀장",   bg: "linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%))" },
+    enterprise:  { icon: "🏢", label: "기업",   bg: "hsl(142,70%,40%)" },
+    teacher:     { icon: "👨‍🏫", label: "교사",  bg: "hsl(220,70%,50%)" }
+  };
+
+  try {
+    const response = await fetch(`${centralDbUrl}/api/admin/change-role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, newRole })
+    });
+
+    if (response.ok) {
+      // 배지 즉시 업데이트
+      const badgeId = "role-badge-" + email.replace(/[@.]/g, '-');
+      const badge = document.getElementById(badgeId);
+      if (badge && roleBadgeMap[newRole]) {
+        const info = roleBadgeMap[newRole];
+        badge.style.background = info.bg;
+        badge.textContent = `${info.icon} ${info.label}`;
+      }
+      showToast(`✅ ${email} 계정의 역할이 [${roleBadgeMap[newRole]?.label || newRole}](으)로 변경되었습니다.`);
+    } else {
+      const errData = await response.json();
+      alert("역할 변경 실패: " + (errData.error || "알 수 없는 오류"));
+      // 드롭다운 원상복구
+      renderAdminUsersList();
+    }
+  } catch (err) {
+    alert("서버 통신 오류: " + err.message);
+    renderAdminUsersList();
+  }
+}
+window.adminChangeRole = adminChangeRole;
 
 async function adminChangePassword(email) {
   const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n회원 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
