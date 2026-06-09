@@ -3959,16 +3959,14 @@ async function fetchTeamReportData(silent = false) {
     if (res.ok) {
       const allList = await res.json();
 
-      // 🔒 접근 제한: 관리자·기업·팀장은 전체, 일반 교사는 자기 팀만
-      const isAdmin    = state.currentUser?.isAdmin    || state.currentUser?.role === "admin";
-      const isEnterprise = state.currentUser?.isEnterprise || state.currentUser?.role === "enterprise";
-      const isLeaderUser = state.currentUser?.isLeader  || state.currentUser?.role === "team_leader";
+      // 🔒 접근 제한: 관리자만 전체, 나머지는 모두 자기 팀만
+      const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
 
-      if (isAdmin || isEnterprise || isLeaderUser) {
-        // 전체 데이터 허용
+      if (isAdmin) {
+        // 관리자만 전체 데이터 허용
         state.submittedList = allList;
       } else {
-        // 일반 교사: 자기 팀(school) 소속 보고서만
+        // 교사 / 팀장 / 기업 모두 자기 팀(school) 소속 보고서만
         const myTeam = (state.currentUser?.team || state.currentUser?.school || "").trim().toLowerCase();
         if (myTeam) {
           state.submittedList = allList.filter(p =>
@@ -4197,10 +4195,9 @@ function populateTeamNames() {
   const select = document.getElementById("team-name-select");
   if (!select) return;
 
-  const isAdmin      = state.currentUser?.isAdmin      || state.currentUser?.role === "admin";
-  const isEnterprise = state.currentUser?.isEnterprise || state.currentUser?.role === "enterprise";
-  const isLeaderUser = state.currentUser?.isLeader     || state.currentUser?.role === "team_leader";
-  const isPrivileged = isAdmin || isEnterprise || isLeaderUser;
+  const isAdmin      = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  // 관리자만 전체 팀 선택 가능, 나머지(교사·팀장·기업)는 자기 팀 고정
+  const isPrivileged = isAdmin;
 
   const myTeam   = (state.currentUser?.team || state.currentUser?.school || "").trim();
   const savedTeam = localStorage.getItem("softlap_team_report_last_team");
