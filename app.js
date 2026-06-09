@@ -274,7 +274,9 @@ function showMainDashboard() {
   document.getElementById("admin-container").style.display = "none";
 
   // 프로필 정보 매핑
-  document.getElementById("profile-name").textContent = `${state.currentUser.name} 교사`;
+  const isLeader = state.currentUser.isLeader || state.currentUser.role === "team_leader";
+  const leaderBadge = isLeader ? " <span style='font-size:0.65rem; background:linear-gradient(135deg,hsl(45,100%,60%),hsl(30,100%,55%)); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800;'>&#x1F451; 팀장</span>" : "";
+  document.getElementById("profile-name").innerHTML = `${state.currentUser.name} 교사${leaderBadge}`;
   document.getElementById("profile-school").textContent = state.currentUser.team || state.currentUser.school;
   document.getElementById("profile-avatar").textContent = state.currentUser.name ? state.currentUser.name[0] : "👨‍🏫";
 
@@ -284,6 +286,23 @@ function showMainDashboard() {
 
   // 오라클 클라우드 DB 연동 가시성 설정
   updateOracleSyncCardVisibility();
+
+  // 팀장인 경우 팀 탭에 배지 표시
+  const isLeaderUser = state.currentUser?.isLeader || state.currentUser?.role === "team_leader";
+  const teamTabBtns = ["btn-tab-team", "btn-m-tab-team"].map(id => document.getElementById(id)).filter(Boolean);
+  teamTabBtns.forEach(btn => {
+    // 기존 배지 제거
+    const existingBadge = btn.querySelector(".leader-tab-badge");
+    if (existingBadge) existingBadge.remove();
+
+    if (isLeaderUser) {
+      const badge = document.createElement("span");
+      badge.className = "leader-tab-badge";
+      badge.textContent = "👑";
+      badge.style.cssText = "margin-left: 4px; font-size: 0.75rem;";
+      btn.appendChild(badge);
+    }
+  });
 
   // 현재 유저의 프로젝트 목록 로드
   loadUserProjects();
@@ -384,9 +403,22 @@ async function renderAdminUsersList() {
     const user = usersDB[email];
     const tr = document.createElement("tr");
 
+    // 역할 배지 결정
+    const role = user.role || (user.isEnterprise ? "enterprise" : "teacher");
+    let roleBadge = "";
+    if (role === "admin") {
+      roleBadge = `<span style="font-size:0.65rem; background:hsl(210,100%,50%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">🛠️ 관리자</span>`;
+    } else if (role === "team_leader" || user.isLeader) {
+      roleBadge = `<span style="font-size:0.65rem; background:linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%)); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">👑 팀장</span>`;
+    } else if (role === "enterprise" || user.isEnterprise) {
+      roleBadge = `<span style="font-size:0.65rem; background:hsl(142,70%,40%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">🏢 기업</span>`;
+    } else {
+      roleBadge = `<span style="font-size:0.65rem; background:hsl(220,70%,50%); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800; margin-left:4px;">👨‍🏫 교사</span>`;
+    }
+
     tr.innerHTML = `
       <td><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
-      <td><strong>${user.name || "-"}</strong></td>
+      <td><strong>${user.name || "-"}</strong>${roleBadge}</td>
       <td>${user.school || "서울에듀테크소프트랩"}</td>
       <td><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
       <td>
@@ -957,13 +989,23 @@ function updateAuthUI() {
   // 가입 역할 라디오 디자인 스위칭 바인딩
   const radioTeacher = document.querySelector('input[name="auth-role"][value="teacher"]');
   const radioEnterprise = document.querySelector('input[name="auth-role"][value="enterprise"]');
+  const radioLeader = document.querySelector('input[name="auth-role"][value="team_leader"]');
   const labelTeacher = document.getElementById("label-role-teacher");
   const labelEnterprise = document.getElementById("label-role-enterprise");
+  const labelLeader = document.getElementById("label-role-leader");
+
+  const roleLabels = [labelTeacher, labelLeader, labelEnterprise].filter(Boolean);
+  const accentBorderColor = "var(--accent-color)";
+  const defaultBorderColor = "var(--border-color)";
+
+  function resetRoleLabels() {
+    roleLabels.forEach(l => { if(l) l.style.borderColor = defaultBorderColor; });
+  }
 
   if (radioTeacher && radioEnterprise && labelTeacher && labelEnterprise) {
     radioTeacher.addEventListener("change", () => {
-      labelTeacher.style.borderColor = "var(--accent-color)";
-      labelEnterprise.style.borderColor = "var(--border-color)";
+      resetRoleLabels();
+      labelTeacher.style.borderColor = accentBorderColor;
       
       // 교사 선택 시 이름/학교/팀명 입력 보이기
       const nameGrp = document.getElementById("group-auth-name");
@@ -973,9 +1015,25 @@ function updateAuthUI() {
       if (schoolGrp) schoolGrp.style.display = "flex";
       if (teamGrp) teamGrp.style.display = "flex";
     });
+
+    if (radioLeader) {
+      radioLeader.addEventListener("change", () => {
+        resetRoleLabels();
+        if (labelLeader) labelLeader.style.borderColor = accentBorderColor;
+        
+        // 팀장 선택 시도 이름/학교/팀명 입력 보이기
+        const nameGrp = document.getElementById("group-auth-name");
+        const schoolGrp = document.getElementById("group-auth-school");
+        const teamGrp = document.getElementById("group-auth-team");
+        if (nameGrp) nameGrp.style.display = "flex";
+        if (schoolGrp) schoolGrp.style.display = "flex";
+        if (teamGrp) teamGrp.style.display = "flex";
+      });
+    }
+
     radioEnterprise.addEventListener("change", () => {
-      labelEnterprise.style.borderColor = "var(--accent-color)";
-      labelTeacher.style.borderColor = "var(--border-color)";
+      resetRoleLabels();
+      labelEnterprise.style.borderColor = accentBorderColor;
       
       // 기업 선택 시 불필요한 입력 그룹 가리기
       const nameGrp = document.getElementById("group-auth-name");
@@ -1051,13 +1109,14 @@ async function handleAuthSubmit() {
     let defaultSchool = "서울에듀테크소프트랩";
     let defaultTeam = "서울에듀테크소프트랩";
 
-    if (selectedRole === "teacher") {
+    if (selectedRole === "teacher" || selectedRole === "team_leader") {
       const authName = document.getElementById("auth-name").value.trim();
       const authSchool = document.getElementById("auth-school").value.trim();
       const authTeam = document.getElementById("auth-team").value.trim();
 
+      const roleLabel = selectedRole === "team_leader" ? "팀장" : "교사";
       if (!authName || !authSchool || !authTeam) {
-        alert("교사 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.");
+        alert(`${roleLabel} 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.`);
         return;
       }
       displayName = authName;
@@ -3806,6 +3865,37 @@ window.deleteSubmittedProject = deleteSubmittedProject;
 
 // 1. 팀별 보고서 워크스페이스 렌더링 시작점
 async function renderTeamWorkspace() {
+  // 팀장 전용 패널 가시성 제어
+  const isLeader = state.currentUser?.isLeader || state.currentUser?.role === "team_leader";
+  const leaderTracker = document.getElementById("leader-submission-tracker");
+  if (leaderTracker) {
+    leaderTracker.style.display = isLeader ? "block" : "none";
+  }
+
+  if (isLeader) {
+    // 팀장 정보 자동 채우기
+    const leaderTeamInput = document.getElementById("leader-team-name");
+    if (leaderTeamInput) {
+      leaderTeamInput.value = state.currentUser.team || state.currentUser.school || "팀명 미등록";
+    }
+    // 팀장 제출 현황 추적 이벤트 바인딩 (중복 방지)
+    const leaderRefreshBtn = document.getElementById("btn-leader-refresh");
+    if (leaderRefreshBtn && !leaderRefreshBtn._bound) {
+      leaderRefreshBtn.addEventListener("click", () => fetchTeamReportData(false));
+      leaderRefreshBtn._bound = true;
+    }
+    const leaderRemindBtn = document.getElementById("btn-leader-remind");
+    if (leaderRemindBtn && !leaderRemindBtn._bound) {
+      leaderRemindBtn.addEventListener("click", remindUnsubmittedTeamMembers);
+      leaderRemindBtn._bound = true;
+    }
+    const leaderProductSelect = document.getElementById("leader-product-select");
+    if (leaderProductSelect && !leaderProductSelect._bound) {
+      leaderProductSelect.addEventListener("change", renderLeaderSubmissionTracker);
+      leaderProductSelect._bound = true;
+    }
+  }
+
   await fetchTeamReportData(true);
 }
 
@@ -3825,6 +3915,194 @@ async function fetchTeamReportData(silent = false) {
     state.submittedList = [];
   }
   populateTeamNames();
+
+  // 팀장인 경우 제출현황 트래커도 갱신
+  const isLeader = state.currentUser?.isLeader || state.currentUser?.role === "team_leader";
+  if (isLeader) {
+    populateLeaderProducts();
+  }
+}
+
+// 팀장 전용: 팀장 팀에 해당하는 제품 목록 구성
+function populateLeaderProducts() {
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  if (!leaderProductSelect || !leaderTeamInput) return;
+
+  const teamName = (leaderTeamInput.value || "").trim();
+  const savedValue = leaderProductSelect.value;
+
+  leaderProductSelect.innerHTML = '<option value="">-- 전체 제품 보기 --</option>';
+
+  if (!teamName) return;
+
+  const teamLower = teamName.toLowerCase();
+  const filtered = (state.submittedList || []).filter(p =>
+    p.schoolName && p.schoolName.toLowerCase().includes(teamLower)
+  );
+
+  const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
+  products.forEach(prod => {
+    const opt = document.createElement("option");
+    opt.value = prod;
+    opt.textContent = prod;
+    if (prod === savedValue) opt.selected = true;
+    leaderProductSelect.appendChild(opt);
+  });
+
+  renderLeaderSubmissionTracker();
+}
+
+// 팀장 전용: 팀원별 보고서 제출 현황 렌더링
+async function renderLeaderSubmissionTracker() {
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  const tbody = document.getElementById("leader-submissions-tbody");
+
+  if (!tbody || !leaderTeamInput) return;
+
+  const teamName = (leaderTeamInput.value || "").trim();
+  const productFilter = leaderProductSelect ? leaderProductSelect.value : "";
+
+  if (!teamName) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-tertiary);">팀장 계정의 팀명이 등록되지 않았습니다.</td></tr>`;
+    return;
+  }
+
+  // 서버에서 같은 팀에 속한 모든 사용자 조회
+  let teamUsers = [];
+  try {
+    const res = await fetch(`${centralDbUrl}/api/admin/users`);
+    if (res.ok) {
+      const usersDB = await res.json();
+      const teamLower = teamName.toLowerCase();
+      teamUsers = Object.entries(usersDB)
+        .filter(([email, user]) => {
+          if (email === "admin") return false;
+          if (user.role === "enterprise" || user.isEnterprise) return false;
+          if (user.role === "team_leader" || user.isLeader) return false;
+          const userTeam = (user.team || user.school || "").toLowerCase();
+          return userTeam.includes(teamLower) || teamLower.includes(userTeam);
+        })
+        .map(([email, user]) => ({ email, ...user }));
+    }
+  } catch (e) {
+    console.warn("팀원 목록 로드 실패 (관리자 API 미접근):", e);
+  }
+
+  // 제출된 목록에서 이 팀 소속 보고서 추출
+  const teamLower = teamName.toLowerCase();
+  let submittedInTeam = (state.submittedList || []).filter(p =>
+    p.schoolName && p.schoolName.toLowerCase().includes(teamLower)
+  );
+
+  if (productFilter) {
+    submittedInTeam = submittedInTeam.filter(p => p.meta?.targetProduct === productFilter);
+  }
+
+  // 제출된 교사 이메일 목록
+  const submittedEmails = new Set(submittedInTeam.map(p => p.email).filter(Boolean));
+  const submittedTeachers = new Set(submittedInTeam.map(p => p.teacherName).filter(Boolean));
+
+  // 통계 계산
+  const totalCount = teamUsers.length;
+  const submittedCount = teamUsers.length > 0
+    ? teamUsers.filter(u => submittedEmails.has(u.email) || submittedTeachers.has(u.name)).length
+    : submittedInTeam.length;
+  const pendingCount = Math.max(0, totalCount - submittedCount);
+  const rate = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : (submittedInTeam.length > 0 ? 100 : 0);
+
+  const statTotal = document.getElementById("leader-stat-total");
+  const statSubmitted = document.getElementById("leader-stat-submitted");
+  const statPending = document.getElementById("leader-stat-pending");
+  const statRate = document.getElementById("leader-stat-rate");
+
+  if (statTotal) statTotal.textContent = `${totalCount}명`;
+  if (statSubmitted) statSubmitted.textContent = `${submittedCount}명`;
+  if (statPending) statPending.textContent = `${pendingCount}명`;
+  if (statRate) statRate.textContent = `${rate}%`;
+
+  tbody.innerHTML = "";
+
+  if (teamUsers.length === 0 && submittedInTeam.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-tertiary);">⚠️ 같은 팀으로 등록된 팀원이 없습니다. 팀원들이 동일한 팀명으로 가입했는지 확인하세요.</td></tr>`;
+    return;
+  }
+
+  // 제출된 보고서 목록 먼저 렌더링
+  submittedInTeam.forEach((proj, idx) => {
+    const tr = document.createElement("tr");
+    const statusHtml = `<span class="status-badge ${proj.status === '피드백 완료' ? 'status-completed' : 'status-submitted'}" style="font-size:0.7rem;">
+      ${proj.status === '피드백 완료' ? '✅ 피드백 완료' : '📤 제출완료'}
+    </span>`;
+
+    tr.innerHTML = `
+      <td style="text-align:center; font-weight:700; color:var(--accent-color);">${idx + 1}</td>
+      <td><strong>${proj.teacherName || "-"}</strong> 교사</td>
+      <td style="font-size:0.8rem; color:var(--text-secondary);">${proj.schoolName || "-"}</td>
+      <td style="font-weight:600; color:var(--accent-color); font-size:0.8rem;">${proj.meta?.targetProduct || "-"}</td>
+      <td style="text-align:center; font-size:0.8rem;">${proj.submitDate || "-"}</td>
+      <td style="text-align:center;">${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 미제출 팀원 목록 렌더링
+  const unsubmittedUsers = teamUsers.filter(u =>
+    !submittedEmails.has(u.email) && !submittedTeachers.has(u.name)
+  );
+
+  unsubmittedUsers.forEach((user, idx) => {
+    const tr = document.createElement("tr");
+    tr.style.backgroundColor = "hsl(0, 100%, 98%)";
+    const statusHtml = `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; font-weight:700; color:var(--danger-color); background:hsl(0,100%,95%); padding:3px 8px; border-radius:4px; border:1px solid hsl(0,100%,88%);">⏳ 미제출</span>`;
+
+    tr.innerHTML = `
+      <td style="text-align:center; font-weight:700; color:var(--danger-color);">-</td>
+      <td><strong style="color:var(--danger-color);">${user.name || "-"}</strong> 교사</td>
+      <td style="font-size:0.8rem; color:var(--text-secondary);">${user.school || "-"}</td>
+      <td style="font-size:0.8rem; color:var(--text-tertiary); font-style:italic;">${productFilter || "미제출"}</td>
+      <td style="text-align:center; font-size:0.8rem; color:var(--text-tertiary);">-</td>
+      <td style="text-align:center;">${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// 팀장 전용: 미제출 팀원 독려 알림 (복사 가능한 명단 생성)
+function remindUnsubmittedTeamMembers() {
+  const tbody = document.getElementById("leader-submissions-tbody");
+  if (!tbody) return;
+
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  const teamName = leaderTeamInput ? leaderTeamInput.value : "팀";
+  const productName = leaderProductSelect ? leaderProductSelect.value : "";
+
+  // 미제출 행 추출 (빨간 배경 행)
+  const unsubmittedRows = [];
+  tbody.querySelectorAll("tr").forEach(tr => {
+    const statusCell = tr.cells[5];
+    if (statusCell && statusCell.textContent.includes("미제출")) {
+      const nameCell = tr.cells[1];
+      if (nameCell) unsubmittedRows.push(nameCell.textContent.trim());
+    }
+  });
+
+  if (unsubmittedRows.length === 0) {
+    alert("🎉 모든 팀원이 보고서를 제출 완료했습니다!\n\n팀 전원 제출 완료 상태입니다.");
+    return;
+  }
+
+  const productStr = productName ? `\n📦 대상 제품: ${productName}` : "";
+  const message = `📢 [${teamName} 팀장 보고서 제출 독려]${productStr}\n\n아직 실증 보고서를 제출하지 않은 교사 명단입니다:\n\n${unsubmittedRows.map((name, i) => `  ${i + 1}. ${name}`).join("\n")}\n\n보고서를 아직 제출하지 않으셨다면, 서울에듀테크소프트랩 시스템에 접속하여 보고서를 완성한 후 '기업에 제출' 버튼을 눌러 주시기 바랍니다.\n\n감사합니다.`;
+
+  // 클립보드 복사
+  navigator.clipboard.writeText(message).then(() => {
+    showToast("📢 미제출자 독려 메시지가 클립보드에 복사되었습니다! 메신저에 바로 붙여넣기 하세요.");
+  }).catch(() => {
+    alert(message);
+  });
 }
 
 // 2-A. 팀 보고서 작성용 팀명 헬퍼

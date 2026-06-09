@@ -51,11 +51,14 @@
         <!-- 회원 역할 구분 (회원가입 시 노출) -->
         <div class="auth-input-group" id="group-role" style="display: none; flex-direction: column; gap: 6px;">
           <label>회원 역할 구분</label>
-          <div style="display: flex; gap: 10px; width: 100%;">
-            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
+          <div style="display: flex; gap: 8px; width: 100%; flex-wrap: wrap;">
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
               <input type="radio" name="auth-role" value="teacher" checked style="margin: 0; cursor: pointer;"> 👨‍🏫 실증 교사
             </label>
-            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-leader">
+              <input type="radio" name="auth-role" value="team_leader" style="margin: 0; cursor: pointer;"> 👑 팀 장
+            </label>
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
               <input type="radio" name="auth-role" value="enterprise" style="margin: 0; cursor: pointer;"> 🏢 에듀테크 기업
             </label>
           </div>
@@ -536,6 +539,74 @@
             <div style="display: flex; gap: 8px;">
               <button id="btn-refresh-team" class="btn btn-primary" style="font-size: 0.78rem;">🔄 데이터 가져오기</button>
               <button id="btn-print-team" class="btn btn-success" style="font-size: 0.78rem;">🖨️ 팀 보고서 인쇄 / PDF 저장</button>
+            </div>
+          </div>
+
+          <!-- 👑 팀장 전용 팀원 보고서 제출 현황 추적 패널 -->
+          <div id="leader-submission-tracker" style="display: none; margin-bottom: 20px;">
+            <div class="summary-card glass" style="padding: 18px 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                <h3 style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">👑 <span style="color: var(--accent-color);">팀장 전용</span> 팀원 보고서 제출 현황</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button id="btn-leader-refresh" class="btn" style="font-size: 0.72rem; padding: 4px 10px; border-color: var(--accent-color); color: var(--accent-color);">🔄 현황 갱신</button>
+                  <button id="btn-leader-remind" class="btn" style="font-size: 0.72rem; padding: 4px 10px; border-color: var(--warning-color); color: var(--warning-color);">📢 미제출자 독려</button>
+                </div>
+              </div>
+
+              <!-- 팀 선택 및 제품 선택 -->
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: flex-end;">
+                <div class="form-item" style="flex: 1; min-width: 160px;">
+                  <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">감독 팀명</label>
+                  <input type="text" id="leader-team-name" class="input-control" style="padding: 5px 10px; font-size: 0.78rem;" readonly placeholder="로그인된 팀명 자동 입력">
+                </div>
+                <div class="form-item" style="flex: 1; min-width: 160px;">
+                  <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">실증 대상 제품</label>
+                  <select id="leader-product-select" class="input-control" style="padding: 5px 10px; font-size: 0.78rem;">
+                    <option value="">-- 먼저 데이터 가져오기 클릭 --</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 통계 요약 KPI -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px;">
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">팀 전체 등록 교사</div>
+                  <div id="leader-stat-total" style="font-size: 1.5rem; font-weight: 800; color: var(--accent-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">보고서 제출 완료</div>
+                  <div id="leader-stat-submitted" style="font-size: 1.5rem; font-weight: 800; color: var(--success-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">미제출 (독려 대상)</div>
+                  <div id="leader-stat-pending" style="font-size: 1.5rem; font-weight: 800; color: var(--danger-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">제출률</div>
+                  <div id="leader-stat-rate" style="font-size: 1.5rem; font-weight: 800; color: var(--warning-color); margin-top: 4px;">0%</div>
+                </div>
+              </div>
+
+              <!-- 팀원별 제출 현황 목록 테이블 -->
+              <div class="checklist-table-wrapper" style="width: 100%;">
+                <table class="checklist-table" style="min-width: 100%;">
+                  <thead>
+                    <tr>
+                      <th style="width: 5%; text-align: center;">#</th>
+                      <th style="width: 20%;">교사명</th>
+                      <th style="width: 25%;">소속 학교</th>
+                      <th style="width: 20%;">실증 대상 제품</th>
+                      <th style="width: 15%; text-align: center;">제출 일자</th>
+                      <th style="width: 15%; text-align: center;">제출 상태</th>
+                    </tr>
+                  </thead>
+                  <tbody id="leader-submissions-tbody">
+                    <tr>
+                      <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-tertiary);">데이터 가져오기를 클릭하여 팀원 현황을 로드하세요.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -1059,6 +1130,6 @@
 
   <!-- 스크립트 로드 -->
   <script src="data.js?v=1.2.5"></script>
-  <script src="app.js?v=1.2.5"></script>
+  <script src="app.js?v=1.3.0"></script>
 </body>
 </html>

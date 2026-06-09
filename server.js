@@ -380,6 +380,7 @@ app.post('/api/auth/login', async (req, res) => {
           team: user.TEAM || user.SCHOOL || "",
           role: user.ROLE || (user.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: user.IS_ENTERPRISE === 1 || user.ROLE === "enterprise",
+          isLeader: user.ROLE === "team_leader",
           isAdmin: user.ROLE === "admin"
         }
       });
@@ -404,6 +405,7 @@ app.post('/api/auth/login', async (req, res) => {
         team: user.team || user.school || "",
         role: user.role || (user.isEnterprise ? "enterprise" : "teacher"),
         isEnterprise: user.isEnterprise || user.role === "enterprise",
+        isLeader: user.role === "team_leader" || user.isLeader === true,
         isAdmin: user.isAdmin || user.role === "admin"
       }
     });
@@ -985,6 +987,7 @@ app.get('/api/admin/users', async (req, res) => {
           team: row.TEAM || row.SCHOOL || "",
           role: row.ROLE || (row.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: row.IS_ENTERPRISE === 1 || row.ROLE === "enterprise",
+          isLeader: row.ROLE === "team_leader",
           isAdmin: row.ROLE === "admin",
           projectCount: projectCounts[lowerEmail] || 0
         };
@@ -1005,9 +1008,10 @@ app.get('/api/admin/users', async (req, res) => {
         password: u.password,
         name: u.name,
         school: u.school || "",
-        team: u.school || "",
+        team: u.team || u.school || "",
         role: u.role || (u.isEnterprise ? "enterprise" : "teacher"),
         isEnterprise: u.isEnterprise || u.role === "enterprise",
+        isLeader: u.role === "team_leader" || u.isLeader === true,
         isAdmin: u.isAdmin || u.role === "admin",
         projectCount: (dbData.projects[lowerKey] || dbData.projects[key] || []).length
       };
