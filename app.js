@@ -3957,7 +3957,30 @@ async function fetchTeamReportData(silent = false) {
   try {
     const res = await fetch(`${centralDbUrl}/api/submitted`);
     if (res.ok) {
-      state.submittedList = await res.json();
+      const allList = await res.json();
+
+      // 🔒 접근 제한: 관리자·기업·팀장은 전체, 일반 교사는 자기 팀만
+      const isAdmin    = state.currentUser?.isAdmin    || state.currentUser?.role === "admin";
+      const isEnterprise = state.currentUser?.isEnterprise || state.currentUser?.role === "enterprise";
+      const isLeaderUser = state.currentUser?.isLeader  || state.currentUser?.role === "team_leader";
+
+      if (isAdmin || isEnterprise || isLeaderUser) {
+        // 전체 데이터 허용
+        state.submittedList = allList;
+      } else {
+        // 일반 교사: 자기 팀(school) 소속 보고서만
+        const myTeam = (state.currentUser?.team || state.currentUser?.school || "").trim().toLowerCase();
+        if (myTeam) {
+          state.submittedList = allList.filter(p =>
+            p.schoolName && p.schoolName.trim().toLowerCase().includes(myTeam)
+          );
+        } else {
+          // 팀 정보 없으면 자기 본인 제출분만
+          const myEmail = (state.currentUser?.email || "").toLowerCase();
+          state.submittedList = allList.filter(p => (p.email || "").toLowerCase() === myEmail);
+        }
+      }
+
       if (!silent) showToast("🔄 원격 서버로부터 제출 목록 데이터를 동기화했습니다.");
     } else {
       throw new Error("조회 에러");
@@ -4173,11 +4196,17 @@ function getTeamReportTeamName() {
 function populateTeamNames() {
   const select = document.getElementById("team-name-select");
   if (!select) return;
-  
+
+  const isAdmin      = state.currentUser?.isAdmin      || state.currentUser?.role === "admin";
+  const isEnterprise = state.currentUser?.isEnterprise || state.currentUser?.role === "enterprise";
+  const isLeaderUser = state.currentUser?.isLeader     || state.currentUser?.role === "team_leader";
+  const isPrivileged = isAdmin || isEnterprise || isLeaderUser;
+
+  const myTeam   = (state.currentUser?.team || state.currentUser?.school || "").trim();
   const savedTeam = localStorage.getItem("softlap_team_report_last_team");
-  const originalValue = select.value || savedTeam || state.currentUser?.team || state.currentUser?.school || "";
+  const originalValue = select.value || savedTeam || myTeam || "";
   select.innerHTML = '<option value="">-- 실증 팀을 선택하세요 --</option>';
-  
+
   const teams = [...new Set((state.submittedList || []).map(p => p.schoolName).filter(Boolean))];
   
   teams.forEach(team => {
@@ -4187,40 +4216,68 @@ function populateTeamNames() {
     if (team === originalValue) opt.selected = true;
     select.appendChild(opt);
   });
-  
-  // 직접 입력 옵션 추가
-  const optDirect = document.createElement("option");
-  optDirect.value = "direct";
-  optDirect.textContent = "✍️ 직접 팀명 기재하기...";
-  select.appendChild(optDirect);
 
+  // 일반 교사: 직접입력 옵션 숨기고 자기 팀 고정
   const directInput = document.getElementById("team-name-direct");
-  const inList = teams.includes(originalValue);
-  
-  if (!inList && originalValue && originalValue !== "direct") {
-    select.value = "direct";
+  const teamSelectWrapper = select.parentElement;
+
+  if (!isPrivileged) {
+    // 직접 입력 옵션 제거
+    const optDirect = document.createElement("option");
+    // 직접입력 옵션 추가 안 함 (교사는 불필요)
+
+    // 드롭다운 비활성화 + 자기 팀으로 강제 고정
+    select.disabled = true;
+    select.style.opacity = "0.8";
+    select.style.cursor = "not-allowed";
+
     if (directInput) {
-      directInput.style.display = "block";
-      directInput.value = originalValue;
+      directInput.style.display = "none";
+      directInput.value = "";
     }
+
+    // 자기 팀 자동 선택
+    const myTeamLower = myTeam.toLowerCase();
+    const matchedTeam = teams.find(t => t.toLowerCase().includes(myTeamLower) || myTeamLower.includes(t.toLowerCase()));
+    if (matchedTeam) {
+      select.value = matchedTeam;
+    } else if (teams.length === 1) {
+      select.value = teams[0];
+    }
+
   } else {
-    if (inList) {
-      select.value = originalValue;
-    } else if (teams.length > 0) {
-      const userTeam = state.currentUser?.team || state.currentUser?.school || "";
-      const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
-      if (matchedTeam) {
-        select.value = matchedTeam;
-      } else {
-        select.value = teams[0];
-      }
-    }
-    if (directInput) {
-      if (select.value === "direct") {
+    // 관리자/기업/팀장: 직접 입력 옵션 추가
+    select.disabled = false;
+    select.style.opacity = "";
+    select.style.cursor = "";
+
+    const optDirect = document.createElement("option");
+    optDirect.value = "direct";
+    optDirect.textContent = "✍️ 직접 팀명 기재하기...";
+    select.appendChild(optDirect);
+
+    const inList = teams.includes(originalValue);
+    if (!inList && originalValue && originalValue !== "direct") {
+      select.value = "direct";
+      if (directInput) {
         directInput.style.display = "block";
-      } else {
-        directInput.style.display = "none";
-        directInput.value = "";
+        directInput.value = originalValue;
+      }
+    } else {
+      if (inList) {
+        select.value = originalValue;
+      } else if (teams.length > 0) {
+        const userTeam = state.currentUser?.team || state.currentUser?.school || "";
+        const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
+        select.value = matchedTeam || teams[0];
+      }
+      if (directInput) {
+        if (select.value === "direct") {
+          directInput.style.display = "block";
+        } else {
+          directInput.style.display = "none";
+          directInput.value = "";
+        }
       }
     }
   }
