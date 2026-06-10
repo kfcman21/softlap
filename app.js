@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -391,7 +391,7 @@ async function renderAdminUsersList() {
   if (filteredEmails.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" style="text-align:center; padding:35px; color:var(--text-tertiary); font-weight:500;">
+        <td colspan="7" style="text-align:center; padding:35px; color:var(--text-tertiary); font-weight:500;">
           검색 및 등록된 회원 계정이 없습니다.
         </td>
       </tr>
@@ -428,10 +428,22 @@ async function renderAdminUsersList() {
         <option value="admin"       ${role === "admin"       ? "selected" : ""}>🛠️ 관리자</option>
       </select>`;
 
+    // 실증 팀명 입력 인풋
+    // user.team 값이 빈 문자열이나 undefined일 때를 위한 대체
+    const currentTeam = user.team || "";
+    const teamInput = `
+      <input type="text"
+        value="${currentTeam}"
+        onchange="adminChangeTeam('${safeEmail}', this.value)"
+        placeholder="예: 서울 실증 2팀"
+        style="width: 100%; padding: 4px 8px; font-size: 0.72rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500;">
+    `;
+
     tr.innerHTML = `
       <td><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
       <td><strong>${user.name || "-"}</strong>${roleBadge}</td>
       <td>${user.school || "서울에듀테크소프트랩"}</td>
+      <td>${teamInput}</td>
       <td>${roleSelect}</td>
       <td><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
       <td>
@@ -441,6 +453,28 @@ async function renderAdminUsersList() {
     `;
     tbody.appendChild(tr);
   });
+}
+
+// 관리자 전용: 실증 팀명 즉시 변경 처리기
+async function adminChangeTeam(email, newTeam) {
+  try {
+    const response = await fetch(`${centralDbUrl}/api/admin/change-team`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, newTeam })
+    });
+
+    if (response.ok) {
+      showToast(`✅ ${email} 계정의 실증 팀명이 [${newTeam || '없음'}](으)로 설정되었습니다.`);
+    } else {
+      const errData = await response.json();
+      alert("팀명 변경 실패: " + (errData.error || "알 수 없는 오류"));
+      renderAdminUsersList(); // 원상복구
+    }
+  } catch (err) {
+    alert("서버 통신 오류: " + err.message);
+    renderAdminUsersList(); // 원상복구
+  }
 }
 
 // 관리자 전용: 회원 역할 즉시 변경 처리기

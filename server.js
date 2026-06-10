@@ -1098,6 +1098,45 @@ app.post('/api/admin/change-role', async (req, res) => {
   }
 });
 
+// 관리자 전용: 회원 실증 팀명 변경 API
+app.post('/api/admin/change-team', async (req, res) => {
+  const { email, newTeam } = req.body;
+  if (!email) return res.status(400).json({ error: "이메일 정보가 누락되었습니다." });
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const check = await conn.execute(
+        `SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`,
+        [email, email.toLowerCase()]
+      );
+      if (check.rows.length === 0) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+
+      const actualEmail = check.rows[0].EMAIL;
+      await conn.execute(
+        `UPDATE SOFTLAP_USERS SET TEAM = :team WHERE EMAIL = :email`,
+        [newTeam || "", actualEmail]
+      );
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 팀명 변경 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const user = dbData.users[email] || dbData.users[email.toLowerCase()];
+    if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+
+    user.team = newTeam || "";
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+
 app.delete('/api/admin/users/:email', async (req, res) => {
   const email = req.params.email;
   if (!email) return res.status(400).json({ error: "누락" });
