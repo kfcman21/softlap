@@ -1129,6 +1129,160 @@ app.delete('/api/admin/users/:email', async (req, res) => {
   }
 });
 
+// G. Team Leader APIs
+
+// 팀장 전용: 팀 소속 멤버 조회
+app.get('/api/team/members', async (req, res) => {
+  const { leaderEmail, teamName } = req.query;
+  if (!leaderEmail || !teamName) return res.status(400).json({ error: "팀장 이메일과 팀명이 필요합니다." });
+
+  const teamLower = teamName.trim().toLowerCase();
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      // 팀장 본인 확인
+      const leaderCheck = await conn.execute(
+        `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [leaderEmail.toLowerCase(), leaderEmail]
+      );
+      if (leaderCheck.rows.length === 0) return res.status(403).json({ error: "팀장 정보를 찾을 수 없습니다." });
+      const leader = leaderCheck.rows[0];
+      if (leader.ROLE !== 'team_leader' && leader.ROLE !== 'admin') {
+        return res.status(403).json({ error: "팀장 또는 관리자만 팀원 목록을 조회할 수 있습니다." });
+      }
+
+      // 같은 팀명인 교사 조회 (팀장·기업·관리자 제외)
+      const result = await conn.execute(
+        `SELECT EMAIL, NAME, SCHOOL, TEAM, ROLE FROM SOFTLAP_USERS
+         WHERE LOWER(TEAM) LIKE :teamLike
+           AND LOWER(EMAIL) != :leaderLower
+           AND ROLE NOT IN ('enterprise', 'admin', 'team_leader')`,
+        [`%${teamLower}%`, leaderEmail.toLowerCase()]
+      );
+      const members = result.rows.map(r => ({
+        email: r.EMAIL, name: r.NAME, school: r.SCHOOL || '', team: r.TEAM || '', role: r.ROLE || 'teacher'
+      }));
+      res.json(members);
+    } catch (err) {
+      res.status(500).json({ error: "DB 팀원 조회 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    // 팀장 권한 확인 - 키로 먼저 찾고, 없으면 email 속성으로 검색
+    let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
+    if (!leader) {
+      // email 필드로 순회 검색
+      leader = Object.values(dbData.users).find(u => 
+        (u.email || '').toLowerCase() === leaderEmail.toLowerCase()
+      );
+    }
+    if (!leader || (leader.role !== 'team_leader' && leader.role !== 'admin' && !leader.isLeader && !leader.isAdmin)) {
+      return res.status(403).json({ error: "팀장 또는 관리자만 조회할 수 있습니다." });
+    }
+    
+    // 팀명 매칭: 클라이언트에서 받은 teamName + 팀장 DB 객체의 team/school 값 모두 사용
+    const leaderTeamFromDb = (leader.team || leader.school || '').trim().toLowerCase();
+    const effectiveTeamLower = teamLower || leaderTeamFromDb;
+
+    // 팀원 조회: 팀명 유사 매칭
+    const members = Object.entries(dbData.users)
+      .filter(([key, user]) => {
+        // 팀장 본인 제외 (키 또는 email 속성 기준)
+        const userEmail = (user.email || key).toLowerCase();
+        if (userEmail === leaderEmail.toLowerCase() || key === leaderEmail) return false;
+        // 특수 역할 제외
+        if (user.role === 'enterprise' || user.role === 'admin' || user.role === 'team_leader' || user.isEnterprise || user.isAdmin || user.isLeader) return false;
+        // 팀명 매칭 - 팀명이 없으면 모두 포함 (관리자 모드)
+        if (!effectiveTeamLower) return true;
+        const userTeam = (user.team || user.school || '').toLowerCase();
+        return userTeam && (userTeam.includes(effectiveTeamLower) || effectiveTeamLower.includes(userTeam));
+      })
+      .map(([key, user]) => ({ 
+        email: user.email || key, 
+        name: user.name, 
+        school: user.school || '', 
+        team: user.team || '', 
+        role: user.role || 'teacher' 
+      }));
+    res.json(members);
+  }
+});
+
+// 팀장 전용: 팀원 내보내기 (팀 필드를 비워 팀 소속 해제)
+app.post('/api/team/kick', async (req, res) => {
+  const { leaderEmail, targetEmail } = req.body;
+  if (!leaderEmail || !targetEmail) return res.status(400).json({ error: "팀장 이메일과 대상 이메일이 필요합니다." });
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      // 팀장 권한 확인
+      const leaderCheck = await conn.execute(
+        `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [leaderEmail.toLowerCase(), leaderEmail]
+      );
+      if (leaderCheck.rows.length === 0) return res.status(403).json({ error: "팀장 정보를 찾을 수 없습니다." });
+      const leader = leaderCheck.rows[0];
+      if (leader.ROLE !== 'team_leader' && leader.ROLE !== 'admin') {
+        return res.status(403).json({ error: "팀장 또는 관리자만 팀원을 내보낼 수 있습니다." });
+      }
+
+      // 대상 유저의 팀을 빈 값으로 초기화 (소속 해제)
+      const targetCheck = await conn.execute(
+        `SELECT EMAIL, ROLE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [targetEmail.toLowerCase(), targetEmail]
+      );
+      if (targetCheck.rows.length === 0) return res.status(404).json({ error: "대상 사용자를 찾을 수 없습니다." });
+      const target = targetCheck.rows[0];
+      if (target.ROLE === 'admin' || target.ROLE === 'enterprise' || target.ROLE === 'team_leader') {
+        return res.status(400).json({ error: "관리자, 기업, 팀장 계정은 내보낼 수 없습니다." });
+      }
+
+      await conn.execute(
+        `UPDATE SOFTLAP_USERS SET TEAM = '' WHERE EMAIL = :email`,
+        [target.EMAIL]
+      );
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 팀원 내보내기 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    // 팀장 권한 확인 (키 또는 email 속성)
+    let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
+    if (!leader) {
+      leader = Object.values(dbData.users).find(u => (u.email || '').toLowerCase() === leaderEmail.toLowerCase());
+    }
+    if (!leader || (leader.role !== 'team_leader' && leader.role !== 'admin' && !leader.isLeader && !leader.isAdmin)) {
+      return res.status(403).json({ error: "팀장 또는 관리자만 내보내기를 할 수 있습니다." });
+    }
+    // 대상 사용자 찾기 (키 또는 email 속성)
+    let targetKey = null;
+    let target = dbData.users[targetEmail] || dbData.users[targetEmail.toLowerCase()];
+    if (!target) {
+      const found = Object.entries(dbData.users).find(([k, u]) => (u.email || '').toLowerCase() === targetEmail.toLowerCase());
+      if (found) { targetKey = found[0]; target = found[1]; }
+    } else {
+      targetKey = targetEmail;
+    }
+    if (!target) return res.status(404).json({ error: "대상 사용자를 찾을 수 없습니다." });
+    if (target.role === 'admin' || target.role === 'enterprise' || target.role === 'team_leader' || target.isAdmin || target.isEnterprise || target.isLeader) {
+      return res.status(400).json({ error: "관리자, 기업, 팀장 계정은 내보낼 수 없습니다." });
+    }
+    target.team = '';
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
 // CATCH-ALL: SPA Router Fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
