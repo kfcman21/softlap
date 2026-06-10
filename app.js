@@ -4195,6 +4195,42 @@ async function renderLeaderSubmissionTracker() {
   });
 }
 
+// 팀장 전용: 미제출 팀원 독려 알림 (복사 가능한 명단 생성)
+function remindUnsubmittedTeamMembers() {
+  const tbody = document.getElementById("leader-submissions-tbody");
+  if (!tbody) return;
+
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  const teamName = leaderTeamInput ? leaderTeamInput.value : "팀";
+  const productName = leaderProductSelect ? leaderProductSelect.value : "";
+
+  // 미제출 행 추출 (빨간 배경 행)
+  const unsubmittedRows = [];
+  tbody.querySelectorAll("tr").forEach(tr => {
+    const statusCell = tr.cells[5];
+    if (statusCell && statusCell.textContent.includes("미제출")) {
+      const nameCell = tr.cells[1];
+      if (nameCell) unsubmittedRows.push(nameCell.textContent.trim());
+    }
+  });
+
+  if (unsubmittedRows.length === 0) {
+    alert("🎉 모든 팀원이 보고서를 제출 완료했습니다!\n\n팀 전원 제출 완료 상태입니다.");
+    return;
+  }
+
+  const productStr = productName ? `\n📦 대상 제품: ${productName}` : "";
+  const message = `📢 [${teamName} 팀장 보고서 제출 독려]${productStr}\n\n아직 실증 보고서를 제출하지 않은 교사 명단입니다:\n\n${unsubmittedRows.map((name, i) => `  ${i + 1}. ${name}`).join("\n")}\n\n보고서를 아직 제출하지 않으셨다면, 서울에듀테크소프트랩 시스템에 접속하여 보고서를 완성한 후 '기업에 제출' 버튼을 눌러 주시기 바랍니다.\n\n감사합니다.`;
+
+  // 클립보드 복사
+  navigator.clipboard.writeText(message).then(() => {
+    showToast("📢 미제출자 독려 메시지가 클립보드에 복사되었습니다! 메신저에 바로 붙여넣기 하세요.");
+  }).catch(() => {
+    alert(message);
+  });
+}
+
 // 팀장 전용: 팀 구성원 목록 불러오기
 async function loadTeamMembers() {
   const tbody = document.getElementById('leader-members-tbody');
