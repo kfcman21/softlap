@@ -94,6 +94,7 @@ async function createOracleTables() {
           PASSWORD VARCHAR2(100) NOT NULL,
           NAME VARCHAR2(100) NOT NULL,
           SCHOOL VARCHAR2(200),
+          TEAM VARCHAR2(200),
           ROLE VARCHAR2(50) DEFAULT 'teacher',
           IS_ENTERPRISE NUMBER(1) DEFAULT 0
         )
@@ -104,6 +105,16 @@ async function createOracleTables() {
       await seedDefaultOracleAccounts(conn);
     } catch (e) {
       if (e.message.indexOf("ORA-00955") === -1) throw e; // ORA-00955: table already exists
+      
+      // ALTER TABLE to ensure TEAM column exists
+      try {
+        await conn.execute(`ALTER TABLE SOFTLAP_USERS ADD (TEAM VARCHAR2(200))`);
+        console.log("📊 [DB] SOFTLAP_USERS 테이블에 TEAM 컬럼 추가 완료!");
+      } catch (alterError) {
+        if (alterError.message.indexOf("ORA-01430") === -1) {
+          console.error("TEAM 컬럼 추가 실패:", alterError);
+        }
+      }
     }
 
     // 2. Projects Table
@@ -196,8 +207,8 @@ async function seedDefaultOracleRegistry(conn) {
 async function seedDefaultOracleAccounts(conn) {
   // Seed admin
   await conn.execute(`
-    INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE) 
-    VALUES ('admin', 'admin123', '관리자', '에듀테크소프트랩', 'admin', 0)
+    INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
+    VALUES ('admin', 'admin123', '관리자', '에듀테크소프트랩', '에듀테크소프트랩', 'admin', 0)
   `);
 
   // Seed default companies
@@ -222,12 +233,13 @@ async function seedDefaultOracleAccounts(conn) {
 
   for (const item of defaultRegistry) {
     await conn.execute(`
-      INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE) 
-      VALUES (:email, '1234', :name, :school, 'enterprise', 1)
+      INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
+      VALUES (:email, '1234', :name, :school, :team, 'enterprise', 1)
     `, {
       email: item.name,
       name: item.name,
-      school: item.company
+      school: item.company,
+      team: item.company
     });
   }
   await conn.commit();
@@ -289,7 +301,7 @@ app.get('/api/health', (req, res) => {
 
 // B. Auth API
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name, school, role } = req.body;
+  const { email, password, name, school, team, role } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: "필수 정보가 누락되었습니다." });
   }
@@ -309,12 +321,12 @@ app.post('/api/auth/register', async (req, res) => {
       }
 
       await conn.execute(`
-        INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE)
-        VALUES (:email, :password, :name, :school, :role, :is_ent)
-      `, [lowerEmail, password, name, school || "", role || "teacher", isEnt]);
+        INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE)
+        VALUES (:email, :password, :name, :school, :team, :role, :is_ent)
+      `, [lowerEmail, password, name, school || "", team || "", role || "teacher", isEnt]);
       
       await conn.commit();
-      res.json({ success: true, user: { email: lowerEmail, name, school, role } });
+      res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
     } catch (err) {
       res.status(500).json({ error: "DB 처리 오류: " + err.message });
     } finally {
@@ -326,9 +338,9 @@ app.post('/api/auth/register', async (req, res) => {
     if (dbData.users[lowerEmail] || lowerEmail === "admin") {
       return res.status(400).json({ error: "이미 가입되어 있는 계정입니다." });
     }
-    dbData.users[lowerEmail] = { password, name, school: school || "", role: role || "teacher", isEnterprise: role === "enterprise" };
+    dbData.users[lowerEmail] = { password, name, school: school || "", team: team || "", role: role || "teacher", isEnterprise: role === "enterprise" };
     writeLocalDb(dbData);
-    res.json({ success: true, user: { email: lowerEmail, name, school, role } });
+    res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
   }
 });
 
@@ -346,7 +358,7 @@ app.post('/api/auth/login', async (req, res) => {
       conn = await pool.getConnection();
       // Match direct and lower
       const result = await conn.execute(
-        `SELECT EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
+        `SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
         [lowerEmail, email]
       );
 
@@ -365,9 +377,10 @@ app.post('/api/auth/login', async (req, res) => {
           email: user.EMAIL,
           name: user.NAME,
           school: user.SCHOOL || "",
-          team: user.SCHOOL || "",
+          team: user.TEAM || user.SCHOOL || "",
           role: user.ROLE || (user.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: user.IS_ENTERPRISE === 1 || user.ROLE === "enterprise",
+          isLeader: user.ROLE === "team_leader",
           isAdmin: user.ROLE === "admin"
         }
       });
@@ -389,9 +402,10 @@ app.post('/api/auth/login', async (req, res) => {
         email: email,
         name: user.name,
         school: user.school || "",
-        team: user.school || "",
+        team: user.team || user.school || "",
         role: user.role || (user.isEnterprise ? "enterprise" : "teacher"),
         isEnterprise: user.isEnterprise || user.role === "enterprise",
+        isLeader: user.role === "team_leader" || user.isLeader === true,
         isAdmin: user.isAdmin || user.role === "admin"
       }
     });
@@ -426,6 +440,55 @@ app.post('/api/auth/change-password', async (req, res) => {
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
     user.password = newPassword;
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+app.post('/api/auth/update-profile', async (req, res) => {
+  const { email, school, team, newPassword } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "아이디가 누락되었습니다." });
+  }
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
+      if (check.rows.length === 0) {
+        return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+      }
+      const actualEmail = check.rows[0].EMAIL;
+      
+      if (newPassword) {
+        await conn.execute(
+          `UPDATE SOFTLAP_USERS SET SCHOOL = :school, TEAM = :team, PASSWORD = :pwd WHERE EMAIL = :email`,
+          [school || "", team || "", newPassword, actualEmail]
+        );
+      } else {
+        await conn.execute(
+          `UPDATE SOFTLAP_USERS SET SCHOOL = :school, TEAM = :team WHERE EMAIL = :email`,
+          [school || "", team || "", actualEmail]
+        );
+      }
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 회원정보 수정 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const user = dbData.users[email] || dbData.users[email.toLowerCase()];
+    if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+    
+    user.school = school || "";
+    user.team = team || "";
+    if (newPassword) {
+      user.password = newPassword;
+    }
     writeLocalDb(dbData);
     res.json({ success: true });
   }
@@ -734,13 +797,178 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
+app.post('/api/feedback/cancel', async (req, res) => {
+  const { projectId } = req.body;
+  if (!projectId) return res.status(400).json({ error: "프로젝트 ID 누락" });
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_SUBMITTED WHERE PROJECT_ID = :id`, [projectId]);
+      if (check.rows.length === 0) return res.status(404).json({ error: "제출물을 찾을 수 없습니다." });
+
+      const email = check.rows[0].EMAIL;
+
+      await conn.execute(
+        `UPDATE SOFTLAP_SUBMITTED SET STATUS = '제출완료', FEEDBACK = NULL WHERE PROJECT_ID = :id`,
+        [projectId]
+      );
+
+      const lowerEmail = email ? email.toLowerCase() : "";
+      if (lowerEmail) {
+        const userProjectsResult = await conn.execute(
+          `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+          [projectId, lowerEmail]
+        );
+
+        if (userProjectsResult.rows.length > 0) {
+          let oldProjData = "";
+          if (userProjectsResult.rows[0].PROJECT_DATA) {
+            oldProjData = await userProjectsResult.rows[0].PROJECT_DATA.getData();
+          }
+          if (oldProjData) {
+            const oldProjObj = JSON.parse(oldProjData);
+            oldProjObj.status = "제출완료";
+            delete oldProjObj.feedback;
+
+            await conn.execute(
+              `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+              [JSON.stringify(oldProjObj), projectId, lowerEmail]
+            );
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 피드백 취소 실패: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const item = dbData.submitted.find(p => p.id === projectId);
+    if (!item) return res.status(404).json({ error: "제출 내역 없음" });
+
+    delete item.feedback;
+    item.status = "제출완료";
+    
+    const teacherEmail = item.email ? item.email.toLowerCase() : "";
+    if (teacherEmail && dbData.projects[teacherEmail]) {
+      const proj = dbData.projects[teacherEmail].find(p => p.id === projectId);
+      if (proj) {
+        proj.status = "제출완료";
+        delete proj.feedback;
+      }
+    }
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+app.post('/api/feedback/clear-all', async (req, res) => {
+  const { companyProduct } = req.body;
+  if (!companyProduct) return res.status(400).json({ error: "기업 제품명 누락" });
+
+  const targetCompProduct = companyProduct.trim().toLowerCase().replace(/\s+/g, '');
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      
+      const submissionsResult = await conn.execute(`SELECT PROJECT_ID, EMAIL, PROJECT_DATA FROM SOFTLAP_SUBMITTED`);
+      const rows = submissionsResult.rows;
+      
+      let modifiedCount = 0;
+      for (const row of rows) {
+        let projData = "";
+        if (row.PROJECT_DATA) projData = await row.PROJECT_DATA.getData();
+        if (projData) {
+          const projObj = JSON.parse(projData);
+          const pProduct = (projObj.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+          if (pProduct === targetCompProduct) {
+            const projectId = row.PROJECT_ID;
+            const email = row.EMAIL;
+
+            await conn.execute(
+              `UPDATE SOFTLAP_SUBMITTED SET STATUS = '제출완료', FEEDBACK = NULL WHERE PROJECT_ID = :id`,
+              [projectId]
+            );
+
+            const lowerEmail = email ? email.toLowerCase() : "";
+            if (lowerEmail) {
+              const userProjectsResult = await conn.execute(
+                `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+                [projectId, lowerEmail]
+              );
+              if (userProjectsResult.rows.length > 0) {
+                let oldProjData = "";
+                if (userProjectsResult.rows[0].PROJECT_DATA) {
+                  oldProjData = await userProjectsResult.rows[0].PROJECT_DATA.getData();
+                }
+                if (oldProjData) {
+                  const oldProjObj = JSON.parse(oldProjData);
+                  oldProjObj.status = "제출완료";
+                  delete oldProjObj.feedback;
+
+                  await conn.execute(
+                    `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+                    [JSON.stringify(oldProjObj), projectId, lowerEmail]
+                  );
+                }
+              }
+            }
+            modifiedCount++;
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ success: true, count: modifiedCount });
+    } catch (err) {
+      res.status(500).json({ error: "DB 피드백 전체 초기화 실패: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    let modifiedCount = 0;
+    
+    dbData.submitted.forEach(p => {
+      const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+      if (pProduct === targetCompProduct) {
+        delete p.feedback;
+        p.status = "제출완료";
+
+        const teacherEmail = p.email ? p.email.toLowerCase() : "";
+        if (teacherEmail && dbData.projects[teacherEmail]) {
+          const proj = dbData.projects[teacherEmail].find(projItem => projItem.id === p.id);
+          if (proj) {
+            proj.status = "제출완료";
+            delete proj.feedback;
+          }
+        }
+        modifiedCount++;
+      }
+    });
+
+    writeLocalDb(dbData);
+    res.json({ success: true, count: modifiedCount });
+  }
+});
+
+
 // F. Admin Dashboard API
 app.get('/api/admin/users', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
       conn = await pool.getConnection();
-      const result = await conn.execute(`SELECT EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS`);
+      const result = await conn.execute(`SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS`);
       
       // Query project counts per user
       const countsResult = await conn.execute(`SELECT EMAIL, COUNT(*) AS CNT FROM SOFTLAP_PROJECTS GROUP BY EMAIL`);
@@ -756,9 +984,10 @@ app.get('/api/admin/users', async (req, res) => {
           password: row.PASSWORD,
           name: row.NAME,
           school: row.SCHOOL || "",
-          team: row.SCHOOL || "",
+          team: row.TEAM || row.SCHOOL || "",
           role: row.ROLE || (row.IS_ENTERPRISE === 1 ? "enterprise" : "teacher"),
           isEnterprise: row.IS_ENTERPRISE === 1 || row.ROLE === "enterprise",
+          isLeader: row.ROLE === "team_leader",
           isAdmin: row.ROLE === "admin",
           projectCount: projectCounts[lowerEmail] || 0
         };
@@ -779,9 +1008,10 @@ app.get('/api/admin/users', async (req, res) => {
         password: u.password,
         name: u.name,
         school: u.school || "",
-        team: u.school || "",
+        team: u.team || u.school || "",
         role: u.role || (u.isEnterprise ? "enterprise" : "teacher"),
         isEnterprise: u.isEnterprise || u.role === "enterprise",
+        isLeader: u.role === "team_leader" || u.isLeader === true,
         isAdmin: u.isAdmin || u.role === "admin",
         projectCount: (dbData.projects[lowerKey] || dbData.projects[key] || []).length
       };
@@ -820,6 +1050,54 @@ app.post('/api/admin/change-password', async (req, res) => {
   }
 });
 
+// 관리자 전용: 회원 역할 변경 API
+app.post('/api/admin/change-role', async (req, res) => {
+  const { email, newRole } = req.body;
+  if (!email || !newRole) return res.status(400).json({ error: "이메일 또는 역할 값이 누락되었습니다." });
+
+  const allowedRoles = ["teacher", "team_leader", "enterprise", "admin"];
+  if (!allowedRoles.includes(newRole)) {
+    return res.status(400).json({ error: "유효하지 않은 역할 값입니다." });
+  }
+
+  const isEnt = newRole === "enterprise" ? 1 : 0;
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const check = await conn.execute(
+        `SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`,
+        [email, email.toLowerCase()]
+      );
+      if (check.rows.length === 0) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+
+      const actualEmail = check.rows[0].EMAIL;
+      await conn.execute(
+        `UPDATE SOFTLAP_USERS SET ROLE = :role, IS_ENTERPRISE = :is_ent WHERE EMAIL = :email`,
+        [newRole, isEnt, actualEmail]
+      );
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 역할 변경 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    const user = dbData.users[email] || dbData.users[email.toLowerCase()];
+    if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
+
+    user.role = newRole;
+    user.isEnterprise = newRole === "enterprise";
+    user.isLeader = newRole === "team_leader";
+    user.isAdmin = newRole === "admin";
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
 app.delete('/api/admin/users/:email', async (req, res) => {
   const email = req.params.email;
   if (!email) return res.status(400).json({ error: "누락" });
@@ -846,6 +1124,160 @@ app.delete('/api/admin/users/:email', async (req, res) => {
     if (dbData.users[lowerEmail]) delete dbData.users[lowerEmail];
     else if (dbData.users[email]) delete dbData.users[email];
     else return res.status(404).json({ error: "유저 없음" });
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// G. Team Leader APIs
+
+// 팀장 전용: 팀 소속 멤버 조회
+app.get('/api/team/members', async (req, res) => {
+  const { leaderEmail, teamName } = req.query;
+  if (!leaderEmail || !teamName) return res.status(400).json({ error: "팀장 이메일과 팀명이 필요합니다." });
+
+  const teamLower = teamName.trim().toLowerCase();
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      // 팀장 본인 확인
+      const leaderCheck = await conn.execute(
+        `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [leaderEmail.toLowerCase(), leaderEmail]
+      );
+      if (leaderCheck.rows.length === 0) return res.status(403).json({ error: "팀장 정보를 찾을 수 없습니다." });
+      const leader = leaderCheck.rows[0];
+      if (leader.ROLE !== 'team_leader' && leader.ROLE !== 'admin') {
+        return res.status(403).json({ error: "팀장 또는 관리자만 팀원 목록을 조회할 수 있습니다." });
+      }
+
+      // 같은 팀명인 교사 조회 (팀장·기업·관리자 제외)
+      const result = await conn.execute(
+        `SELECT EMAIL, NAME, SCHOOL, TEAM, ROLE FROM SOFTLAP_USERS
+         WHERE LOWER(TEAM) LIKE :teamLike
+           AND LOWER(EMAIL) != :leaderLower
+           AND ROLE NOT IN ('enterprise', 'admin', 'team_leader')`,
+        [`%${teamLower}%`, leaderEmail.toLowerCase()]
+      );
+      const members = result.rows.map(r => ({
+        email: r.EMAIL, name: r.NAME, school: r.SCHOOL || '', team: r.TEAM || '', role: r.ROLE || 'teacher'
+      }));
+      res.json(members);
+    } catch (err) {
+      res.status(500).json({ error: "DB 팀원 조회 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    // 팀장 권한 확인 - 키로 먼저 찾고, 없으면 email 속성으로 검색
+    let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
+    if (!leader) {
+      // email 필드로 순회 검색
+      leader = Object.values(dbData.users).find(u => 
+        (u.email || '').toLowerCase() === leaderEmail.toLowerCase()
+      );
+    }
+    if (!leader || (leader.role !== 'team_leader' && leader.role !== 'admin' && !leader.isLeader && !leader.isAdmin)) {
+      return res.status(403).json({ error: "팀장 또는 관리자만 조회할 수 있습니다." });
+    }
+    
+    // 팀명 매칭: 클라이언트에서 받은 teamName + 팀장 DB 객체의 team/school 값 모두 사용
+    const leaderTeamFromDb = (leader.team || leader.school || '').trim().toLowerCase();
+    const effectiveTeamLower = teamLower || leaderTeamFromDb;
+
+    // 팀원 조회: 팀명 유사 매칭
+    const members = Object.entries(dbData.users)
+      .filter(([key, user]) => {
+        // 팀장 본인 제외 (키 또는 email 속성 기준)
+        const userEmail = (user.email || key).toLowerCase();
+        if (userEmail === leaderEmail.toLowerCase() || key === leaderEmail) return false;
+        // 특수 역할 제외
+        if (user.role === 'enterprise' || user.role === 'admin' || user.role === 'team_leader' || user.isEnterprise || user.isAdmin || user.isLeader) return false;
+        // 팀명 매칭 - 팀명이 없으면 모두 포함 (관리자 모드)
+        if (!effectiveTeamLower) return true;
+        const userTeam = (user.team || user.school || '').toLowerCase();
+        return userTeam && (userTeam.includes(effectiveTeamLower) || effectiveTeamLower.includes(userTeam));
+      })
+      .map(([key, user]) => ({ 
+        email: user.email || key, 
+        name: user.name, 
+        school: user.school || '', 
+        team: user.team || '', 
+        role: user.role || 'teacher' 
+      }));
+    res.json(members);
+  }
+});
+
+// 팀장 전용: 팀원 내보내기 (팀 필드를 비워 팀 소속 해제)
+app.post('/api/team/kick', async (req, res) => {
+  const { leaderEmail, targetEmail } = req.body;
+  if (!leaderEmail || !targetEmail) return res.status(400).json({ error: "팀장 이메일과 대상 이메일이 필요합니다." });
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      // 팀장 권한 확인
+      const leaderCheck = await conn.execute(
+        `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [leaderEmail.toLowerCase(), leaderEmail]
+      );
+      if (leaderCheck.rows.length === 0) return res.status(403).json({ error: "팀장 정보를 찾을 수 없습니다." });
+      const leader = leaderCheck.rows[0];
+      if (leader.ROLE !== 'team_leader' && leader.ROLE !== 'admin') {
+        return res.status(403).json({ error: "팀장 또는 관리자만 팀원을 내보낼 수 있습니다." });
+      }
+
+      // 대상 유저의 팀을 빈 값으로 초기화 (소속 해제)
+      const targetCheck = await conn.execute(
+        `SELECT EMAIL, ROLE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
+        [targetEmail.toLowerCase(), targetEmail]
+      );
+      if (targetCheck.rows.length === 0) return res.status(404).json({ error: "대상 사용자를 찾을 수 없습니다." });
+      const target = targetCheck.rows[0];
+      if (target.ROLE === 'admin' || target.ROLE === 'enterprise' || target.ROLE === 'team_leader') {
+        return res.status(400).json({ error: "관리자, 기업, 팀장 계정은 내보낼 수 없습니다." });
+      }
+
+      await conn.execute(
+        `UPDATE SOFTLAP_USERS SET TEAM = '' WHERE EMAIL = :email`,
+        [target.EMAIL]
+      );
+      await conn.commit();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "DB 팀원 내보내기 오류: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    const dbData = readLocalDb();
+    // 팀장 권한 확인 (키 또는 email 속성)
+    let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
+    if (!leader) {
+      leader = Object.values(dbData.users).find(u => (u.email || '').toLowerCase() === leaderEmail.toLowerCase());
+    }
+    if (!leader || (leader.role !== 'team_leader' && leader.role !== 'admin' && !leader.isLeader && !leader.isAdmin)) {
+      return res.status(403).json({ error: "팀장 또는 관리자만 내보내기를 할 수 있습니다." });
+    }
+    // 대상 사용자 찾기 (키 또는 email 속성)
+    let targetKey = null;
+    let target = dbData.users[targetEmail] || dbData.users[targetEmail.toLowerCase()];
+    if (!target) {
+      const found = Object.entries(dbData.users).find(([k, u]) => (u.email || '').toLowerCase() === targetEmail.toLowerCase());
+      if (found) { targetKey = found[0]; target = found[1]; }
+    } else {
+      targetKey = targetEmail;
+    }
+    if (!target) return res.status(404).json({ error: "대상 사용자를 찾을 수 없습니다." });
+    if (target.role === 'admin' || target.role === 'enterprise' || target.role === 'team_leader' || target.isAdmin || target.isEnterprise || target.isLeader) {
+      return res.status(400).json({ error: "관리자, 기업, 팀장 계정은 내보낼 수 없습니다." });
+    }
+    target.team = '';
     writeLocalDb(dbData);
     res.json({ success: true });
   }

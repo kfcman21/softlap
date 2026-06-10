@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>개별 교사용 에듀테크 실증 평가 보고서 작성기 (회원용)</title>
+  <title>EdTech Pilot Report System - 에듀테크 실증 평가 보고서 작성기</title>
   
   <!-- SEO 메타 태그 -->
   <meta name="description" content="교사 개인이 특정 에듀테크 제품을 6대 요소 30대 항목 가이드에 입각해 실증 평가하고, 자기 표현의 점검 기준으로 재설계하여 수려한 A4 보고서로 인쇄해내는 개별 교사 실증 특화 도구">
@@ -11,7 +11,7 @@
   <meta name="author" content="Antigravity WebLab">
   
   <!-- 스타일시트 연동 -->
-  <link rel="stylesheet" href="index.css?v=1.0.5">
+  <link rel="stylesheet" href="index.css?v=1.2.5">
 </head>
 <body>
 
@@ -26,7 +26,7 @@
       <div class="auth-header">
         <div style="font-size: 0.85rem; font-weight: 800; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">🏫 서울에듀테크소프트랩</div>
         <h2 id="auth-title">교사 회원 로그인</h2>
-        <p id="auth-desc">에듀테크 개별 실증 보고서 작성기</p>
+        <p id="auth-desc">EdTech Pilot Report System</p>
         <div id="auth-db-status" style="margin-top: 10px; font-size: 0.72rem; font-weight: bold; padding: 5px 12px; border-radius: 6px; display: inline-block;"></div>
       </div>
 
@@ -51,11 +51,14 @@
         <!-- 회원 역할 구분 (회원가입 시 노출) -->
         <div class="auth-input-group" id="group-role" style="display: none; flex-direction: column; gap: 6px;">
           <label>회원 역할 구분</label>
-          <div style="display: flex; gap: 10px; width: 100%;">
-            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
+          <div style="display: flex; gap: 8px; width: 100%; flex-wrap: wrap;">
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
               <input type="radio" name="auth-role" value="teacher" checked style="margin: 0; cursor: pointer;"> 👨‍🏫 실증 교사
             </label>
-            <label style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-leader">
+              <input type="radio" name="auth-role" value="team_leader" style="margin: 0; cursor: pointer;"> 👑 팀 장
+            </label>
+            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
               <input type="radio" name="auth-role" value="enterprise" style="margin: 0; cursor: pointer;"> 🏢 에듀테크 기업
             </label>
           </div>
@@ -73,16 +76,22 @@
           <input type="text" id="auth-school" class="auth-input" placeholder="예: 서울미래초등학교">
         </div>
 
-        <!-- 소속 팀명 선택 및 입력 (회원가입 시 노출) -->
+        <!-- 소속 팀명 직접 입력 (회원가입 시 노출) -->
         <div class="auth-input-group" id="group-auth-team" style="display: none; flex-direction: column; gap: 6px;">
-          <label for="auth-team-select">소속 팀명 설정</label>
-          <select id="auth-team-select" class="auth-input" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-secondary); font-size: 0.85rem; font-weight: 500; color: var(--text-primary);">
-            <option value="direct">✍️ 소속 팀명 직접 입력...</option>
-            <option value="name-school">교사명(소속) 형식 [교사명 (학교명)]</option>
-            <option value="school-only">소속 학교명 형식 [학교명]</option>
-          </select>
-          <input type="text" id="auth-team" class="auth-input" placeholder="소속 팀명 또는 학교명을 입력하십시오." style="margin-top: 4px;">
+          <label for="auth-team">소속 팀명 설정</label>
+          <input type="text" id="auth-team" class="auth-input" placeholder="소속 팀명 또는 학교명을 입력하십시오.">
+          <!-- 팀장 전용 안내 박스 -->
+          <div id="leader-team-guide" style="display: none; background: linear-gradient(135deg, hsl(45,100%,97%), hsl(45,100%,93%)); border: 1.5px solid hsl(45,100%,75%); border-radius: 8px; padding: 10px 12px; font-size: 0.74rem; color: hsl(35,90%,25%); line-height: 1.6;">
+            <div style="font-weight: 800; margin-bottom: 4px;">👑 팀장 가입 안내</div>
+            <div>• 팀장이 <strong>먼저</strong> 팀명을 정해서 가입합니다.</div>
+            <div>• 이후 팀원들이 <strong>동일한 팀명</strong>으로 가입하면 자동으로 같은 팀이 됩니다.</div>
+            <div style="margin-top: 6px; padding: 6px 8px; background: hsl(45,100%,88%); border-radius: 6px; font-weight: 700;">
+              💡 추천 팀명 형식: <code style="background: hsl(45,100%,80%); padding: 1px 5px; border-radius: 4px;">제품명-팀명</code><br>
+              예시: <code style="background: hsl(45,100%,80%); padding: 1px 5px; border-radius: 4px;">클래스팅AI-서울A팀</code>
+            </div>
+          </div>
         </div>
+
 
         <!-- 인증 번호 입력 (비밀번호 분실 시 노출) -->
         <div class="auth-input-group" id="group-code" style="display: none;">
@@ -113,6 +122,13 @@
         아직 계정이 없으신가요? 
         <span class="auth-switch-link" id="link-switch-auth">회원 가입</span>
       </div>
+
+      <!-- 🔗 로그인 하단 정보 링크 영역 -->
+      <div style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; justify-content: center; gap: 10px; font-size: 0.72rem; color: var(--text-tertiary);">
+        <span onclick="openInfoModal('intro')" style="cursor: pointer; text-decoration: underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+        <span>|</span>
+        <span onclick="openInfoModal('privacy')" style="cursor: pointer; text-decoration: underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+      </div>
     </div>
   </div>
 
@@ -124,12 +140,15 @@
     <aside id="sidebar" aria-label="메뉴 및 가이드">
       
       <!-- 브랜딩 헤더 -->
-      <div class="brand-section">
-        <div class="brand-logo" aria-hidden="true">ET</div>
+      <div class="brand-section" style="position: relative; display: flex; align-items: center; justify-content: space-between; width: 100%;">
         <div class="brand-info">
-          <h1>개별 실증 보고서</h1>
-          <p>공교육 적합성 개별 평가 도구</p>
+          <h1 style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <img src="assets/logo.png?v=1.2.5" alt="Logo" style="width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; border-radius: var(--radius-sm);">
+            EdTech Pilot Report
+          </h1>
+          <p>Public School Suitability Assessment</p>
         </div>
+        <button id="btn-close-sidebar-mobile" class="btn-close-mobile" title="사이드바 닫기">✕</button>
       </div>
 
       <!-- 실증 진행 상황 요약 패널 -->
@@ -145,10 +164,13 @@
         </div>
       </div>
 
-      <!-- 다중 실증 프로젝트 관리 보관함 (📁 나의 실증 보관함) -->
-      <div class="project-cabinet-header">
-        <span>📁 나의 실증 보관함</span>
-        <button id="btn-new-project" class="cabinet-action-btn" style="color:var(--accent-color); font-weight:bold; font-size:1.1rem;" title="새 실증 보고서 추가">➕</button>
+      <!-- 다중 실증 프로젝트 관리 보관함 (📁 나의 실증 보관함 - 접기/펼치기 가능) -->
+      <div class="project-cabinet-header" id="cabinet-toggle-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span id="cabinet-toggle-arrow" style="font-size: 0.65rem; transition: transform 0.2s ease; display: inline-block;">▼</span>
+          <span>📁 나의 실증 보관함</span>
+        </div>
+        <button id="btn-new-project" class="cabinet-action-btn" style="color:var(--accent-color); font-weight:bold; font-size:1.1rem; padding: 2px 8px;" title="새 실증 보고서 추가" onclick="event.stopPropagation();">➕</button>
       </div>
       <div class="project-cabinet-list" id="project-cabinet-list">
         <!-- 로그인된 사용자의 다중 프로젝트 목록 카드 슬롯 -->
@@ -162,14 +184,14 @@
         </div>
         <div style="padding: 12px 16px; background-color: var(--bg-secondary); border-bottom:1px solid var(--border-color); display:flex; flex-direction:column; gap:8px;">
           <details style="font-size:0.75rem;" id="oracle-details">
-            <summary style="cursor:pointer; font-weight:700; color:var(--text-secondary); outline:none;">🔗 OCI REST API 설정</summary>
+            <summary style="cursor:pointer; font-weight:700; color:var(--text-secondary); outline:none;">🔗 OCI REST API 연동 설정</summary>
             <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px; border-top:1px dashed var(--border-color); padding-top:8px;">
               <div style="display:flex; flex-direction:column; gap:2px;">
-                <label style="font-size:0.65rem; font-weight:700; color:var(--text-secondary);">ORDS REST Endpoint URL</label>
+                <label style="font-size:0.65rem; font-weight:700; color:var(--text-secondary);">ORDS REST 엔드포인트 URL</label>
                 <input type="text" id="oracle-endpoint-input" class="input-control" style="padding:4px 8px; font-size:0.7rem;" value="https://kfcman.link/api/softlap" placeholder="https://kfcman.link/api/softlap">
               </div>
               <div style="display:flex; flex-direction:column; gap:2px;">
-                <label style="font-size:0.65rem; font-weight:700; color:var(--text-secondary);">OAuth API Access Token (선택)</label>
+                <label style="font-size:0.65rem; font-weight:700; color:var(--text-secondary);">OAuth API 액세스 토큰 (선택)</label>
                 <input type="password" id="oracle-token-input" class="input-control" style="padding:4px 8px; font-size:0.7rem;" placeholder="Bearer 오라클 액세스 토큰">
               </div>
               <div style="display:flex; gap:4px; margin-top:4px;">
@@ -184,9 +206,10 @@
         </div>
       </div>
 
-      <!-- 실증 가이드 라이브러리 트리 (30대 세부항목 즉시 추가 버튼 역할) -->
-      <div style="padding: 10px 16px 4px 16px; font-size:0.75rem; font-weight:800; color:var(--text-tertiary); background-color:var(--bg-tertiary); border-bottom:1px solid var(--border-color);">
-        🎯 클릭 시 보관함에 추가 (30대 기준)
+      <!-- 실증 가이드 라이브러리 트리 (30대 세부항목 즉시 추가 버튼 역할 - 접기/펼치기 가능) -->
+      <div id="guide-toggle-header" style="padding: 10px 16px; font-size:0.75rem; font-weight:800; color:var(--text-tertiary); background-color:var(--bg-tertiary); border-bottom:1px solid var(--border-color); cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px;">
+        <span id="guide-toggle-arrow" style="font-size: 0.65rem; transition: transform 0.2s ease; display: inline-block;">▼</span>
+        <span>🎯 클릭 시 보관함에 추가 (30대 기준)</span>
       </div>
       
       <nav class="nav-scroll-area" aria-label="점검 기준 퀵 로더" id="preset-tree-nav">
@@ -213,10 +236,36 @@
       <!-- 상단 액션 바 -->
       <header id="topbar">
         
-        <div class="topbar-left">
+        <div class="topbar-left" style="display: flex; align-items: center; gap: 12px;">
+          <!-- 📂 사이드바 접기/펼치기 토글 단추 -->
+          <button id="btn-toggle-sidebar" class="btn" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; font-weight: 700; border-color: var(--border-color); background-color: var(--bg-primary); transition: all 0.2s ease;" title="사이드바 접기/펼치기">
+            <span id="sidebar-toggle-icon">◀</span> <span id="sidebar-toggle-text" class="btn-text">사이드바 접기</span>
+          </button>
           <div class="tab-group" role="tablist">
-            <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true">📝 개별 실증지 작성</button>
-            <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false">👁️ A4 보고서 프리뷰</button>
+            <button id="btn-tab-edit" class="tab-btn active" role="tab" aria-selected="true" title="개별 실증지 작성">
+              <span class="tab-icon" style="display:flex; align-items:center;">
+                <img src="assets/tab_edit.png?v=1.2.5" alt="Edit" style="width: 38px; height: 38px; object-fit: contain; border-radius: 4px;">
+              </span>
+              <span class="tab-text"> 개별 실증지 작성</span>
+            </button>
+            <button id="btn-tab-preview" class="tab-btn" role="tab" aria-selected="false" title="A4 보고서 프리뷰">
+              <span class="tab-icon" style="display:flex; align-items:center;">
+                <img src="assets/tab_preview.png?v=1.2.5" alt="Preview" style="width: 38px; height: 38px; object-fit: contain; border-radius: 4px;">
+              </span>
+              <span class="tab-text"> A4 보고서 프리뷰</span>
+            </button>
+            <button id="btn-tab-dashboard" class="tab-btn" role="tab" aria-selected="false" title="실증 분석 대시보드">
+              <span class="tab-icon" style="display:flex; align-items:center;">
+                <img src="assets/tab_dashboard.png?v=1.2.5" alt="Dashboard" style="width: 38px; height: 38px; object-fit: contain; border-radius: 4px;">
+              </span>
+              <span class="tab-text"> 실증 분석 대시보드</span>
+            </button>
+            <button id="btn-tab-team" class="tab-btn" role="tab" aria-selected="false" title="팀별 보고서 취합">
+              <span class="tab-icon" style="display:flex; align-items:center;">
+                <img src="assets/tab_team.png?v=1.2.5" alt="Team" style="width: 38px; height: 38px; object-fit: contain; border-radius: 4px;">
+              </span>
+              <span class="tab-text"> 팀별 보고서 취합</span>
+            </button>
           </div>
         </div>
 
@@ -228,7 +277,7 @@
               <span id="profile-name" style="font-weight:700;">로그인 필요</span>
               <span id="profile-school" style="font-size:0.65rem; color:var(--text-secondary);">기관 없음</span>
             </div>
-            <button type="button" id="btn-change-pw" class="logout-btn" style="border-color:var(--accent-color); color:var(--accent-color); margin-right:4px;" title="현재 계정 비밀번호 변경">🔒 비번변경</button>
+            <button type="button" id="btn-change-pw" class="logout-btn" style="border-color:var(--accent-color); color:var(--accent-color); margin-right:4px;" title="회원 정보 및 비밀번호 수정">👤 회원정보</button>
             <button type="button" id="btn-logout" class="logout-btn">로그아웃</button>
           </div>
 
@@ -267,9 +316,15 @@
           <!-- 실증 대상 & 환경 메타데이터 카드 -->
           <div class="form-header-box" style="margin-bottom:16px; padding: 14px 20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-              <h2 style="font-size:1.15rem; margin:0;">📊 에듀테크 실증 대상 및 환경 정보 입력</h2>
+              <h2 style="font-size:1.15rem; margin:0; display:flex; align-items:center; gap:8px;" class="section-title" title="에듀테크 실증 대상 및 환경 정보 입력">
+                <span class="title-icon" style="display:flex; align-items:center;">
+                  <img src="assets/tab_dashboard.png?v=1.2.5" alt="Dashboard" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px;">
+                </span>
+                <span class="title-text"> 에듀테크 실증 대상 및 환경 정보 입력</span>
+              </h2>
               <div style="display:flex; gap:8px; align-items:center;">
-                <button type="button" id="btn-submit-to-company" class="btn btn-primary" style="font-size:0.75rem; padding: 4px 10px; background-color: var(--success-color); border-color: var(--success-color); font-weight:700;" title="완성된 실증 보고서를 기업에 최종 제출하고 피드백을 요청">🏢 기업에 최종 제출</button>
+                <button type="button" id="btn-submit-to-company" class="btn btn-primary" style="font-size:0.75rem; padding: 4px 10px; background-color: var(--success-color); border-color: var(--success-color); font-weight:700;" title="완성된 실증 보고서를 기업에 제출하고 피드백을 요청">🏢 기업에 제출</button>
+                <button type="button" id="btn-cancel-submit" class="btn btn-danger" style="display:none; font-size:0.75rem; padding: 4px 10px; background-color: var(--danger-color); border-color: var(--danger-color); font-weight:700;" title="제출을 취소하고 다시 수정 가능한 상태로 되돌립니다">🏢 기업에 제출 취소</button>
                 <span id="txt-submitted-status" class="status-badge" style="display:none;">제출완료 (대기중)</span>
               </div>
             </div>
@@ -352,17 +407,17 @@
               <table class="checklist-table">
                 <thead>
                   <tr>
-                    <th style="width: 4%">인쇄</th>
-                    <th style="width: 9%">대분류(요소)</th>
-                    <th style="width: 10%">중분류(항목)</th>
-                    <th style="width: 18%">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
-                    <th style="width: 5%">구분</th>
-                    <th style="width: 18%">분석 내용 (실제결과/현상)</th>
-                    <th style="width: 6%">심각성</th>
-                    <th style="width: 12%">개선 사항 (기대결과)</th>
-                    <th style="width: 7%">상황설명 사진 캡쳐</th>
-                    <th style="width: 7%">동영상 링크 (유튜브)</th>
-                    <th style="width: 4%">삭제</th>
+                    <th style="width: 3%; min-width: 45px; text-align: center;">인쇄</th>
+                    <th style="width: 8%; min-width: 90px;">대분류(요소)</th>
+                    <th style="width: 9%; min-width: 100px;">중분류(항목)</th>
+                    <th style="width: 22%; min-width: 350px;">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
+                    <th style="width: 5%; min-width: 65px;">구분</th>
+                    <th style="width: 24%; min-width: 380px;">분석 내용 (실제결과/현상)</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">심각성</th>
+                    <th style="width: 15%; min-width: 260px;">개선 사항 (기대결과)</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">사진</th>
+                    <th style="width: 5%; min-width: 60px; text-align: center;">동영상</th>
+                    <th style="width: 3%; min-width: 40px; text-align: center;">삭제</th>
                   </tr>
                 </thead>
                 <tbody id="checklist-tbody">
@@ -382,11 +437,312 @@
           </div>
         </div>
 
+        <!-- C. [신규] 실증 분석 대시보드 패널 -->
+        <div id="dashboard-area" class="dashboard-panel" style="display: none; padding: 20px; overflow-y: auto; height: 100%;">
+          <div class="dashboard-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 8px;">📊 실증 분석 종합 대시보드</h2>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 4px 0 0 0;">현재 작성 중인 실증 보고서의 통계적 진행도와 요소별 취약 지표를 시각적으로 분석합니다.</p>
+            </div>
+            <div style="font-size: 0.8rem; background-color: var(--bg-tertiary); padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 700;">
+              대상 제품: <span id="db-product-name" style="color: var(--accent-color);">미지정</span>
+            </div>
+          </div>
+
+          <!-- 대시보드 레이아웃: 그리드 구성 -->
+          <div class="dashboard-grid">
+            <!-- 1. 핵심 성과 카드들 (KPI) -->
+            <div class="kpi-row">
+              <div class="kpi-card glass">
+                <div class="kpi-icon">📝</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">선택 실증항목 문항</span>
+                  <span class="kpi-value" id="db-stat-total">0개</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--success-color);">🎯</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">실증항목 선택율</span>
+                  <span class="kpi-value" id="db-stat-completion">0%</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--danger-color);">🚨</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">개선 시급(상)</span>
+                  <span class="kpi-value" style="color: var(--danger-color);" id="db-stat-high">0건</span>
+                </div>
+              </div>
+              <div class="kpi-card glass">
+                <div class="kpi-icon" style="color: var(--warning-color);">⚠️</div>
+                <div class="kpi-info">
+                  <span class="kpi-label">개선 권고(중)</span>
+                  <span class="kpi-value" style="color: var(--warning-color);" id="db-stat-mid">0건</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. 차트 구역 -->
+            <div class="charts-row">
+              <!-- 원형 진행률 차트 및 심각도 분포 -->
+              <div class="chart-card glass">
+                <h3>📉 심각도 (상/중/하) 분포</h3>
+                <div class="pie-chart-container">
+                  <!-- SVG 도넛 차트 -->
+                  <svg width="180" height="180" viewBox="0 0 36 36" class="donut-chart">
+                    <circle class="donut-hole" cx="18" cy="18" r="15.915" fill="transparent"></circle>
+                    <circle class="donut-ring" cx="18" cy="18" r="15.915" fill="transparent" stroke="var(--bg-tertiary)" stroke-width="3"></circle>
+                    <!-- 세그먼트들이 JS로 동적 주입됩니다 -->
+                    <g id="donut-segments"></g>
+                  </svg>
+                  <div class="chart-legend" id="donut-legend">
+                    <!-- 범례가 동적으로 주입됩니다 -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- 6대 실증 요소별 항목 수 (수평 바 차트) -->
+              <div class="chart-card glass" style="flex: 1.5;">
+                <h3>🛡️ 6대 요소별 실증항목 선택현황 (문항 수)</h3>
+                <div class="bar-chart-container" id="bar-chart-elements">
+                  <!-- 요소별 진행률 바가 동적으로 주입됩니다 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. 핵심 개선 필요(상) 목록 요약 -->
+            <div class="summary-card glass">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; font-size:1rem; display:flex; align-items:center; gap:6px;">
+                  <span>🚨 우선 개선 필요 항목</span>
+                  <span class="badge badge-danger" id="db-urgent-badge">0</span>
+                </h3>
+                <span style="font-size:0.75rem; color:var(--text-secondary);">심각도 '상'인 항목들만 별도로 추출하여 신속한 조치를 도모합니다.</span>
+              </div>
+              
+              <div class="urgent-table-container">
+                <table class="urgent-table">
+                  <thead>
+                    <tr>
+                      <th style="width:15%;">대분류</th>
+                      <th style="width:20%;">중분류</th>
+                      <th style="width:35%;">관찰 내용 (현상)</th>
+                      <th style="width:30%;">개선 대책</th>
+                    </tr>
+                  </thead>
+                  <tbody id="db-urgent-tbody">
+                    <!-- 심각도 '상'인 항목들이 동적으로 주입됩니다 -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- D. [신규] 팀별 보고서 취합 패널 -->
+        <div id="team-area" class="dashboard-panel" style="display: none; padding: 20px; overflow-y: auto; height: 100%;">
+          <div class="dashboard-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <h2 style="font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 8px;">👥 팀별 실증 취합 및 공동 보고서</h2>
+              <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 4px 0 0 0;">팀원들의 개별 보고서와 기업의 피드백 결과를 종합하여 팀 단위 공동 보고서를 작성합니다.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-refresh-team" class="btn btn-primary" style="font-size: 0.78rem;">🔄 데이터 가져오기</button>
+              <button id="btn-print-team" class="btn btn-success" style="font-size: 0.78rem;">🖨️ 팀 보고서 인쇄 / PDF 저장</button>
+            </div>
+          </div>
+
+          <!-- 👑 팀장 전용 팀원 보고서 제출 현황 추적 패널 -->
+          <div id="leader-submission-tracker" style="display: none; margin-bottom: 20px;">
+            <div class="summary-card glass" style="padding: 18px 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                <h3 style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 8px;">👑 <span style="color: var(--accent-color);">팀장 전용</span> 팀원 보고서 제출 현황</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button id="btn-leader-refresh" class="btn" style="font-size: 0.72rem; padding: 4px 10px; border-color: var(--accent-color); color: var(--accent-color);">🔄 현황 갱신</button>
+                  <button id="btn-leader-remind" class="btn" style="font-size: 0.72rem; padding: 4px 10px; border-color: var(--warning-color); color: var(--warning-color);">📢 미제출자 독려</button>
+                </div>
+              </div>
+
+              <!-- 팀 선택 및 제품 선택 -->
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: flex-end;">
+                <div class="form-item" style="flex: 1; min-width: 160px;">
+                  <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">감독 팀명</label>
+                  <input type="text" id="leader-team-name" class="input-control" style="padding: 5px 10px; font-size: 0.78rem;" readonly placeholder="로그인된 팀명 자동 입력">
+                </div>
+                <div class="form-item" style="flex: 1; min-width: 160px;">
+                  <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary);">실증 대상 제품</label>
+                  <select id="leader-product-select" class="input-control" style="padding: 5px 10px; font-size: 0.78rem;">
+                    <option value="">-- 먼저 데이터 가져오기 클릭 --</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 통계 요약 KPI -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px;">
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">팀 전체 등록 교사</div>
+                  <div id="leader-stat-total" style="font-size: 1.5rem; font-weight: 800; color: var(--accent-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">보고서 제출 완료</div>
+                  <div id="leader-stat-submitted" style="font-size: 1.5rem; font-weight: 800; color: var(--success-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">미제출 (독려 대상)</div>
+                  <div id="leader-stat-pending" style="font-size: 1.5rem; font-weight: 800; color: var(--danger-color); margin-top: 4px;">0명</div>
+                </div>
+                <div class="form-header-box" style="padding: 12px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-tertiary); font-weight: 700;">제출률</div>
+                  <div id="leader-stat-rate" style="font-size: 1.5rem; font-weight: 800; color: var(--warning-color); margin-top: 4px;">0%</div>
+                </div>
+              </div>
+
+              <!-- 👥 팀 구성원 관리 (항상 표시) - KPI 다음, 제출 현황 표 위 -->
+              <div id="leader-member-manager" style="margin-bottom: 14px; background: linear-gradient(135deg, hsl(220,30%,13%), hsl(220,30%,10%)); border: 1px solid hsl(220,50%,30%); border-radius: 10px; padding: 14px 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                  <div style="font-size: 0.85rem; font-weight: 800; color: hsl(200,100%,75%); display: flex; align-items: center; gap: 6px;">
+                    👥 팀 가입 현황 &amp; 구성원 관리
+                    <span style="font-size: 0.68rem; font-weight: 600; color: var(--text-tertiary); background: hsl(220,30%,18%); padding: 2px 7px; border-radius: 20px; border: 1px solid var(--border-color);">잘못 가입된 팀원 내보내기 가능</span>
+                  </div>
+                  <button id="btn-leader-load-members" class="btn" style="font-size: 0.72rem; padding: 4px 12px; border-color: hsl(200,100%,60%); color: hsl(200,100%,75%); background: hsl(200,60%,15%); font-weight: 700;">🔄 목록 갱신</button>
+                </div>
+                <div style="overflow-x: auto; border-radius: 6px; border: 1px solid hsl(220,30%,25%);">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead>
+                      <tr style="background: hsl(220,30%,18%); color: var(--text-secondary);">
+                        <th style="width: 5%; text-align: center; padding: 8px 6px; font-weight: 700; font-size: 0.72rem;">#</th>
+                        <th style="width: 20%; padding: 8px 10px; font-weight: 700; font-size: 0.72rem; text-align: left;">이름</th>
+                        <th style="width: 28%; padding: 8px 10px; font-weight: 700; font-size: 0.72rem; text-align: left;">소속 학교</th>
+                        <th style="width: 32%; padding: 8px 10px; font-weight: 700; font-size: 0.72rem; text-align: left;">등록 팀명</th>
+                        <th style="width: 15%; text-align: center; padding: 8px 6px; font-weight: 700; font-size: 0.72rem;">관리</th>
+                      </tr>
+                    </thead>
+                    <tbody id="leader-members-tbody">
+                      <tr>
+                        <td colspan="5" style="text-align: center; padding: 18px; color: var(--text-tertiary); font-size: 0.8rem;">⏳ 팀원 목록을 불러오는 중...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- 팀원별 제출 현황 목록 테이블 -->
+              <div class="checklist-table-wrapper" style="width: 100%;">
+                <table class="checklist-table" style="min-width: 100%;">
+                  <thead>
+                    <tr>
+                      <th style="width: 5%; text-align: center;">#</th>
+                      <th style="width: 20%;">교사명</th>
+                      <th style="width: 25%;">소속 학교</th>
+                      <th style="width: 20%;">실증 대상 제품</th>
+                      <th style="width: 15%; text-align: center;">제출 일자</th>
+                      <th style="width: 15%; text-align: center;">제출 상태</th>
+                    </tr>
+                  </thead>
+                  <tbody id="leader-submissions-tbody">
+                    <tr>
+                      <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-tertiary);">데이터 가져오기를 클릭하여 팀원 현황을 로드하세요.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 설정 및 컨트롤 -->
+          <div class="form-header-box" style="margin-bottom: 20px; padding: 14px 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end;">
+              <div class="form-item">
+                <label style="font-size:0.75rem;">실증 팀명</label>
+                <div style="display: flex; gap: 4px; width: 100%;">
+                  <select id="team-name-select" class="input-control" style="padding:6px 10px; font-size:0.78rem; width: 100%; flex: 1;">
+                    <option value="">-- 먼저 데이터 가져오기를 클릭하세요 --</option>
+                  </select>
+                  <input type="text" id="team-name-direct" class="input-control" style="display:none; padding:6px 10px; font-size:0.78rem; width: 100%;" placeholder="직접 입력 팀명">
+                </div>
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">실증 대상 제품</label>
+                <select id="team-product-select" class="input-control" style="padding:6px 10px; font-size:0.78rem;">
+                  <option value="">-- 먼저 데이터 가져오기를 클릭하세요 --</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label style="font-size:0.75rem;">참여 교사</label>
+                <input type="text" id="team-teachers-display" class="input-control" style="padding:6px 10px; font-size:0.78rem; background-color: var(--bg-tertiary);" readonly placeholder="자동 취합 목록">
+              </div>
+            </div>
+          </div>
+
+          <!-- 그리드 레이아웃 -->
+          <div class="dashboard-grid">
+            <div class="charts-row">
+              <!-- 왼쪽 종합 의견 작성 공간 -->
+              <div class="chart-card glass" style="flex: 1; min-width: 320px; gap: 14px;">
+                <h3 style="margin: 0;">✍️ 팀 종합 의견 기재</h3>
+                <div class="form-item">
+                  <label style="font-size: 0.75rem;">1. 종합 실증 의견 및 공교육 도입 제안</label>
+                  <textarea id="team-conclusion-input" class="table-textarea" style="min-height: 140px; font-size: 0.8rem; line-height: 1.4;" placeholder="해당 에듀테크 프로그램의 전반적인 적합성 결론 및 공교육 현장 확산 제안 사항을 입력하세요..."></textarea>
+                </div>
+                <div class="form-item">
+                  <label style="font-size: 0.75rem;">2. 기업 피드백에 따른 향후 모니터링 계획</label>
+                  <textarea id="team-monitoring-input" class="table-textarea" style="min-height: 140px; font-size: 0.8rem; line-height: 1.4;" placeholder="기업 조치 약속 사항에 대한 검증 및 현장 정착 모니터링 계획을 기재하세요..."></textarea>
+                </div>
+              </div>
+
+              <!-- 오른쪽 취합 통계 -->
+              <div class="chart-card glass" style="flex: 1; min-width: 320px;">
+                <h3 style="margin: 0 0 12px 0;">📊 팀 실증 현황 요약</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                  <div class="form-header-box" style="padding: 12px; text-align: center;">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 700;">취합된 개별 보고서</div>
+                    <div id="team-stat-reports-count" style="font-size: 1.6rem; font-weight: 800; color: var(--accent-color); margin-top: 4px;">0개</div>
+                  </div>
+                  <div class="form-header-box" style="padding: 12px; text-align: center;">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 700;">총 실증문항(중복 포함)</div>
+                    <div id="team-stat-items-count" style="font-size: 1.6rem; font-weight: 800; color: var(--success-color); margin-top: 4px;">0개</div>
+                  </div>
+                </div>
+
+                <div class="bar-chart-container" id="team-bar-chart">
+                  <!-- 요소별 문항 수 바 차트가 들어갑니다 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 세부 점검항목 취합 내역 -->
+            <div class="summary-card glass">
+              <h3 style="font-size:1rem; border-left:4px solid var(--accent-color); padding-left:8px; margin: 0 0 14px 0;">📋 취합된 실증 항목 및 피드백 목록</h3>
+              <div id="team-aggregated-items" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="text-align: center; padding: 40px; color: var(--text-tertiary); font-size: 0.85rem;">
+                  실증 팀명과 대상 제품을 선택하여 취합 내역을 로드해 주세요.
+                </div>
+              </div>
+            </div>
+            
+            <!-- 기업 피드백 모음 -->
+            <div class="summary-card glass">
+              <h3 style="font-size:1rem; border-left:4px solid var(--accent-color); padding-left:8px; margin: 0 0 14px 0;">🏢 수신된 기업 공식 피드백</h3>
+              <div id="team-aggregated-feedbacks" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 0.85rem;">
+                  등록된 기업 피드백이 없습니다.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- 하단 꼬리말 -->
-      <footer style="height:32px; background-color:var(--bg-secondary); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; padding:0 24px; font-size:0.75rem; color:var(--text-tertiary);">
+      <footer style="height:auto; min-height:36px; background-color:var(--bg-secondary); border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; padding:8px 24px; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
         <div>서울 에듀테크 소프트랩 개별 교사 실증용 공식 보고서 도구</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
         <div>보관함 활성 파일: <span id="footer-active-product" style="font-weight:700; color:var(--text-secondary);">미선택</span></div>
       </footer>
 
@@ -403,6 +759,8 @@
         <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">가입된 모든 회원(교사 및 에듀테크 기업) 리스트를 실시간 관리하고 보안 제어합니다.</p>
       </div>
       <div style="display:flex; gap:10px;">
+        <button id="btn-admin-change-pw" class="btn" style="border-color:var(--accent-color); color:var(--accent-color); font-size:0.82rem;" title="회원 정보 및 비밀번호 수정">👤 회원정보</button>
+        <button id="btn-admin-to-company" class="btn btn-success" style="font-size:0.82rem;">🏢 기업 피드백 센터 진입</button>
         <button id="btn-admin-to-teacher" class="btn btn-primary" style="font-size:0.82rem;">👨‍🏫 교사 실증 모드 진입</button>
         <button id="btn-admin-logout" class="btn" style="border-color:var(--danger-color); color:var(--danger-color); font-size:0.82rem;">로그아웃</button>
       </div>
@@ -451,11 +809,12 @@
         <table class="checklist-table" style="min-width:100%;">
           <thead>
             <tr>
-              <th style="width: 25%">이메일 계정</th>
-              <th style="width: 20%">대표명 (교사명 / 기업명)</th>
-              <th style="width: 25%">소속 학교/기관/업체</th>
-              <th style="width: 15%">비밀번호 (보안 확인)</th>
-              <th style="width: 15%">관리 조치</th>
+              <th style="width: 22%">이메일 계정</th>
+              <th style="width: 16%">대표명 (교사명 / 기업명)</th>
+              <th style="width: 18%">소속 학교/기관/업체</th>
+              <th style="width: 14%">역할 변경</th>
+              <th style="width: 14%">비밀번호 (보안 확인)</th>
+              <th style="width: 16%">관리 조치</th>
             </tr>
           </thead>
           <tbody id="admin-users-tbody">
@@ -463,6 +822,16 @@
           </tbody>
         </table>
       </div>
+      <!-- 하단 꼬리말 -->
+      <footer style="margin-top:auto; padding:16px 0 0 0; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
+        <div>서울 에듀테크 소프트랩 관리 모드 제어 센터</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
+        <div>v1.0.5 Admin Control</div>
+      </footer>
     </div>
   </div>
 
@@ -476,7 +845,9 @@
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <span id="company-profile-name" style="font-weight:700; font-size:0.88rem; color:var(--text-secondary);">기업 회원</span>
-        <button id="btn-company-change-pw" class="btn" style="border-color:var(--accent-color); color:var(--accent-color); font-size:0.82rem;" title="현재 기업 계정 비밀번호 변경">🔒 비번변경</button>
+        <button id="btn-company-to-admin" class="btn btn-primary" style="display: none; font-size:0.82rem;">🛠️ 관리자 모드 진입</button>
+        <button id="btn-company-clear-feedback" class="btn" style="border-color:var(--warning-color); color:var(--warning-color); font-size:0.82rem;" title="이 기업이 등록한 모든 피드백 데이터를 초기화">🧹 피드백 초기화</button>
+        <button id="btn-company-change-pw" class="btn" style="border-color:var(--accent-color); color:var(--accent-color); font-size:0.82rem;" title="회원 정보 및 비밀번호 수정">👤 회원정보</button>
         <button id="btn-company-logout" class="btn" style="border-color:var(--danger-color); color:var(--danger-color); font-size:0.82rem;">로그아웃</button>
       </div>
     </header>
@@ -534,11 +905,21 @@
           </thead>
           <tbody id="company-submitted-tbody">
             <tr>
-              <td colspan="6" style="text-align:center; color:var(--text-tertiary); padding:40px;">교사들이 최종 제출한 실증 보고서가 아직 없습니다.</td>
+              <td colspan="6" style="text-align:center; color:var(--text-tertiary); padding:40px;">교사들이 제출한 실증 보고서가 아직 없습니다.</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <!-- 하단 꼬리말 -->
+      <footer style="margin-top:auto; padding:16px 0 0 0; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:var(--text-tertiary); flex-wrap:wrap; gap:10px;">
+        <div>서울 에듀테크 소프트랩 기업 피드백 전용 센터</div>
+        <div style="display:flex; gap:10px; font-weight:700;">
+          <span onclick="openInfoModal('intro')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+          <span>|</span>
+          <span onclick="openInfoModal('privacy')" style="cursor:pointer; color:var(--text-secondary); text-decoration:underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        </div>
+        <div>v1.0.5 Company Control</div>
+      </footer>
     </div>
   </div>
 
@@ -672,8 +1053,11 @@
             <textarea id="rev-feedback-textarea" class="input-control" style="flex:1; width:100%; min-height: 120px; font-size: 0.8rem; line-height: 1.4; resize:none; padding:10px;" placeholder="교사님의 실증 분석에 감사를 전합니다. 건의해 주신 HTTPS 통신구간 암호화 미비 및 쿠키 수집 정보는 다음 v2.1 패치 버전에 즉각 수정하여 배포 예정입니다..."></textarea>
             
             <div style="display: flex; gap: 10px;">
-              <button id="btn-submit-feedback" class="btn btn-success" style="flex: 1; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem;">
+              <button id="btn-submit-feedback" class="btn btn-success" style="flex: 2; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem;">
                 📢 피드백 전송 및 상태 갱신
+              </button>
+              <button id="btn-cancel-feedback" class="btn btn-danger" style="display: none; flex: 1; justify-content: center; height: 38px; font-weight: bold; font-size: 0.82rem; background-color: var(--danger-color); border-color: var(--danger-color);" title="등록된 피드백을 삭제하고 대기중 상태로 되돌립니다">
+                ↩️ 피드백 취소
               </button>
             </div>
           </div>
@@ -688,14 +1072,105 @@
     <img id="lightbox-img" src="" style="max-width: 90%; max-height: 90%; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
   </div>
 
+  <!-- ==================== H. 회원정보 수정 모달 ==================== -->
+  <div id="user-profile-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div class="auth-card" style="max-width: 450px; width: 90%; display: flex; flex-direction: column; padding: 24px; gap: 16px; border: 2px solid var(--accent-color);">
+      <!-- 모달 헤더 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <h3 style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">👤 회원정보 수정</h3>
+        <button id="btn-close-profile-modal" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+      </div>
+
+      <!-- 모달 바디 -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-item">
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);">계정 이메일 (ID)</label>
+          <input type="text" id="prof-email" class="input-control" style="background-color: var(--bg-tertiary);" readonly>
+        </div>
+        <div class="form-item">
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);">이름 (대표명)</label>
+          <input type="text" id="prof-name" class="input-control" style="background-color: var(--bg-tertiary);" readonly>
+        </div>
+        <div class="form-item" id="prof-school-group">
+          <label id="prof-school-label" style="font-size: 0.75rem; font-weight: 700;">소속 학교명</label>
+          <input type="text" id="prof-school" class="input-control" placeholder="예: 서울미래초등학교">
+        </div>
+        <div class="form-item" id="prof-team-group">
+          <label id="prof-team-label" style="font-size: 0.75rem; font-weight: 700;">실증 팀명</label>
+          <input type="text" id="prof-team" class="input-control" placeholder="예: 서울 실증 2팀">
+        </div>
+        <div style="border-top: 1px dashed var(--border-color); margin: 6px 0;"></div>
+        <div class="form-item">
+          <label style="font-size: 0.75rem; font-weight: 700; color: var(--warning-color);">🔑 비밀번호 변경 (선택)</label>
+          <input type="password" id="prof-password" class="input-control" placeholder="변경할 경우에만 새 비번 입력 (최소 4자)">
+        </div>
+      </div>
+
+      <!-- 모달 푸터 단추 -->
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+        <button id="btn-cancel-profile-modal" class="btn" style="border-color: var(--border-color); font-size: 0.8rem;">취소</button>
+        <button id="btn-save-profile" class="btn btn-primary" style="font-size: 0.8rem; font-weight: 700;">💾 변경사항 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== I. 개발자 정보 / 서비스 소개 / 개인정보 처리방침 안내 모달 ==================== -->
+  <div id="info-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2500; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+    <div class="auth-card" style="max-width: 500px; width: 90%; display: flex; flex-direction: column; padding: 24px; gap: 16px; border: 2px solid var(--accent-color); max-height: 80vh; overflow-y: auto;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <h3 id="info-modal-title" style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">ℹ️ 안내 정보</h3>
+        <button onclick="closeInfoModal()" style="background: none; border: none; font-size: 1.4rem; cursor: pointer; color: var(--text-secondary); outline: none;">&times;</button>
+      </div>
+      
+      <div id="info-modal-content" style="font-size: 0.82rem; line-height: 1.6; color: var(--text-primary);">
+        <!-- 내용 동적 기입 -->
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
+        <button onclick="closeInfoModal()" class="btn btn-primary" style="font-size: 0.8rem; padding: 6px 16px;">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 알림 토스트 박스 -->
   <div id="toast" role="alert" aria-live="assertive">
     <span>💡</span>
     <span class="toast-message">알림 메시지</span>
   </div>
 
+  <!-- 모바일 사이드바 드로어용 백드롭 overlay -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <!-- 모바일 전역 하단 내비게이션 탭 바 -->
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-btn active" id="btn-m-tab-edit">
+      <span class="mobile-nav-icon" style="display:flex; align-items:center; justify-content:center;">
+        <img src="assets/tab_edit.png?v=1.2.5" alt="Edit" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px;">
+      </span>
+      <span class="mobile-nav-label">작성</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-dashboard">
+      <span class="mobile-nav-icon" style="display:flex; align-items:center; justify-content:center;">
+        <img src="assets/tab_dashboard.png?v=1.2.5" alt="Dashboard" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px;">
+      </span>
+      <span class="mobile-nav-label">대시보드</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-team">
+      <span class="mobile-nav-icon" style="display:flex; align-items:center; justify-content:center;">
+        <img src="assets/tab_team.png?v=1.2.5" alt="Team" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px;">
+      </span>
+      <span class="mobile-nav-label">팀 취합</span>
+    </button>
+    <button class="mobile-nav-btn" id="btn-m-tab-preview">
+      <span class="mobile-nav-icon" style="display:flex; align-items:center; justify-content:center;">
+        <img src="assets/tab_preview.png?v=1.2.5" alt="Preview" style="width: 44px; height: 44px; object-fit: contain; border-radius: 4px;">
+      </span>
+      <span class="mobile-nav-label">미리보기</span>
+    </button>
+  </nav>
+
   <!-- 스크립트 로드 -->
-  <script src="data.js?v=1.0.5"></script>
-  <script src="app.js?v=1.0.5"></script>
+  <script src="data.js?v=1.2.5"></script>
+  <script src="app.js?v=1.3.3"></script>
 </body>
 </html>

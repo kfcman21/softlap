@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -14,6 +14,8 @@ let oracleConfig = {
 
 let isCentralDbActive = false;
 let centralDbUrl = "";
+let lastSubmittedFetchTime = 0;
+let cachedSubmittedList = [];
 
 async function checkCentralDbStatus() {
   const configuredUrl = localStorage.getItem("softlap_central_db_url");
@@ -57,6 +59,12 @@ async function checkCentralDbStatus() {
     // B. OCI 전용 보안 API 서버 주소 최우선 스캐닝 시도 (실시간 HTTPS 연동 보장)
     if (!connection) {
       connection = await tryUrl("https://api.kfcman.link");
+    }
+    if (!connection) {
+      connection = await tryUrl("https://softlap.seoul.kr");
+    }
+    if (!connection) {
+      connection = await tryUrl("https://www.softlap.seoul.kr");
     }
     if (!connection) {
       connection = await tryUrl("https://api.softlap.seoul.kr");
@@ -172,6 +180,37 @@ let state = {
 
 // 앱 최초 로드 시 실행되는 초기화 라이프사이클
 async function initApp() {
+  // 로컬 저장소로부터 저장된 대분류 필터 및 사이드바 접힘 상태 복구
+  state.filterElement = localStorage.getItem("softlap_filter_element") || "전체";
+  
+  const isMobile = window.innerWidth <= 768;
+  const sidebarCollapsed = isMobile || localStorage.getItem("softlap_sidebar_collapsed") === "true";
+  const sidebar = document.getElementById("sidebar");
+  const toggleIcon = document.getElementById("sidebar-toggle-icon");
+  const toggleText = document.getElementById("sidebar-toggle-text");
+  if (sidebar && sidebarCollapsed) {
+    sidebar.classList.add("collapsed");
+    if (toggleIcon) toggleIcon.textContent = "▶";
+    if (toggleText) toggleText.textContent = "사이드바 펼치기";
+  }
+
+  // 나의 실증 보관함 및 가이드 트리 접힘 상태 복구
+  const cabinetCollapsed = localStorage.getItem("softlap_cabinet_collapsed") === "true";
+  const list = document.getElementById("project-cabinet-list");
+  const cabArrow = document.getElementById("cabinet-toggle-arrow");
+  if (list && cabinetCollapsed) {
+    list.style.display = "none";
+    if (cabArrow) cabArrow.style.transform = "rotate(-90deg)";
+  }
+
+  const guideCollapsed = localStorage.getItem("softlap_guide_collapsed") === "true";
+  const nav = document.getElementById("preset-tree-nav");
+  const guiArrow = document.getElementById("guide-toggle-arrow");
+  if (nav && guideCollapsed) {
+    nav.style.display = "none";
+    if (guiArrow) guiArrow.style.transform = "rotate(-90deg)";
+  }
+
   await checkCentralDbStatus();
   setupEventListeners();
   applyTheme();
@@ -235,7 +274,9 @@ function showMainDashboard() {
   document.getElementById("admin-container").style.display = "none";
 
   // 프로필 정보 매핑
-  document.getElementById("profile-name").textContent = `${state.currentUser.name} 교사`;
+  const isLeader = state.currentUser.isLeader || state.currentUser.role === "team_leader";
+  const leaderBadge = isLeader ? " <span style='font-size:0.65rem; background:linear-gradient(135deg,hsl(45,100%,60%),hsl(30,100%,55%)); color:#fff; padding:2px 6px; border-radius:4px; font-weight:800;'>&#x1F451; 팀장</span>" : "";
+  document.getElementById("profile-name").innerHTML = `${state.currentUser.name} 교사${leaderBadge}`;
   document.getElementById("profile-school").textContent = state.currentUser.team || state.currentUser.school;
   document.getElementById("profile-avatar").textContent = state.currentUser.name ? state.currentUser.name[0] : "👨‍🏫";
 
@@ -245,6 +286,23 @@ function showMainDashboard() {
 
   // 오라클 클라우드 DB 연동 가시성 설정
   updateOracleSyncCardVisibility();
+
+  // 팀장인 경우 팀 탭에 배지 표시
+  const isLeaderUser = state.currentUser?.isLeader || state.currentUser?.role === "team_leader";
+  const teamTabBtns = ["btn-tab-team", "btn-m-tab-team"].map(id => document.getElementById(id)).filter(Boolean);
+  teamTabBtns.forEach(btn => {
+    // 기존 배지 제거
+    const existingBadge = btn.querySelector(".leader-tab-badge");
+    if (existingBadge) existingBadge.remove();
+
+    if (isLeaderUser) {
+      const badge = document.createElement("span");
+      badge.className = "leader-tab-badge";
+      badge.textContent = "👑";
+      badge.style.cssText = "margin-left: 4px; font-size: 0.75rem;";
+      btn.appendChild(badge);
+    }
+  });
 
   // 현재 유저의 프로젝트 목록 로드
   loadUserProjects();
@@ -345,19 +403,85 @@ async function renderAdminUsersList() {
     const user = usersDB[email];
     const tr = document.createElement("tr");
 
+    // 현재 역할 결정
+    const role = user.role || (user.isEnterprise ? "enterprise" : "teacher");
+
+    // 역할 배지 색상 맵
+    const roleBadgeMap = {
+      admin:       { icon: "🛠️", label: "관리자", bg: "hsl(210,100%,50%)" },
+      team_leader: { icon: "👑", label: "팀장",   bg: "linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%))" },
+      enterprise:  { icon: "🏢", label: "기업",   bg: "hsl(142,70%,40%)" },
+      teacher:     { icon: "👨‍🏫", label: "교사",  bg: "hsl(220,70%,50%)" }
+    };
+    const badgeInfo = roleBadgeMap[role] || roleBadgeMap.teacher;
+    const roleBadge = `<span id="role-badge-${email.replace(/[@.]/g,'-')}" style="display:inline-flex;align-items:center;gap:3px;font-size:0.63rem;background:${badgeInfo.bg};color:#fff;padding:2px 6px;border-radius:4px;font-weight:800;margin-left:4px;">${badgeInfo.icon} ${badgeInfo.label}</span>`;
+
+    // 역할 변경 드롭다운
+    const safeEmail = email.replace(/'/g, "\\'");
+    const roleSelect = `
+      <select id="role-select-${email.replace(/[@.]/g,'-')}"
+        onchange="adminChangeRole('${safeEmail}', this)"
+        style="padding:3px 6px; font-size:0.72rem; border:1px solid var(--border-color); border-radius:5px; background:var(--bg-secondary); color:var(--text-primary); cursor:pointer; font-weight:700;">
+        <option value="teacher"     ${role === "teacher"     ? "selected" : ""}>👨‍🏫 교사</option>
+        <option value="team_leader" ${role === "team_leader" ? "selected" : ""}>👑 팀장</option>
+        <option value="enterprise"  ${role === "enterprise"  ? "selected" : ""}>🏢 기업</option>
+        <option value="admin"       ${role === "admin"       ? "selected" : ""}>🛠️ 관리자</option>
+      </select>`;
+
     tr.innerHTML = `
       <td><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
-      <td><strong>${user.name || "-"}</strong></td>
+      <td><strong>${user.name || "-"}</strong>${roleBadge}</td>
       <td>${user.school || "서울에듀테크소프트랩"}</td>
+      <td>${roleSelect}</td>
       <td><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
       <td>
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${email}')">🔑 비번변경</button>
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${email}')">🗑️ 계정삭제</button>
+        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${safeEmail}')">🔑 비번변경</button>
+        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${safeEmail}')">🗑️ 계정삭제</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+// 관리자 전용: 회원 역할 즉시 변경 처리기
+async function adminChangeRole(email, selectEl) {
+  const newRole = selectEl.value;
+  const roleBadgeMap = {
+    admin:       { icon: "🛠️", label: "관리자", bg: "hsl(210,100%,50%)" },
+    team_leader: { icon: "👑", label: "팀장",   bg: "linear-gradient(135deg,hsl(45,100%,55%),hsl(30,100%,50%))" },
+    enterprise:  { icon: "🏢", label: "기업",   bg: "hsl(142,70%,40%)" },
+    teacher:     { icon: "👨‍🏫", label: "교사",  bg: "hsl(220,70%,50%)" }
+  };
+
+  try {
+    const response = await fetch(`${centralDbUrl}/api/admin/change-role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, newRole })
+    });
+
+    if (response.ok) {
+      // 배지 즉시 업데이트
+      const badgeId = "role-badge-" + email.replace(/[@.]/g, '-');
+      const badge = document.getElementById(badgeId);
+      if (badge && roleBadgeMap[newRole]) {
+        const info = roleBadgeMap[newRole];
+        badge.style.background = info.bg;
+        badge.textContent = `${info.icon} ${info.label}`;
+      }
+      showToast(`✅ ${email} 계정의 역할이 [${roleBadgeMap[newRole]?.label || newRole}](으)로 변경되었습니다.`);
+    } else {
+      const errData = await response.json();
+      alert("역할 변경 실패: " + (errData.error || "알 수 없는 오류"));
+      // 드롭다운 원상복구
+      renderAdminUsersList();
+    }
+  } catch (err) {
+    alert("서버 통신 오류: " + err.message);
+    renderAdminUsersList();
+  }
+}
+window.adminChangeRole = adminChangeRole;
 
 async function adminChangePassword(email) {
   const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n회원 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
@@ -418,8 +542,35 @@ async function loadUserProjects() {
       const remoteProjects = await res.json();
       state.projects = remoteProjects || [];
       
-      // 양쪽 다 데이터가 전혀 없을 때 웰컴 샘플 프로젝트 자동 배포
-      if (state.projects.length === 0) {
+      const isAdmin = state.currentUser.isAdmin || state.currentUser.role === "admin";
+      
+      if (isAdmin) {
+        // 관리자인 경우, 다른 교사들이 제출한 모든 리포트도 보관함 목록에 합쳐서 조회 및 제출 취소할 수 있게 덤프
+        try {
+          const subRes = await fetch(`${centralDbUrl}/api/submitted`);
+          if (subRes.ok) {
+            const submittedList = await subRes.json();
+            submittedList.forEach(p => {
+              if (!state.projects.some(myP => myP.id === p.id)) {
+                state.projects.push({
+                  id: p.id,
+                  meta: p.meta,
+                  items: p.items,
+                  submitted: p.submitted,
+                  status: p.status,
+                  submitDate: p.submitDate,
+                  email: p.email // 원작성자 이메일 보존
+                });
+              }
+            });
+          }
+        } catch (subErr) {
+          console.error("관리자용 제출 완료 목록 로딩 실패:", subErr);
+        }
+      }
+      
+      // 양쪽 다 데이터가 전혀 없을 때 웰컴 샘플 프로젝트 자동 배포 (관리자 제외)
+      if (state.projects.length === 0 && !isAdmin) {
         const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
         welcomeProj.id = "welcome_" + Date.now();
         welcomeProj.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
@@ -526,6 +677,7 @@ function loadActiveProject() {
   const feedback = state.activeProject.feedback;
 
   const btnSubmit = document.getElementById("btn-submit-to-company");
+  const btnCancelSubmit = document.getElementById("btn-cancel-submit");
   const txtStatus = document.getElementById("txt-submitted-status");
   const panelFeedback = document.getElementById("feedback-receipt-panel");
 
@@ -536,6 +688,8 @@ function loadActiveProject() {
     if (status === "피드백 완료") {
       txtStatus.textContent = "피드백 완료";
       txtStatus.className = "status-badge status-completed";
+      const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+      if (btnCancelSubmit) btnCancelSubmit.style.display = isAdmin ? "inline-flex" : "none";
       
       // 피드백 패널 노출 및 매핑
       if (feedback) {
@@ -548,10 +702,12 @@ function loadActiveProject() {
     } else {
       txtStatus.textContent = "제출완료 (대기중)";
       txtStatus.className = "status-badge status-submitted";
+      if (btnCancelSubmit) btnCancelSubmit.style.display = "inline-flex";
       panelFeedback.style.display = "none";
     }
   } else {
     btnSubmit.style.display = "inline-flex";
+    if (btnCancelSubmit) btnCancelSubmit.style.display = "none";
     txtStatus.style.display = "none";
     panelFeedback.style.display = "none";
   }
@@ -778,6 +934,7 @@ function renderCabinetList() {
         renderCabinetList();
         loadActiveProject();
         if (state.currentTab === "preview") renderA4Preview();
+        closeMobileSidebarIfOpen();
       });
 
       container.appendChild(item);
@@ -841,42 +998,10 @@ function updateAuthUI() {
     if (authSchoolGroup) authSchoolGroup.style.display = "flex";
     if (authTeamGroup) {
       authTeamGroup.style.display = "flex";
-      
-      // 선택 변경에 따라 팀명 입력란 실시간 자동 계산/제어 이벤트 부착
-      const teamSelect = document.getElementById("auth-team-select");
       const teamInput = document.getElementById("auth-team");
-      const nameInput = document.getElementById("auth-name");
-      const schoolInput = document.getElementById("auth-school");
-
-      const updateTeamPlaceholder = () => {
-        if (!teamSelect || !teamInput) return;
-        const nameVal = nameInput ? nameInput.value.trim() : "";
-        const schoolVal = schoolInput ? schoolInput.value.trim() : "";
-
-        if (teamSelect.value === "name-school") {
-          teamInput.value = (nameVal && schoolVal) ? `${nameVal} (${schoolVal})` : "";
-          teamInput.disabled = true;
-          teamInput.placeholder = "교사명 (학교명)으로 자동 계산되어 채워집니다.";
-        } else if (teamSelect.value === "school-only") {
-          teamInput.value = schoolVal;
-          teamInput.disabled = true;
-          teamInput.placeholder = "소속 학교명으로 자동 채워집니다.";
-        } else {
-          teamInput.disabled = false;
-          teamInput.placeholder = "소속 팀명 또는 학교명을 직접 입력하십시오.";
-        }
-      };
-
-      if (teamSelect && teamInput) {
-        // 이미 핸들러가 걸려있지 않다면 부착
-        if (!teamSelect.dataset.hasListener) {
-          teamSelect.dataset.hasListener = "true";
-          teamSelect.addEventListener("change", updateTeamPlaceholder);
-          
-          if (nameInput) nameInput.addEventListener("input", updateTeamPlaceholder);
-          if (schoolInput) schoolInput.addEventListener("input", updateTeamPlaceholder);
-        }
-        updateTeamPlaceholder();
+      if (teamInput) {
+        teamInput.disabled = false;
+        teamInput.placeholder = "소속 팀명 또는 학교명을 직접 입력하십시오.";
       }
     }
 
@@ -917,33 +1042,68 @@ function updateAuthUI() {
   // 가입 역할 라디오 디자인 스위칭 바인딩
   const radioTeacher = document.querySelector('input[name="auth-role"][value="teacher"]');
   const radioEnterprise = document.querySelector('input[name="auth-role"][value="enterprise"]');
+  const radioLeader = document.querySelector('input[name="auth-role"][value="team_leader"]');
   const labelTeacher = document.getElementById("label-role-teacher");
   const labelEnterprise = document.getElementById("label-role-enterprise");
+  const labelLeader = document.getElementById("label-role-leader");
+
+  const roleLabels = [labelTeacher, labelLeader, labelEnterprise].filter(Boolean);
+  const accentBorderColor = "var(--accent-color)";
+  const defaultBorderColor = "var(--border-color)";
+
+  function resetRoleLabels() {
+    roleLabels.forEach(l => { if(l) l.style.borderColor = defaultBorderColor; });
+  }
 
   if (radioTeacher && radioEnterprise && labelTeacher && labelEnterprise) {
     radioTeacher.addEventListener("change", () => {
-      labelTeacher.style.borderColor = "var(--accent-color)";
-      labelEnterprise.style.borderColor = "var(--border-color)";
+      resetRoleLabels();
+      labelTeacher.style.borderColor = accentBorderColor;
       
-      // 교사 선택 시 이름/학교/팀명 입력 보이기
+      // 교사 선택 시 이름/학교/팀명 입력 보이기, 팀장 안내 숨기기
       const nameGrp = document.getElementById("group-auth-name");
       const schoolGrp = document.getElementById("group-auth-school");
       const teamGrp = document.getElementById("group-auth-team");
+      const leaderGuide = document.getElementById("leader-team-guide");
       if (nameGrp) nameGrp.style.display = "flex";
       if (schoolGrp) schoolGrp.style.display = "flex";
       if (teamGrp) teamGrp.style.display = "flex";
+      if (leaderGuide) leaderGuide.style.display = "none";
     });
+
+    if (radioLeader) {
+      radioLeader.addEventListener("change", () => {
+        resetRoleLabels();
+        if (labelLeader) labelLeader.style.borderColor = accentBorderColor;
+        
+        // 팀장 선택 시 이름/학교/팀명 입력 보이기 + 팀장 가입 안내 박스 표시
+        const nameGrp = document.getElementById("group-auth-name");
+        const schoolGrp = document.getElementById("group-auth-school");
+        const teamGrp = document.getElementById("group-auth-team");
+        const leaderGuide = document.getElementById("leader-team-guide");
+        if (nameGrp) nameGrp.style.display = "flex";
+        if (schoolGrp) schoolGrp.style.display = "flex";
+        if (teamGrp) teamGrp.style.display = "flex";
+        if (leaderGuide) leaderGuide.style.display = "block";
+        // 팀명 입력창 placeholder 팀장 전용으로 변경
+        const teamInput = document.getElementById("auth-team");
+        if (teamInput) teamInput.placeholder = "예: 클래스팅AI-서울A팀 (제품명-팀명 형식 권장)";
+      });
+    }
+
     radioEnterprise.addEventListener("change", () => {
-      labelEnterprise.style.borderColor = "var(--accent-color)";
-      labelTeacher.style.borderColor = "var(--border-color)";
+      resetRoleLabels();
+      labelEnterprise.style.borderColor = accentBorderColor;
       
       // 기업 선택 시 불필요한 입력 그룹 가리기
       const nameGrp = document.getElementById("group-auth-name");
       const schoolGrp = document.getElementById("group-auth-school");
       const teamGrp = document.getElementById("group-auth-team");
+      const leaderGuide = document.getElementById("leader-team-guide");
       if (nameGrp) nameGrp.style.display = "none";
       if (schoolGrp) schoolGrp.style.display = "none";
       if (teamGrp) teamGrp.style.display = "none";
+      if (leaderGuide) leaderGuide.style.display = "none";
     });
   }
 }
@@ -1011,13 +1171,14 @@ async function handleAuthSubmit() {
     let defaultSchool = "서울에듀테크소프트랩";
     let defaultTeam = "서울에듀테크소프트랩";
 
-    if (selectedRole === "teacher") {
+    if (selectedRole === "teacher" || selectedRole === "team_leader") {
       const authName = document.getElementById("auth-name").value.trim();
       const authSchool = document.getElementById("auth-school").value.trim();
       const authTeam = document.getElementById("auth-team").value.trim();
 
+      const roleLabel = selectedRole === "team_leader" ? "팀장" : "교사";
       if (!authName || !authSchool || !authTeam) {
-        alert("교사 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.");
+        alert(`${roleLabel} 회원가입 시 교사명, 소속 학교명, 그리고 실증 팀명은 필수 기입 사항입니다.`);
         return;
       }
       displayName = authName;
@@ -1169,6 +1330,10 @@ function setupEventListeners() {
     showAuthScreen();
   });
   
+  safeBindClick("btn-admin-to-company", () => {
+    showEnterpriseDashboard();
+  });
+  
   safeBindClick("btn-admin-to-teacher", () => {
     // 관리자 모드에서 일반 실증용 화면으로 분기 진입
     document.getElementById("admin-container").style.display = "none";
@@ -1225,6 +1390,52 @@ function setupEventListeners() {
   // 상단 탭 스위칭
   safeBindClick("btn-tab-edit", () => switchTab("edit"));
   safeBindClick("btn-tab-preview", () => switchTab("preview"));
+  safeBindClick("btn-tab-dashboard", () => switchTab("dashboard"));
+  safeBindClick("btn-tab-team", () => switchTab("team"));
+
+  // 팀별 보고서 취합 제어 바인딩
+  safeBindClick("btn-refresh-team", () => fetchTeamReportData(false));
+  safeBindClick("btn-print-team", printTeamReport);
+  
+  const teamProductSelect = document.getElementById("team-product-select");
+  if (teamProductSelect) {
+    teamProductSelect.addEventListener("change", renderTeamReportCompiled);
+  }
+  
+  const teamNameSelect = document.getElementById("team-name-select");
+  const teamNameDirect = document.getElementById("team-name-direct");
+  if (teamNameSelect) {
+    teamNameSelect.addEventListener("change", () => {
+      if (teamNameSelect.value === "direct") {
+        if (teamNameDirect) {
+          teamNameDirect.style.display = "block";
+          teamNameDirect.value = "";
+          teamNameDirect.focus();
+        }
+      } else {
+        if (teamNameDirect) {
+          teamNameDirect.style.display = "none";
+        }
+      }
+      populateTeamProducts();
+    });
+  }
+  
+  if (teamNameDirect) {
+    teamNameDirect.addEventListener("input", () => {
+      populateTeamProducts();
+    });
+  }
+  
+  const teamConclusionInput = document.getElementById("team-conclusion-input");
+  if (teamConclusionInput) {
+    teamConclusionInput.addEventListener("input", saveTeamInputs);
+  }
+  
+  const teamMonitoringInput = document.getElementById("team-monitoring-input");
+  if (teamMonitoringInput) {
+    teamMonitoringInput.addEventListener("input", saveTeamInputs);
+  }
 
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
@@ -1235,9 +1446,103 @@ function setupEventListeners() {
   safeBindClick("btn-load-sample", loadSampleData);
   safeBindClick("btn-clear-all", clearAllData);
 
+  // 📂 사이드바 접기/펼치기 토글
+  safeBindClick("btn-toggle-sidebar", () => {
+    const sidebar = document.getElementById("sidebar");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    if (!sidebar) return;
+    
+    if (sidebar.classList.contains("collapsed")) {
+      sidebar.classList.remove("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "◀";
+      if (toggleText) toggleText.textContent = "사이드바 접기";
+      localStorage.setItem("softlap_sidebar_collapsed", "false");
+      if (backdrop) backdrop.classList.add("active");
+    } else {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+      localStorage.setItem("softlap_sidebar_collapsed", "true");
+      if (backdrop) backdrop.classList.remove("active");
+    }
+  });
+
+  // 모바일 하단 탭 스위칭 바인딩
+  safeBindClick("btn-m-tab-edit", () => switchTab("edit"));
+  safeBindClick("btn-m-tab-preview", () => switchTab("preview"));
+  safeBindClick("btn-m-tab-dashboard", () => switchTab("dashboard"));
+  safeBindClick("btn-m-tab-team", () => switchTab("team"));
+
+  // 모바일 사이드바 백드롭 클릭 시 사이드바 닫기
+  safeBindClick("sidebar-backdrop", () => {
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
+    }
+  });
+
+  // 모바일 사이드바 내 X 닫기 단추 클릭 시 사이드바 닫기
+  safeBindClick("btn-close-sidebar-mobile", () => {
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const toggleIcon = document.getElementById("sidebar-toggle-icon");
+    const toggleText = document.getElementById("sidebar-toggle-text");
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
+    }
+  });
+
+  // 📁 나의 실증 보관함 접기/펼치기 토글
+  safeBindClick("cabinet-toggle-header", () => {
+    const list = document.getElementById("project-cabinet-list");
+    const arrow = document.getElementById("cabinet-toggle-arrow");
+    if (!list) return;
+    if (list.style.display === "none") {
+      list.style.display = "block";
+      if (arrow) arrow.style.transform = "rotate(0deg)";
+      localStorage.setItem("softlap_cabinet_collapsed", "false");
+    } else {
+      list.style.display = "none";
+      if (arrow) arrow.style.transform = "rotate(-90deg)";
+      localStorage.setItem("softlap_cabinet_collapsed", "true");
+    }
+  });
+
+  // 🎯 클릭 시 보관함에 추가 (30대 기준) 접기/펼치기 토글
+  safeBindClick("guide-toggle-header", () => {
+    const nav = document.getElementById("preset-tree-nav");
+    const arrow = document.getElementById("guide-toggle-arrow");
+    if (!nav) return;
+    if (nav.style.display === "none") {
+      nav.style.display = "block";
+      if (arrow) arrow.style.transform = "rotate(0deg)";
+      localStorage.setItem("softlap_guide_collapsed", "false");
+    } else {
+      nav.style.display = "none";
+      if (arrow) arrow.style.transform = "rotate(-90deg)";
+      localStorage.setItem("softlap_guide_collapsed", "true");
+    }
+  });
+
   // 필터 및 단추
   safeBindChange("editor-filter-select", (e) => {
     state.filterElement = e.target.value;
+    localStorage.setItem("softlap_filter_element", state.filterElement);
     renderChecklistGrid();
   });
   safeBindClick("btn-add-row", () => {
@@ -1287,6 +1592,10 @@ function setupEventListeners() {
   
   // 교사 제출하기
   document.getElementById("btn-submit-to-company").addEventListener("click", submitProjectToEnterprise);
+  const btnCancelSubmit = document.getElementById("btn-cancel-submit");
+  if (btnCancelSubmit) {
+    btnCancelSubmit.addEventListener("click", cancelProjectSubmission);
+  }
   
   // 기업 대시보드 바인딩
   document.getElementById("btn-company-logout").addEventListener("click", () => showAuthScreen());
@@ -1295,9 +1604,29 @@ function setupEventListeners() {
   document.getElementById("btn-close-review-modal").addEventListener("click", closeReviewModal);
   document.getElementById("btn-submit-feedback").addEventListener("click", submitEnterpriseFeedback);
   
-  // 비밀번호 변경 액션 바인딩
-  document.getElementById("btn-change-pw").addEventListener("click", handleChangePassword);
-  document.getElementById("btn-company-change-pw").addEventListener("click", handleChangePassword);
+  // 회원 정보 및 비밀번호 변경 액션 바인딩
+  document.getElementById("btn-change-pw").addEventListener("click", openProfileModal);
+  document.getElementById("btn-company-change-pw").addEventListener("click", openProfileModal);
+  const btnAdminChangePw = document.getElementById("btn-admin-change-pw");
+  if (btnAdminChangePw) {
+    btnAdminChangePw.addEventListener("click", openProfileModal);
+  }
+  
+  // Profile Modal Close and Save
+  const btnCloseProfile = document.getElementById("btn-close-profile-modal");
+  if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeProfileModal);
+  const btnCancelProfile = document.getElementById("btn-cancel-profile-modal");
+  if (btnCancelProfile) btnCancelProfile.addEventListener("click", closeProfileModal);
+  const btnSaveProfile = document.getElementById("btn-save-profile");
+  if (btnSaveProfile) btnSaveProfile.addEventListener("click", saveUserProfile);
+  const btnClearFeedback = document.getElementById("btn-company-clear-feedback");
+  if (btnClearFeedback) {
+    btnClearFeedback.addEventListener("click", handleClearCompanyFeedback);
+  }
+  const btnCancelFeedback = document.getElementById("btn-cancel-feedback");
+  if (btnCancelFeedback) {
+    btnCancelFeedback.addEventListener("click", cancelEnterpriseFeedback);
+  }
 }
 
 // 테마 관리
@@ -1414,6 +1743,7 @@ function addPresetItemRow(elementName, itemName) {
   saveActiveProject();
   renderChecklistGrid();
   showToast(`[${elementName} - ${itemName}]이 실증지에 추가되었습니다.`);
+  closeMobileSidebarIfOpen();
 }
 
 // 상단 필터 셀렉터 빌드
@@ -1441,6 +1771,12 @@ function renderChecklistGrid() {
     btnAddRow.style.display = isSubmitted ? "none" : "inline-flex";
   }
 
+  // 필터 드롭다운 UI 값과 글로벌 상태 동기화
+  const filterSelect = document.getElementById("editor-filter-select");
+  if (filterSelect && filterSelect.value !== state.filterElement) {
+    filterSelect.value = state.filterElement;
+  }
+
   const rows = state.activeProject.items || [];
   const filtered = state.filterElement === "전체"
     ? rows
@@ -1449,7 +1785,7 @@ function renderChecklistGrid() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="9" style="text-align:center; padding:40px; color:var(--text-tertiary);">
+        <td colspan="11" style="text-align:center; padding:40px; color:var(--text-tertiary);">
           추가된 평가 기준 문항이 없습니다.<br>
           ${isSubmitted ? "제출 완료되어 새로운 평가 기준을 추가할 수 없습니다." : "왼쪽의 <strong>[클릭 시 보관함에 추가]</strong> 가이드를 통해 분석할 세부 항목들을 터치해 추가하세요."}
         </td>
@@ -1464,6 +1800,7 @@ function renderChecklistGrid() {
 
     // 0. 인쇄용 선택 체크박스 (rowData.selected === undefined 이면 true가 디폴트)
     const tdSelect = document.createElement("td");
+    tdSelect.setAttribute("data-label", "인쇄");
     tdSelect.style.textAlign = "center";
     tdSelect.style.verticalAlign = "middle";
     
@@ -1502,6 +1839,7 @@ function renderChecklistGrid() {
 
     // 1. 대분류 요소 선택
     const tdElement = document.createElement("td");
+    tdElement.setAttribute("data-label", "대분류(요소)");
     const elSelect = document.createElement("select");
     elSelect.className = "table-select";
     if (isSubmitted) elSelect.disabled = true;
@@ -1525,6 +1863,7 @@ function renderChecklistGrid() {
 
     // 2. 중분류 항목 선택
     const tdItem = document.createElement("td");
+    tdItem.setAttribute("data-label", "중분류(항목)");
     const itemSelect = document.createElement("select");
     itemSelect.className = "table-select";
     if (isSubmitted) itemSelect.disabled = true;
@@ -1548,6 +1887,7 @@ function renderChecklistGrid() {
 
     // 3. 점검 기준 (교사가 자기 표현 문장으로 직접 수정할 수 있는 커스텀 텍스트 에디터)
     const tdCriterion = document.createElement("td");
+    tdCriterion.setAttribute("data-label", "점검 기준 / 내용 정의 (자유 편집가능 ✍️)");
     const critWrapper = document.createElement("div");
     critWrapper.style.display = "flex";
     critWrapper.style.flexDirection = "column";
@@ -1594,6 +1934,7 @@ function renderChecklistGrid() {
 
     // 4. 구분 (점검기준 / 점검결과)
     const tdType = document.createElement("td");
+    tdType.setAttribute("data-label", "구분");
     const typeSelect = document.createElement("select");
     typeSelect.className = "table-select";
     if (isSubmitted) typeSelect.disabled = true;
@@ -1613,6 +1954,7 @@ function renderChecklistGrid() {
 
     // 5. 분석 내용 (실제결과/현상)
     const tdAnalysis = document.createElement("td");
+    tdAnalysis.setAttribute("data-label", "분석 내용 (실제결과/현상)");
     const analysisArea = document.createElement("textarea");
     analysisArea.className = "table-textarea";
     analysisArea.value = rowData.analysis || "";
@@ -1628,6 +1970,7 @@ function renderChecklistGrid() {
 
     // 6. 심각성
     const tdSeverity = document.createElement("td");
+    tdSeverity.setAttribute("data-label", "심각성");
     const sevSelect = document.createElement("select");
     sevSelect.className = "table-select";
     sevSelect.style.fontWeight = "bold";
@@ -1665,6 +2008,7 @@ function renderChecklistGrid() {
 
     // 7. 개선 사항 (기대결과)
     const tdImprovement = document.createElement("td");
+    tdImprovement.setAttribute("data-label", "개선 사항 (기대결과)");
     const impArea = document.createElement("textarea");
     impArea.className = "table-textarea";
     impArea.value = rowData.improvement || "";
@@ -1680,6 +2024,7 @@ function renderChecklistGrid() {
 
     // 8. [신규] 증빙 사진 스크린샷 업로드 및 캡처 열 추가
     const tdEvidence = document.createElement("td");
+    tdEvidence.setAttribute("data-label", "사진");
     tdEvidence.style.textAlign = "center";
     tdEvidence.style.verticalAlign = "middle";
 
@@ -1756,6 +2101,7 @@ function renderChecklistGrid() {
 
     // 8-B. [신규] 동영상 링크 입력 공간 (유튜브 등 링크)
     const tdVideo = document.createElement("td");
+    tdVideo.setAttribute("data-label", "동영상");
     tdVideo.style.textAlign = "center";
     tdVideo.style.verticalAlign = "middle";
 
@@ -1779,6 +2125,7 @@ function renderChecklistGrid() {
 
     // 9. 행 삭제
     const tdDelete = document.createElement("td");
+    tdDelete.setAttribute("data-label", "삭제");
     const delBtn = document.createElement("button");
     delBtn.className = "btn-delete";
     delBtn.innerHTML = "🗑️";
@@ -1795,6 +2142,10 @@ function renderChecklistGrid() {
 
     tbody.appendChild(tr);
   });
+  checkTeamDuplication();
+  if (state.currentTab === "dashboard") {
+    renderDashboard();
+  }
 }
 
 // 빈 점검 행 추가
@@ -1850,22 +2201,227 @@ function updateSummaryStats() {
   document.getElementById("count-low").textContent = `✅ (하): ${low}건`;
 }
 
-// 탭 스위칭
 function switchTab(tabId) {
   state.currentTab = tabId;
   document.getElementById("btn-tab-edit").classList.toggle("active", tabId === "edit");
   document.getElementById("btn-tab-preview").classList.toggle("active", tabId === "preview");
+  
+  const btnTabDb = document.getElementById("btn-tab-dashboard");
+  if (btnTabDb) {
+    btnTabDb.classList.toggle("active", tabId === "dashboard");
+  }
+
+  const btnTabTeam = document.getElementById("btn-tab-team");
+  if (btnTabTeam) {
+    btnTabTeam.classList.toggle("active", tabId === "team");
+  }
+
+  // 모바일 하단 탭 바 동기화
+  const mobEdit = document.getElementById("btn-m-tab-edit");
+  const mobDb = document.getElementById("btn-m-tab-dashboard");
+  const mobTeam = document.getElementById("btn-m-tab-team");
+  const mobPreview = document.getElementById("btn-m-tab-preview");
+  if (mobEdit) mobEdit.classList.toggle("active", tabId === "edit");
+  if (mobDb) mobDb.classList.toggle("active", tabId === "dashboard");
+  if (mobTeam) mobTeam.classList.toggle("active", tabId === "team");
+  if (mobPreview) mobPreview.classList.toggle("active", tabId === "preview");
 
   const editorArea = document.getElementById("editor-area");
   const previewArea = document.getElementById("preview-area");
+  const dashboardArea = document.getElementById("dashboard-area");
+  const teamArea = document.getElementById("team-area");
 
   if (tabId === "edit") {
     editorArea.style.display = "block";
     previewArea.style.display = "none";
-  } else {
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "none";
+  } else if (tabId === "preview") {
     editorArea.style.display = "none";
     previewArea.style.display = "block";
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "none";
     renderA4Preview();
+  } else if (tabId === "dashboard") {
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) {
+      dashboardArea.style.display = "block";
+      renderDashboard();
+    }
+    if (teamArea) teamArea.style.display = "none";
+  } else if (tabId === "team") {
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) {
+      teamArea.style.display = "block";
+      renderTeamWorkspace();
+    }
+  }
+}
+
+// 모바일 드로어 사이드바 닫기 헬퍼
+function closeMobileSidebarIfOpen() {
+  const sidebar = document.getElementById("sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  const toggleIcon = document.getElementById("sidebar-toggle-icon");
+  const toggleText = document.getElementById("sidebar-toggle-text");
+  
+  if (window.innerWidth <= 768) {
+    if (sidebar) {
+      sidebar.classList.add("collapsed");
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (toggleText) toggleText.textContent = "사이드바 펼치기";
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
+    }
+  }
+}
+
+// 📊 [신규] 실증 분석 종합 대시보드 렌더러
+function renderDashboard() {
+  const meta = state.activeProject?.meta || {};
+  const allItems = state.activeProject?.items || [];
+
+  // 대상 제품명 표시
+  const dbProductName = document.getElementById("db-product-name");
+  if (dbProductName) {
+    dbProductName.textContent = meta.targetProduct || "제품명 미기재";
+  }
+
+  // 1. KPI 통계 계산
+  const totalCount = allItems.length;
+  // 실증항목 선택율: 선택된 항목 개수 비율 (selected !== false)
+  const selectedItems = allItems.filter(r => r.selected !== false);
+  const selectedCount = selectedItems.length;
+  const selectionRate = totalCount > 0 ? Math.round((selectedCount / totalCount) * 100) : 0;
+
+  const highCount = selectedItems.filter(r => r.severity === "상").length;
+  const midCount = selectedItems.filter(r => r.severity === "중").length;
+  const lowCount = selectedItems.filter(r => r.severity === "하").length;
+
+  // KPI UI 매핑
+  document.getElementById("db-stat-total").textContent = `${selectedCount}개`;
+  document.getElementById("db-stat-completion").textContent = `${selectionRate}% (${selectedCount}/${totalCount})`;
+  document.getElementById("db-stat-high").textContent = `${highCount}건`;
+  document.getElementById("db-stat-mid").textContent = `${midCount}건`;
+
+  // 2. SVG 도넛 차트 그리기 (상, 중, 하 비율)
+  const donutSegments = document.getElementById("donut-segments");
+  const donutLegend = document.getElementById("donut-legend");
+  
+  if (donutSegments && donutLegend) {
+    donutSegments.innerHTML = "";
+    donutLegend.innerHTML = "";
+
+    if (selectedCount === 0) {
+      // 데이터 없음 표시
+      donutSegments.innerHTML = `<text x="18" y="20.5" font-size="3" text-anchor="middle" fill="var(--text-tertiary)">데이터 없음</text>`;
+      donutLegend.innerHTML = `<div class="legend-item"><span class="legend-color" style="background-color: var(--bg-tertiary);"></span> 선택된 문항 없음</div>`;
+    } else {
+      const pHigh = (highCount / selectedCount) * 100;
+      const pMid = (midCount / selectedCount) * 100;
+      const pLow = (lowCount / selectedCount) * 100;
+
+      let currentOffset = 0;
+
+      const segmentsData = [
+        { percentage: pHigh, color: "#ef4444", label: "🚨 개선 시급 (상)", count: highCount },
+        { percentage: pMid, color: "#f59e0b", label: "⚠️ 개선 권고 (중)", count: midCount },
+        { percentage: pLow, color: "#10b981", label: "✅ 양호/개선완료 (하)", count: lowCount }
+      ];
+
+      segmentsData.forEach(seg => {
+        if (seg.percentage > 0) {
+          // SVG circle 생성
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("class", "donut-segment");
+          circle.setAttribute("cx", "18");
+          circle.setAttribute("cy", "18");
+          circle.setAttribute("r", "15.915");
+          circle.setAttribute("fill", "transparent");
+          circle.setAttribute("stroke", seg.color);
+          circle.setAttribute("stroke-width", "3");
+          circle.setAttribute("stroke-dasharray", `${seg.percentage} 100`);
+          circle.setAttribute("stroke-dashoffset", `${currentOffset}`);
+          donutSegments.appendChild(circle);
+          
+          currentOffset -= seg.percentage;
+        }
+
+        // 범례 HTML 조립
+        const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
+        donutLegend.innerHTML += `
+          <div class="legend-item">
+            <span class="legend-color" style="background-color: ${seg.color};"></span>
+            <span style="font-weight:700;">${seg.label}:</span> 
+            <span>${seg.count}건 (${percentStr})</span>
+          </div>
+        `;
+      });
+    }
+  }
+
+  // 3. 6대 실증 요소별 항목 수 (수평 바 차트)
+  const barChartElements = document.getElementById("bar-chart-elements");
+  if (barChartElements) {
+    barChartElements.innerHTML = "";
+
+    // EMPIRICAL_STANDARDS의 대분류 목록 순회
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = allItems.filter(r => r.element === elName);
+      const totalEl = elItems.length;
+      
+      const selectedElItems = elItems.filter(r => r.selected !== false);
+      const selectedEl = selectedElItems.length;
+      const rateEl = totalEl > 0 ? Math.round((selectedEl / totalEl) * 100) : 0;
+
+      // 바 로우 HTML 구성
+      barChartElements.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-label-box">
+            <span>🛡️ ${elName}</span>
+            <span style="color: var(--text-secondary);">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  // 4. 우선 개선 필요 항목(상) 목록 요약 렌더링
+  const urgentTbody = document.getElementById("db-urgent-tbody");
+  const urgentBadge = document.getElementById("db-urgent-badge");
+  
+  if (urgentTbody && urgentBadge) {
+    urgentTbody.innerHTML = "";
+    const urgentItems = selectedItems.filter(r => r.severity === "상");
+    urgentBadge.textContent = urgentItems.length;
+
+    if (urgentItems.length === 0) {
+      urgentTbody.innerHTML = `
+        <tr>
+          <td colspan="4" style="text-align:center; padding:30px; color:var(--text-tertiary);">
+            🎉 심각도 '상'인 취약점이 발견되지 않았습니다. 매우 양호한 실증 상태입니다.
+          </td>
+        </tr>
+      `;
+    } else {
+      urgentItems.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="font-weight:700; color:var(--danger-color);">${r.element}</td>
+          <td style="font-weight:700;">${r.item}</td>
+          <td style="white-space: pre-wrap;">${r.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
+          <td style="white-space: pre-wrap;">${r.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
+        `;
+        urgentTbody.appendChild(tr);
+      });
+    }
   }
 }
 
@@ -1951,7 +2507,7 @@ function renderA4Preview() {
     miniHeader.style.marginBottom = "20px";
     miniHeader.innerHTML = `
       <span><strong>${meta.targetProduct || "에듀테크"}</strong> 공교육 적합성 평가서 (계속)</span>
-      <span>Page ${pageNum}</span>
+      <span>${pageNum} 페이지</span>
     `;
     page.appendChild(miniHeader);
 
@@ -2557,7 +3113,7 @@ async function submitProjectToEnterprise() {
     return;
   }
 
-  if (!confirm("⚠️ [경고] 기업 최종 제출하기\n\n최종 제출 시 보고서 데이터가 암묵적으로 잠금(Read-only) 처리되어 이후 수정이 불가능해집니다.\n\n해당 실증 분석 결과를 에듀테크 기업 피드백 센터로 최종 발송하시겠습니까?")) {
+  if (!confirm("⚠️ [경고] 기업 제출하기\n\n제출 시 보고서 데이터가 암묵적으로 잠금(Read-only) 처리되어 이후 수정이 불가능해집니다.\n\n해당 실증 분석 결과를 에듀테크 기업 피드백 센터로 발송하시겠습니까?")) {
     return;
   }
 
@@ -2611,7 +3167,7 @@ async function submitProjectToEnterprise() {
     });
 
     if (postRes.ok) {
-      showToast("🎉 실증 보고서가 협력 개발사에 최종 제출되었습니다! 피드백 대기중.");
+      showToast("🎉 실증 보고서가 협력 개발사에 제출되었습니다! 피드백 대기중.");
     } else {
       throw new Error("서버 제출 실패");
     }
@@ -2635,8 +3191,14 @@ function showEnterpriseDashboard() {
   document.getElementById("admin-container").style.display = "none";
   document.getElementById("company-container").style.display = "flex";
 
-  document.getElementById("company-profile-name").textContent = `${state.currentUser.name} (${state.currentUser.school})`;
+  document.getElementById("company-profile-name").textContent = `${state.currentUser.name} (${state.currentUser.school || state.currentUser.team || ""})`;
   
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  const btnToAdmin = document.getElementById("btn-company-to-admin");
+  if (btnToAdmin) {
+    btnToAdmin.style.display = isAdmin ? "inline-flex" : "none";
+  }
+
   updateOracleSyncCardVisibility();
   renderEnterpriseDashboard();
 }
@@ -2704,6 +3266,12 @@ async function renderEnterpriseDashboard() {
       badgeHtml = `<span class="status-badge status-submitted">피드백 대기</span>`;
     }
 
+    const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+    let actionButtons = `<button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="viewSubmittedProject('${p.id}')">🔍 검토 & 피드백</button>`;
+    if (isAdmin) {
+      actionButtons += ` <button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem; background-color:var(--danger-color); border-color:var(--danger-color); margin-left:4px;" onclick="deleteSubmittedProject('${p.id}')">❌ 삭제</button>`;
+    }
+
     tr.innerHTML = `
       <td style="font-weight:600;">${p.teacherName} 교사</td>
       <td>${p.schoolName}</td>
@@ -2711,7 +3279,7 @@ async function renderEnterpriseDashboard() {
       <td>${p.submitDate || "-"}</td>
       <td>${badgeHtml}</td>
       <td>
-        <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="viewSubmittedProject('${p.id}')">🔍 검토 & 피드백</button>
+        ${actionButtons}
       </td>
     `;
     tbody.appendChild(tr);
@@ -2749,6 +3317,16 @@ function viewSubmittedProject(projectId) {
   const feedbackArea = document.getElementById("rev-feedback-textarea");
   feedbackArea.value = project.feedback ? project.feedback.text : "";
 
+  // 피드백 취소 버튼 제어
+  const btnCancelFeedback = document.getElementById("btn-cancel-feedback");
+  if (btnCancelFeedback) {
+    if (project.feedback || project.status === "피드백 완료") {
+      btnCancelFeedback.style.display = "inline-flex";
+    } else {
+      btnCancelFeedback.style.display = "none";
+    }
+  }
+
   // 점검 항목 바인딩
   const tbody = document.getElementById("rev-checklist-tbody");
   tbody.innerHTML = "";
@@ -2769,29 +3347,29 @@ function viewSubmittedProject(projectId) {
       }
 
       tr.innerHTML = `
-        <td>
+        <td data-label="평가 요소 및 항목">
           <div style="font-weight:700;">${item.element}</div>
           <div style="font-size:0.7rem; color:var(--text-secondary);">${item.item}</div>
         </td>
-        <td>
+        <td data-label="현장 테스트 관찰 내용">
           <div style="font-weight:600; color:var(--text-primary); margin-bottom:4px;">Q. ${item.criterion}</div>
           <div style="background-color:var(--bg-secondary); border-radius:4px; padding:6px; font-size:0.75rem; border-left:3px solid var(--accent-color);">
             <strong>실증 분석:</strong> ${item.analysis || "(관찰 정보 없음)"}
           </div>
           ${item.improvement ? `<div style="margin-top:4px; font-size:0.72rem; color:var(--text-secondary);">💡 권장 대책: ${item.improvement}</div>` : ""}
         </td>
-        <td style="text-align:center; vertical-align:middle;">${severityBadge}</td>
-        <td style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
+        <td data-label="심각도" style="text-align:center; vertical-align:middle;">${severityBadge}</td>
+        <td data-label="기재 여부" style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
           ${item.selected !== false ? "🟢 기재" : "🔴 미인쇄"}
         </td>
-        <td style="text-align:center; vertical-align:middle; font-size:0.72rem; color:var(--text-tertiary);">
+        <td data-label="사진" style="text-align:center; vertical-align:middle; font-size:0.72rem; color:var(--text-tertiary);">
           ${item.screenshot ? `
             <div class="evidence-thumb-container" style="display: inline-block; position: relative;">
               <img src="${item.screenshot}" class="evidence-thumb" style="max-width: 50px; max-height: 50px; border-radius: 4px; cursor: pointer; object-fit: cover; border: 1px solid var(--border-color);" title="클릭하여 원본 크기 증빙 검토" onclick="openLightbox('${item.screenshot}')">
             </div>
           ` : "사진 없음"}
         </td>
-        <td style="text-align:center; vertical-align:middle; font-size:0.75rem;">
+        <td data-label="동영상" style="text-align:center; vertical-align:middle; font-size:0.75rem;">
           ${item.videoLink ? `
             <a href="${item.videoLink}" target="_blank" style="color:var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
           ` : "<span style='color:var(--text-tertiary); font-size:0.72rem;'>없음</span>"}
@@ -2865,40 +3443,97 @@ async function submitEnterpriseFeedback() {
   }
 }
 
-// 🔒 [신규] 로그인된 현재 사용자의 비밀번호 변경 처리기
-async function handleChangePassword() {
+// 🔒 [신규] 회원정보 및 비밀번호 수정 처리 모달 제어
+function openProfileModal() {
   if (!state.currentUser) {
-    alert("로그인이 만료되었거나 사용자 정보가 올바르지 않습니다.");
+    alert("로그인이 필요합니다.");
     return;
   }
-
-  const userKey = state.currentUser.email; // 아이디가 이메일 주소 또는 제품 명칭
-
-  const newPass = prompt(`🔒 [비밀번호 보안 변경]\n\n현재 계정: ${userKey}\n\n변경하여 사용할 새 비밀번호를 입력해 주십시오 (최소 4자리 이상):`);
   
-  if (newPass === null) return; // 취소 버튼
+  const modal = document.getElementById("user-profile-modal");
+  if (!modal) return;
+  
+  // 필드 값 세팅
+  document.getElementById("prof-email").value = state.currentUser.email || "";
+  document.getElementById("prof-name").value = state.currentUser.name || "";
+  document.getElementById("prof-school").value = state.currentUser.school || "";
+  document.getElementById("prof-team").value = state.currentUser.team || "";
+  document.getElementById("prof-password").value = ""; // 비밀번호 필드 초기화
+  
+  // 역할에 따른 라벨 변경 및 팀 입력란 노출 여부
+  const schoolLabel = document.getElementById("prof-school-label");
+  const teamGroup = document.getElementById("prof-team-group");
+  
+  if (state.currentUser.role === "enterprise") {
+    if (schoolLabel) schoolLabel.textContent = "🏢 제조 기업명";
+    if (teamGroup) teamGroup.style.display = "none";
+  } else if (state.currentUser.role === "admin") {
+    if (schoolLabel) schoolLabel.textContent = "🛠️ 소속 기관명";
+    if (teamGroup) teamGroup.style.display = "none";
+  } else {
+    if (schoolLabel) schoolLabel.textContent = "🏫 소속 학교명";
+    if (teamGroup) teamGroup.style.display = "block";
+  }
+  
+  modal.style.display = "flex";
+}
 
-  const cleanedPass = newPass.trim();
-  if (cleanedPass.length < 4) {
-    alert("안전한 계정 보안을 위해 비밀번호는 공백 제외 최소 4자리 이상으로 지정해야 합니다.");
+function closeProfileModal() {
+  const modal = document.getElementById("user-profile-modal");
+  if (modal) modal.style.display = "none";
+}
+
+async function saveUserProfile() {
+  if (!state.currentUser) return;
+  
+  const email = state.currentUser.email;
+  const school = document.getElementById("prof-school").value.trim();
+  const team = state.currentUser.role === "teacher" ? document.getElementById("prof-team").value.trim() : "";
+  const password = document.getElementById("prof-password").value.trim();
+  
+  if (password && password.length < 4) {
+    alert("안전한 계정 보안을 위해 비밀번호는 공백 제외 최소 4자리 이상이어야 합니다.");
     return;
   }
-
+  
   try {
-    const response = await fetch(`${centralDbUrl}/api/auth/change-password`, {
+    const res = await fetch(`${centralDbUrl}/api/auth/update-profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userKey, newPassword: cleanedPass })
+      body: JSON.stringify({
+        email: email,
+        school: school,
+        team: team || school,
+        newPassword: password || undefined
+      })
     });
-
-    if (response.ok) {
-      showToast("비밀번호가 정상적으로 변경되었습니다. 다음 로그인부터 새 비밀번호가 적용됩니다.");
+    
+    if (res.ok) {
+      // 로컬 상태 및 세션 갱신
+      state.currentUser.school = school;
+      state.currentUser.team = team || school;
+      sessionStorage.setItem("softlap_user_session", JSON.stringify(state.currentUser));
+      
+      // UI 요소 실시간 갱신
+      const profileSchool = document.getElementById("profile-school");
+      if (profileSchool) {
+        profileSchool.textContent = state.currentUser.team || state.currentUser.school || "기관 없음";
+      }
+      
+      const compProfileName = document.getElementById("company-profile-name");
+      if (compProfileName) {
+        compProfileName.textContent = `${state.currentUser.name} (${state.currentUser.school || ""})`;
+      }
+      
+      showToast("🎉 회원 정보가 정상적으로 변경되었습니다.");
+      closeProfileModal();
     } else {
-      const errData = await response.json();
-      alert(errData.error || "비밀번호 변경 실패. 마스터 권한은 계정 제어 센터에서 관리자에게 문의하십시오.");
+      const err = await res.json();
+      alert(err.error || "회원 정보 수정 실패");
     }
-  } catch (err) {
-    alert("서버 연결 실패: " + err.message);
+  } catch (e) {
+    console.error(e);
+    alert("서버 통신 실패: " + e.message);
   }
 }
 
@@ -2912,43 +3547,75 @@ async function checkTeamDuplication() {
   if (!schoolInput) return;
 
   const schoolName = schoolInput.value.trim().toLowerCase().replace(/\s+/g, '');
-  const productName = (state.activeProject.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+  const productName = (state.activeProject?.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
 
-  if (!schoolName || !productName || productName === "새로운에듀테크프로그램") {
+  if (!schoolName || !productName || productName === "새로운에듀테크프로그램" || productName === "새로운 에듀테크 프로그램") {
     warningBanner.style.display = "none";
     return;
   }
 
-  let submittedList = [];
-  try {
-    // 실시간으로 중복 체크를 위해 원격 서버에서 덤프
-    const res = await fetch(`${centralDbUrl}/api/submitted`);
-    if (res.ok) {
-      submittedList = await res.json();
-    }
-  } catch (e) {
-    console.error("중복 판별용 제출 목록 로드 실패:", e);
+  const activeItems = state.activeProject?.items || [];
+  if (activeItems.length === 0) {
+    warningBanner.style.display = "none";
+    return;
   }
-  
-  const duplicateReport = submittedList.find(p => {
-    // 본인의 지금 활성화된 프로젝트 ID는 배제
-    if (p.id === state.activeProjectId) return false;
 
-    const pSchool = (p.schoolName || "").trim().toLowerCase().replace(/\s+/g, '');
-    const pProduct = (p.meta.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+  const now = Date.now();
+  // 5초 캐시 적용하여 타이핑/렌더링 시 과도한 API Fetch 방지
+  if (now - lastSubmittedFetchTime > 5000 || cachedSubmittedList.length === 0) {
+    try {
+      const res = await fetch(`${centralDbUrl}/api/submitted`);
+      if (res.ok) {
+        cachedSubmittedList = await res.json();
+        lastSubmittedFetchTime = now;
+      }
+    } catch (e) {
+      console.error("중복 판별용 제출 목록 로드 실패:", e);
+    }
+  }
+
+  // 동일한 학교명 및 동일한 에듀테크 제품을 실증한 다른 사람의 제출된 보고서들 필터링 (본인 ID 제외)
+  const matchingReports = cachedSubmittedList.filter(p => {
+    if (p.id === state.activeProjectId || p.id === state.activeProject.id) return false;
+
+    const pSchool = (p.schoolName || p.meta?.schoolName || "").trim().toLowerCase().replace(/\s+/g, '');
+    const pProduct = (p.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
     
     return pSchool === schoolName && pProduct === productName;
   });
 
-  if (duplicateReport) {
+  const duplicates = [];
+  matchingReports.forEach(report => {
+    const reportItems = report.items || [];
+    reportItems.forEach(repItem => {
+      // 대분류와 중분류가 모두 동일한 항목이 현재 프로젝트에 있는지 확인
+      const hasDup = activeItems.some(actItem => 
+        actItem.element === repItem.element && actItem.item === repItem.item
+      );
+      if (hasDup) {
+        duplicates.push({
+          teacherName: report.meta?.teacherName || report.teacherName || "다른 교사",
+          element: repItem.element,
+          item: repItem.item
+        });
+      }
+    });
+  });
+
+  if (duplicates.length > 0) {
     warningBanner.style.display = "flex";
-    warningText.textContent = `동일 실증 팀 [${duplicateReport.schoolName}]의 다른 교사 [${duplicateReport.teacherName}]님이 본 제품 '${duplicateReport.meta.targetProduct}'에 대해 실증지 작성을 마쳤습니다. 중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
+    // 중복된 실증 항목들을 보기 좋게 포맷팅
+    const dupStr = duplicates.map(d => `[${d.teacherName} 교사: ${d.element} ➔ ${d.item}]`).join(", ");
+    warningText.innerHTML = `⚠️ <strong>동일 실증 팀 내 중복 실증 항목 감지!</strong><br>
+    동일 실증 팀 내 다른 교사분이 제출 완료한 보고서와 <strong>실증항목이 중복</strong>됩니다.<br>
+    <strong>중복 항목:</strong> ${dupStr}<br>
+    중복 평가를 방지하기 위해 실증 목적을 사전에 논의하거나 협업으로 작성해 주십시오.`;
   } else {
     warningBanner.style.display = "none";
   }
 }
 
-// 📷 [신규] Canvas 2D 이용 고성능 이미지 비례 축소 및 JPEG 0.7 경량화 압축 엔진 (30KB급 보존)
+// 📷 [신규] Canvas 2D 이용 고성능 이미지 비례 축소 및 JPEG 0.85 고화질 압축 엔진 (HD급 보존)
 function compressImageToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2960,8 +3627,8 @@ function compressImageToBase64(file) {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
-        // 최적 해상도: 가로 480px 기준으로 비례 축소 리사이징
-        const MAX_WIDTH = 480;
+        // 고화질 개선: 가로 1280px 기준으로 비례 축소 리사이징
+        const MAX_WIDTH = 1280;
         let width = img.width;
         let height = img.height;
 
@@ -2976,8 +3643,8 @@ function compressImageToBase64(file) {
         // 캔버스에 이미지 렌더링
         ctx.drawImage(img, 0, 0, width, height);
 
-        // JPEG 포맷 + 0.7 압축률 최적 가변 품질 압축 ➔ 고해상도 시각성을 보장하면서 파일 용량은 30KB~50KB 내외로 극적 축소
-        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        // JPEG 포맷 + 0.85 고품질 가변 압축
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
         resolve(compressedBase64);
       };
       img.onerror = (err) => reject(err);
@@ -3003,7 +3670,1130 @@ function closeLightbox() {
     lightbox.style.display = "none";
   }
 }
-window.closeLightbox = closeLightbox;
+// 🧹 [신규] 기업이 등록한 모든 피드백 데이터를 초기화(리셋)하는 처리기
+async function handleClearCompanyFeedback() {
+  if (!state.currentUser || state.currentUser.role !== "enterprise") {
+    alert("에듀테크 기업 로그인 권한이 없습니다.");
+    return;
+  }
+
+  const companyProduct = state.currentUser.name; // 기업 회원의 대표명이 에듀테크 제품명과 동일함
+  
+  if (!confirm(`🚨 [피드백 데이터 전체 초기화]\n\n제품 '${companyProduct}'에 등록하신 모든 피드백 내용을 삭제(초기화)하시겠습니까?\n\n이 작업은 복구가 불가능하며, 완료된 피드백들이 다시 '피드백 대기' 상태로 원복됩니다.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${centralDbUrl}/api/feedback/clear-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyProduct: companyProduct })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.count === 0) {
+        alert("초기화할 기존 피드백 데이터가 존재하지 않습니다.");
+      } else {
+        showToast(`🎉 제품 '${companyProduct}'의 피드백 데이터 ${data.count}건이 완벽하게 초기화되었습니다!`);
+        await renderEnterpriseDashboard();
+      }
+    } else {
+      const errData = await response.json();
+      alert("피드백 초기화 서버 반영 실패: " + (errData.error || "알 수 없는 오류"));
+    }
+  } catch (err) {
+    alert("서버 연결 실패: " + err.message);
+  }
+}
+
+// ↩️ 에듀테크 기업 피드백 취소 처리기
+async function cancelEnterpriseFeedback() {
+  if (!activeReviewProjectId) return;
+
+  if (!confirm("↩️ [피드백 취소]\n\n해당 실증 보고서에 등록된 조치 계획 및 피드백을 삭제하고 다시 '피드백 대기' 상태로 되돌리시겠습니까?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${centralDbUrl}/api/feedback/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: activeReviewProjectId })
+    });
+
+    if (response.ok) {
+      // 만약 OCI 클라우드가 활성화되어 있다면, OCI 동기화 데이터 송신
+      if (oracleConfig.enabled && oracleConfig.endpoint) {
+        const targetProj = state.submittedList.find(p => p.id === activeReviewProjectId);
+        if (targetProj) {
+          targetProj.status = "제출완료";
+          delete targetProj.feedback;
+          
+          const prevActive = state.activeProject;
+          const prevActiveId = state.activeProjectId;
+          
+          state.activeProjectId = activeReviewProjectId;
+          state.activeProject = targetProj;
+          
+          syncToOracleCloud();
+          
+          state.activeProject = prevActive;
+          state.activeProjectId = prevActiveId;
+        }
+      }
+
+      closeReviewModal();
+      await renderEnterpriseDashboard();
+      showToast("🎉 피드백이 정상적으로 취소되어 피드백 대기 상태로 원복되었습니다.");
+    } else {
+      const errData = await response.json();
+      alert(errData.error || "⚠️ 피드백 취소에 실패했습니다.");
+    }
+  } catch (err) {
+    console.error("피드백 취소 중 오류:", err);
+    alert("⚠️ 서버 연결 오류로 피드백을 취소하지 못했습니다.");
+  }
+}
+
+// ↩️ [신규] 에듀테크 기업 최종 제출 취소 처리기
+async function cancelProjectSubmission() {
+  if (!state.activeProjectId) return;
+
+  const status = state.activeProject.status || "제출완료";
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  
+  if (status === "피드백 완료" && !isAdmin) {
+    alert("⚠️ 이미 협력 개발사로부터 피드백 및 보완 대책 조치결과가 등록 완료된 보고서는 제출을 취소할 수 없습니다.");
+    return;
+  }
+
+  const confirmMsg = isAdmin
+    ? "↩️ [관리자 권한 - 기업 제출 강제 취소]\n\n해당 보고서의 제출을 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 원래 작성자의 보관함에서 '작성중' 상태로 원복되며, 추가 편집이 가능해집니다."
+    : "↩️ [기업에 제출 취소]\n\n에듀테크 기업에 제출된 본 보고서를 취소하시겠습니까?\n\n제출을 취소하면 보고서가 다시 '작성중' 상태로 원복되며, 추가 수정 및 보완이 가능해집니다.";
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  // 1. 서버 제출된 목록 fetch하여 원작성자 정보 식별
+  let submittedList = [];
+  let targetEmail = state.activeProject.email || state.currentUser.email; // 기본값
+  
+  try {
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      submittedList = await res.json();
+    }
+  } catch (err) {
+    console.error("제출 목록 로드 실패:", err);
+  }
+
+  const matchSubmit = submittedList.find(p => p.id === state.activeProjectId);
+  if (matchSubmit && matchSubmit.email) {
+    targetEmail = matchSubmit.email;
+  }
+
+  // 2. 상태 원복 처리
+  state.activeProject.submitted = false;
+  state.activeProject.status = "작성중";
+  delete state.activeProject.submitDate;
+  delete state.activeProject.feedback;
+
+  // 원작성자(교사)의 프로젝트 보관함 리스트 원격 복원 저장
+  try {
+    const projRes = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(targetEmail)}`);
+    if (projRes.ok) {
+      const targetProjects = await projRes.json() || [];
+      const projIndex = targetProjects.findIndex(p => p.id === state.activeProjectId);
+      
+      const restoredProj = JSON.parse(JSON.stringify(state.activeProject));
+      restoredProj.email = targetEmail;
+
+      if (projIndex !== -1) {
+        targetProjects[projIndex] = restoredProj;
+      } else {
+        targetProjects.push(restoredProj);
+      }
+
+      await fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, projects: targetProjects })
+      });
+    }
+  } catch (projErr) {
+    console.error("원작성자 보관함 복원 실패:", projErr);
+    alert("⚠️ 원작성자의 개인 보관함 데이터 복원에 실패했습니다: " + projErr.message);
+    return;
+  }
+
+  // 3. 서버 제출된 목록에서 본인 데이터 삭제 및 POST 저장
+  try {
+    const updatedSubmittedList = submittedList.filter(p => p.id !== state.activeProjectId);
+
+    const postRes = await fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList: updatedSubmittedList })
+    });
+
+    if (postRes.ok) {
+      showToast("🎉 성공적으로 제출이 취소되어 편집 가능한 작성중 상태로 복원되었습니다.");
+      await loadUserProjects();
+    } else {
+      throw new Error("서버 제출 목록 갱신 실패");
+    }
+  } catch (err) {
+    console.error("제출 취소 중 오류:", err);
+    alert("⚠️ 원격 서버 제출 갱신 실패: " + err.message + "\n\n네트워크 상황을 확인해 주십시오.");
+  }
+}
+
+// ❌ [관리자 전용] 제출 완료 문서 완전히 삭제 처리기
+async function deleteSubmittedProject(projectId) {
+  const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  if (!isAdmin) {
+    alert("관리자 권한이 필요합니다.");
+    return;
+  }
+
+  if (!confirm("⚠️ [경고 - 관리자 영구 삭제]\n\n해당 제출 문서를 시스템에서 완전히 삭제하시겠습니까?\n\n(삭제 시 기업 피드백 센터 목록에서 영구 제거되며, 원작성자의 개인 보관함에서도 해당 보고서 데이터가 완전히 삭제되어 복구할 수 없게 됩니다.)")) {
+    return;
+  }
+
+  // 1. 서버 제출된 목록 fetch하여 원작성자 정보 식별
+  let submittedList = [];
+  try {
+    const res = await fetch(`${centralDbUrl}/api/submitted`);
+    if (res.ok) {
+      submittedList = await res.json();
+    }
+  } catch (err) {
+    console.error("제출 목록 로드 실패:", err);
+  }
+
+  const matchSubmit = submittedList.find(p => p.id === projectId);
+  if (!matchSubmit) {
+    alert("삭제할 제출 문서를 찾을 수 없습니다.");
+    return;
+  }
+
+  const targetEmail = matchSubmit.email;
+
+  // 2. 원작성자(교사)의 프로젝트 보관함 리스트에서 해당 프로젝트 영구 삭제
+  try {
+    const projRes = await fetch(`${centralDbUrl}/api/projects?email=${encodeURIComponent(targetEmail)}`);
+    if (projRes.ok) {
+      const targetProjects = await projRes.json() || [];
+      const updatedProjects = targetProjects.filter(p => p.id !== projectId);
+
+      await fetch(`${centralDbUrl}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, projects: updatedProjects })
+      });
+    }
+  } catch (projErr) {
+    console.error("원작성자 보관함 삭제 실패:", projErr);
+    alert("⚠️ 원작성자의 개인 보관함 데이터 삭제에 실패했습니다: " + projErr.message);
+    return;
+  }
+
+  // 3. 서버 제출된 목록에서 데이터 삭제 및 POST 저장
+  try {
+    const updatedSubmittedList = submittedList.filter(p => p.id !== projectId);
+
+    const postRes = await fetch(`${centralDbUrl}/api/submitted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ submittedList: updatedSubmittedList })
+    });
+
+    if (postRes.ok) {
+      showToast("🎉 해당 제출 문서가 시스템에서 완전히 삭제되었습니다.");
+      await renderEnterpriseDashboard();
+    } else {
+      throw new Error("서버 제출 목록 갱신 실패");
+    }
+  } catch (err) {
+    console.error("제출 삭제 중 오류:", err);
+    alert("⚠️ 원격 서버 제출 삭제 반영 실패: " + err.message);
+  }
+}
+window.deleteSubmittedProject = deleteSubmittedProject;
+
+// 👥 [신규] 팀별 보고서 취합 시스템 함수군
+
+// 1. 팀별 보고서 워크스페이스 렌더링 시작점
+async function renderTeamWorkspace() {
+  // 팀장 전용 패널 가시성 제어
+  const isLeader = state.currentUser?.isLeader || state.currentUser?.role === 'team_leader';
+  const leaderTracker = document.getElementById('leader-submission-tracker');
+  if (leaderTracker) {
+    leaderTracker.style.display = isLeader ? 'block' : 'none';
+  }
+
+  if (isLeader) {
+    // 팀장 정보 자동 채우기
+    const leaderTeamInput = document.getElementById('leader-team-name');
+    if (leaderTeamInput) {
+      leaderTeamInput.value = state.currentUser.team || state.currentUser.school || '팀명 미등록';
+    }
+    // 팀장 제출 현황 추적 이벤트 바인딩 (중복 방지)
+    const leaderRefreshBtn = document.getElementById('btn-leader-refresh');
+    if (leaderRefreshBtn && !leaderRefreshBtn._bound) {
+      leaderRefreshBtn.addEventListener('click', () => fetchTeamReportData(false));
+      leaderRefreshBtn._bound = true;
+    }
+    const leaderRemindBtn = document.getElementById('btn-leader-remind');
+    if (leaderRemindBtn && !leaderRemindBtn._bound) {
+      leaderRemindBtn.addEventListener('click', remindUnsubmittedTeamMembers);
+      leaderRemindBtn._bound = true;
+    }
+    const leaderProductSelect = document.getElementById('leader-product-select');
+    if (leaderProductSelect && !leaderProductSelect._bound) {
+      leaderProductSelect.addEventListener('change', renderLeaderSubmissionTracker);
+      leaderProductSelect._bound = true;
+    }
+    // 팀원 목록 갱신 버튼 바인딩
+    const leaderLoadMembersBtn = document.getElementById('btn-leader-load-members');
+    if (leaderLoadMembersBtn && !leaderLoadMembersBtn._bound) {
+      leaderLoadMembersBtn.addEventListener('click', loadTeamMembers);
+      leaderLoadMembersBtn._bound = true;
+    }
+  }
+
+  await fetchTeamReportData(true);
+
+  // 팀장이면 팀원 목록도 자동 로드
+  if (isLeader) {
+    loadTeamMembers();
+  }
+}
+
+// 2. 서버에서 제출된 실시간 데이터 로드
+async function fetchTeamReportData(silent = false) {
+  try {
+    const res = await fetch(centralDbUrl + '/api/submitted');
+    if (res.ok) {
+      const allList = await res.json();
+
+      // 접근 제한: 관리자만 전체, 나머지는 모두 자기 팀만
+      const isAdmin = state.currentUser?.isAdmin || state.currentUser?.role === 'admin';
+
+      if (isAdmin) {
+        state.submittedList = allList;
+      } else {
+        const myTeam = (state.currentUser?.team || state.currentUser?.school || '').trim().toLowerCase();
+        if (myTeam) {
+          state.submittedList = allList.filter(function(p) {
+            return p.schoolName && p.schoolName.trim().toLowerCase().includes(myTeam);
+          });
+        } else {
+          const myEmail = (state.currentUser?.email || '').toLowerCase();
+          state.submittedList = allList.filter(function(p) {
+            return (p.email || '').toLowerCase() === myEmail;
+          });
+        }
+      }
+
+      if (!silent) showToast('🔄 원격 서버로부터 제출 목록 데이터를 동기화했습니다.');
+    } else {
+      throw new Error('조회 에러');
+    }
+  } catch (e) {
+    console.error('제출 목록 로드 실패:', e);
+    if (!silent) showToast('⚠️ 실시간 제출 목록을 데이터베이스에서 불러오지 못했습니다.');
+    state.submittedList = [];
+  }
+  populateTeamNames();
+
+  // 팀장인 경우 제출현황 트래커도 갱신
+  const isLeaderF = state.currentUser?.isLeader || state.currentUser?.role === 'team_leader';
+  if (isLeaderF) {
+    populateLeaderProducts();
+  }
+}
+// 팀장 전용: 팀장 팀에 해당하는 제품 목록 구성
+function populateLeaderProducts() {
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  if (!leaderProductSelect || !leaderTeamInput) return;
+
+  const teamName = (leaderTeamInput.value || "").trim();
+  const savedValue = leaderProductSelect.value;
+
+  leaderProductSelect.innerHTML = '<option value="">-- 전체 제품 보기 --</option>';
+
+  if (!teamName) return;
+
+  const teamLower = teamName.toLowerCase();
+  const filtered = (state.submittedList || []).filter(p =>
+    p.schoolName && p.schoolName.toLowerCase().includes(teamLower)
+  );
+
+  const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
+  products.forEach(prod => {
+    const opt = document.createElement("option");
+    opt.value = prod;
+    opt.textContent = prod;
+    if (prod === savedValue) opt.selected = true;
+    leaderProductSelect.appendChild(opt);
+  });
+
+  renderLeaderSubmissionTracker();
+}
+
+// 팀장 전용: 팀원별 보고서 제출 현황 렌더링
+async function renderLeaderSubmissionTracker() {
+  const leaderTeamInput = document.getElementById("leader-team-name");
+  const leaderProductSelect = document.getElementById("leader-product-select");
+  const tbody = document.getElementById("leader-submissions-tbody");
+
+  if (!tbody || !leaderTeamInput) return;
+
+  const teamName = (leaderTeamInput.value || "").trim();
+  const productFilter = leaderProductSelect ? leaderProductSelect.value : "";
+
+  if (!teamName) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-tertiary);">팀장 계정의 팀명이 등록되지 않았습니다.</td></tr>`;
+    return;
+  }
+
+  // 서버에서 같은 팀에 속한 모든 사용자 조회
+  let teamUsers = [];
+  try {
+    const res = await fetch(`${centralDbUrl}/api/admin/users`);
+    if (res.ok) {
+      const usersDB = await res.json();
+      const teamLower = teamName.toLowerCase();
+      teamUsers = Object.entries(usersDB)
+        .filter(([email, user]) => {
+          if (email === "admin") return false;
+          if (user.role === "enterprise" || user.isEnterprise) return false;
+          if (user.role === "team_leader" || user.isLeader) return false;
+          const userTeam = (user.team || user.school || "").toLowerCase();
+          return userTeam.includes(teamLower) || teamLower.includes(userTeam);
+        })
+        .map(([email, user]) => ({ email, ...user }));
+    }
+  } catch (e) {
+    console.warn("팀원 목록 로드 실패 (관리자 API 미접근):", e);
+  }
+
+  // 제출된 목록에서 이 팀 소속 보고서 추출
+  const teamLower = teamName.toLowerCase();
+  let submittedInTeam = (state.submittedList || []).filter(p =>
+    p.schoolName && p.schoolName.toLowerCase().includes(teamLower)
+  );
+
+  if (productFilter) {
+    submittedInTeam = submittedInTeam.filter(p => p.meta?.targetProduct === productFilter);
+  }
+
+  // 제출된 교사 이메일 목록
+  const submittedEmails = new Set(submittedInTeam.map(p => p.email).filter(Boolean));
+  const submittedTeachers = new Set(submittedInTeam.map(p => p.teacherName).filter(Boolean));
+
+  // 통계 계산
+  const totalCount = teamUsers.length;
+  const submittedCount = teamUsers.length > 0
+    ? teamUsers.filter(u => submittedEmails.has(u.email) || submittedTeachers.has(u.name)).length
+    : submittedInTeam.length;
+  const pendingCount = Math.max(0, totalCount - submittedCount);
+  const rate = totalCount > 0 ? Math.round((submittedCount / totalCount) * 100) : (submittedInTeam.length > 0 ? 100 : 0);
+
+  const statTotal = document.getElementById("leader-stat-total");
+  const statSubmitted = document.getElementById("leader-stat-submitted");
+  const statPending = document.getElementById("leader-stat-pending");
+  const statRate = document.getElementById("leader-stat-rate");
+
+  if (statTotal) statTotal.textContent = `${totalCount}명`;
+  if (statSubmitted) statSubmitted.textContent = `${submittedCount}명`;
+  if (statPending) statPending.textContent = `${pendingCount}명`;
+  if (statRate) statRate.textContent = `${rate}%`;
+
+  tbody.innerHTML = "";
+
+  if (teamUsers.length === 0 && submittedInTeam.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-tertiary);">⚠️ 같은 팀으로 등록된 팀원이 없습니다. 팀원들이 동일한 팀명으로 가입했는지 확인하세요.</td></tr>`;
+    return;
+  }
+
+  // 제출된 보고서 목록 먼저 렌더링
+  submittedInTeam.forEach((proj, idx) => {
+    const tr = document.createElement("tr");
+    const statusHtml = `<span class="status-badge ${proj.status === '피드백 완료' ? 'status-completed' : 'status-submitted'}" style="font-size:0.7rem;">
+      ${proj.status === '피드백 완료' ? '✅ 피드백 완료' : '📤 제출완료'}
+    </span>`;
+
+    tr.innerHTML = `
+      <td style="text-align:center; font-weight:700; color:var(--accent-color);">${idx + 1}</td>
+      <td><strong>${proj.teacherName || "-"}</strong> 교사</td>
+      <td style="font-size:0.8rem; color:var(--text-secondary);">${proj.schoolName || "-"}</td>
+      <td style="font-weight:600; color:var(--accent-color); font-size:0.8rem;">${proj.meta?.targetProduct || "-"}</td>
+      <td style="text-align:center; font-size:0.8rem;">${proj.submitDate || "-"}</td>
+      <td style="text-align:center;">${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // 미제출 팀원 목록 렌더링
+  const unsubmittedUsers = teamUsers.filter(u =>
+    !submittedEmails.has(u.email) && !submittedTeachers.has(u.name)
+  );
+
+  unsubmittedUsers.forEach((user, idx) => {
+    const tr = document.createElement("tr");
+    tr.style.backgroundColor = "hsl(0, 100%, 98%)";
+    const statusHtml = `<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; font-weight:700; color:var(--danger-color); background:hsl(0,100%,95%); padding:3px 8px; border-radius:4px; border:1px solid hsl(0,100%,88%);">⏳ 미제출</span>`;
+
+    tr.innerHTML = `
+      <td style="text-align:center; font-weight:700; color:var(--danger-color);">-</td>
+      <td><strong style="color:var(--danger-color);">${user.name || "-"}</strong> 교사</td>
+      <td style="font-size:0.8rem; color:var(--text-secondary);">${user.school || "-"}</td>
+      <td style="font-size:0.8rem; color:var(--text-tertiary); font-style:italic;">${productFilter || "미제출"}</td>
+      <td style="text-align:center; font-size:0.8rem; color:var(--text-tertiary);">-</td>
+      <td style="text-align:center;">${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// 팀장 전용: 팀 구성원 목록 불러오기
+async function loadTeamMembers() {
+  const tbody = document.getElementById('leader-members-tbody');
+  if (!tbody) return;
+
+  const leaderEmail = state.currentUser?.email;
+  const teamName = state.currentUser?.team || state.currentUser?.school || '';
+
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--text-tertiary);">...</td></tr>';
+
+  if (!leaderEmail) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--danger-color);">로그인 정보를 찾을 수 없습니다.</td></tr>';
+    return;
+  }
+
+  try {
+    const url = centralDbUrl + '/api/team/members?leaderEmail=' + encodeURIComponent(leaderEmail) + '&teamName=' + encodeURIComponent(teamName);
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json();
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--danger-color);">' + (err.error || '팀원 목록 로드 실패') + '</td></tr>';
+      return;
+    }
+    const members = await res.json();
+
+    if (members.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--text-tertiary);">'
+        + '<div style="font-size:0.85rem;margin-bottom:6px;">현재 <strong>' + (teamName || '팀명 없음') + '</strong> 팀명으로 가입한 교사가 없습니다.</div>'
+        + '<div style="font-size:0.75rem;">팀원들이 회원가입 시 같은 팀명을 입력했는지 확인하세요.</div>'
+        + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    members.forEach(function(member, idx) {
+      const tr = document.createElement('tr');
+      tr.style.cssText = 'border-bottom:1px solid hsl(220,30%,22%);transition:background 0.15s;';
+      tr.onmouseover = function() { this.style.background = 'hsl(220,30%,16%)'; };
+      tr.onmouseout = function() { this.style.background = ''; };
+      const safeEmail = (member.email || '').replace(/'/g, "\\'");
+      const safeName = (member.name || '').replace(/'/g, "\\'");
+      const teamLabel = member.team || member.school || '(팀명 없음)';
+      tr.innerHTML = '<td style="text-align:center;padding:8px 6px;font-weight:800;color:hsl(200,100%,70%);font-size:0.8rem;">' + (idx + 1) + '</td>'
+        + '<td style="padding:8px 10px;"><strong style="font-size:0.82rem;">' + (member.name || '-') + '</strong></td>'
+        + '<td style="padding:8px 10px;font-size:0.78rem;color:var(--text-secondary);">' + (member.school || '-') + '</td>'
+        + '<td style="padding:8px 10px;"><span style="background:hsl(220,30%,20%);padding:2px 8px;border-radius:20px;font-size:0.72rem;border:1px solid hsl(220,30%,28%);color:hsl(200,60%,65%);font-weight:600;">' + teamLabel + '</span></td>'
+        + '<td style="text-align:center;padding:6px;"><button class="btn" style="font-size:0.68rem;padding:3px 10px;border-color:hsl(0,70%,55%);color:hsl(0,70%,65%);background:hsl(0,40%,15%);font-weight:700;" onclick="kickTeamMember(\'' + safeEmail + '\', \'' + safeName + '\')">내보내기</button></td>';
+      tbody.appendChild(tr);
+    });
+    showToast(members.length + '명의 팀원 목록을 불러왔습니다.');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--danger-color);">서버 연결 실패: ' + e.message + '</td></tr>';
+  }
+}
+
+// 팀장 전용: 팀원 내보내기
+async function kickTeamMember(targetEmail, targetName) {
+  if (!confirm('[팀원 내보내기 확인]\n\n' + targetName + ' 교사를 현재 팀에서 내보내시겠습니까?\n\n내보내기 후 해당 교사의 팀명이 초기화되며,\n올바른 팀명으로 재가입해야 합니다.')) return;
+
+  const leaderEmail = state.currentUser?.email;
+  if (!leaderEmail) { alert('팀장 계정 정보를 찾을 수 없습니다.'); return; }
+
+  try {
+    const res = await fetch(centralDbUrl + '/api/team/kick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leaderEmail: leaderEmail, targetEmail: targetEmail })
+    });
+    if (res.ok) {
+      showToast(targetName + ' 교사가 팀에서 내보내졌습니다.');
+      loadTeamMembers();
+    } else {
+      const err = await res.json();
+      alert(err.error || '팀원 내보내기 실패');
+    }
+  } catch (e) {
+    alert('서버 연결 실패: ' + e.message);
+  }
+}
+window.kickTeamMember = kickTeamMember;
+
+// 2-A. 팀 보고서 작성용 팀명 헬퍼
+function getTeamReportTeamName() {
+  const select = document.getElementById("team-name-select");
+  if (!select) return "";
+  if (select.value === "direct") {
+    const directInput = document.getElementById("team-name-direct");
+    return directInput ? directInput.value.trim() : "";
+  }
+  return select.value.trim();
+}
+
+// 2-B. 서버 자료를 바탕으로 고유 실증 팀명 목록을 추출하여 셀렉터 구성
+function populateTeamNames() {
+  const select = document.getElementById("team-name-select");
+  if (!select) return;
+
+  const isAdmin      = state.currentUser?.isAdmin || state.currentUser?.role === "admin";
+  // 관리자만 전체 팀 선택 가능, 나머지(교사·팀장·기업)는 자기 팀 고정
+  const isPrivileged = isAdmin;
+
+  const myTeam   = (state.currentUser?.team || state.currentUser?.school || "").trim();
+  const savedTeam = localStorage.getItem("softlap_team_report_last_team");
+  const originalValue = select.value || savedTeam || myTeam || "";
+  select.innerHTML = '<option value="">-- 실증 팀을 선택하세요 --</option>';
+
+  const teams = [...new Set((state.submittedList || []).map(p => p.schoolName).filter(Boolean))];
+  
+  teams.forEach(team => {
+    const opt = document.createElement("option");
+    opt.value = team;
+    opt.textContent = team;
+    if (team === originalValue) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  // 일반 교사: 직접입력 옵션 숨기고 자기 팀 고정
+  const directInput = document.getElementById("team-name-direct");
+  const teamSelectWrapper = select.parentElement;
+
+  if (!isPrivileged) {
+    // 직접 입력 옵션 제거
+    const optDirect = document.createElement("option");
+    // 직접입력 옵션 추가 안 함 (교사는 불필요)
+
+    // 드롭다운 비활성화 + 자기 팀으로 강제 고정
+    select.disabled = true;
+    select.style.opacity = "0.8";
+    select.style.cursor = "not-allowed";
+
+    if (directInput) {
+      directInput.style.display = "none";
+      directInput.value = "";
+    }
+
+    // 자기 팀 자동 선택
+    const myTeamLower = myTeam.toLowerCase();
+    const matchedTeam = teams.find(t => t.toLowerCase().includes(myTeamLower) || myTeamLower.includes(t.toLowerCase()));
+    if (matchedTeam) {
+      select.value = matchedTeam;
+    } else if (teams.length === 1) {
+      select.value = teams[0];
+    }
+
+  } else {
+    // 관리자/기업/팀장: 직접 입력 옵션 추가
+    select.disabled = false;
+    select.style.opacity = "";
+    select.style.cursor = "";
+
+    const optDirect = document.createElement("option");
+    optDirect.value = "direct";
+    optDirect.textContent = "✍️ 직접 팀명 기재하기...";
+    select.appendChild(optDirect);
+
+    const inList = teams.includes(originalValue);
+    if (!inList && originalValue && originalValue !== "direct") {
+      select.value = "direct";
+      if (directInput) {
+        directInput.style.display = "block";
+        directInput.value = originalValue;
+      }
+    } else {
+      if (inList) {
+        select.value = originalValue;
+      } else if (teams.length > 0) {
+        const userTeam = state.currentUser?.team || state.currentUser?.school || "";
+        const matchedTeam = teams.find(t => t.toLowerCase().includes(userTeam.toLowerCase()));
+        select.value = matchedTeam || teams[0];
+      }
+      if (directInput) {
+        if (select.value === "direct") {
+          directInput.style.display = "block";
+        } else {
+          directInput.style.display = "none";
+          directInput.value = "";
+        }
+      }
+    }
+  }
+
+  populateTeamProducts();
+}
+
+// 3. 현재 선택된 팀명의 모든 제품 목록을 스캔하여 셀렉터 구성
+function populateTeamProducts() {
+  const teamName = getTeamReportTeamName();
+  if (teamName) {
+    localStorage.setItem("softlap_team_report_last_team", teamName);
+  }
+  const teamNameLower = teamName.toLowerCase();
+  const select = document.getElementById("team-product-select");
+  if (!select) return;
+  
+  const originalValue = select.value;
+  select.innerHTML = '<option value="">-- 제품을 선택하세요 --</option>';
+  
+  if (!teamNameLower) {
+    return;
+  }
+  
+  const filtered = (state.submittedList || []).filter(p => 
+    p.schoolName && p.schoolName.toLowerCase().includes(teamNameLower)
+  );
+  
+  const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
+  
+  products.forEach(prod => {
+    const opt = document.createElement("option");
+    opt.value = prod;
+    opt.textContent = prod;
+    if (prod === originalValue) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  if (products.length > 0 && !select.value) {
+    select.value = products[0];
+  }
+  
+  renderTeamReportCompiled();
+}
+
+// 4. 선택된 팀명 + 제품 조합의 상세 취합 결과 화면 렌더링
+function renderTeamReportCompiled() {
+  const teamName = getTeamReportTeamName();
+  const productName = document.getElementById("team-product-select").value;
+  const teachersDisplay = document.getElementById("team-teachers-display");
+  const itemsContainer = document.getElementById("team-aggregated-items");
+  const feedbackContainer = document.getElementById("team-aggregated-feedbacks");
+  
+  if (!itemsContainer || !feedbackContainer) return;
+  
+  itemsContainer.innerHTML = "";
+  feedbackContainer.innerHTML = "";
+  
+  if (!teamName || !productName) {
+    itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-tertiary); font-size: 0.85rem;">실증 팀명과 대상 제품을 선택하여 취합 내역을 로드해 주세요.</div>`;
+    feedbackContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 0.85rem;">등록된 기업 피드백이 없습니다.</div>`;
+    if (teachersDisplay) teachersDisplay.value = "";
+    document.getElementById("team-stat-reports-count").textContent = "0개";
+    document.getElementById("team-stat-items-count").textContent = "0개";
+    
+    const barChart = document.getElementById("team-bar-chart");
+    if (barChart) barChart.innerHTML = "";
+    return;
+  }
+  
+  const matchingProjects = (state.submittedList || []).filter(p => 
+    p.schoolName === teamName && 
+    p.meta?.targetProduct === productName
+  );
+  
+  const uniqueTeachers = [...new Set(matchingProjects.map(p => p.teacherName).filter(Boolean))];
+  if (teachersDisplay) {
+    teachersDisplay.value = uniqueTeachers.join(", ") || "교사 없음";
+  }
+  
+  document.getElementById("team-stat-reports-count").textContent = `${matchingProjects.length}개`;
+  
+  const allAggregatedItems = [];
+  matchingProjects.forEach(proj => {
+    (proj.items || []).forEach(item => {
+      allAggregatedItems.push({
+        ...item,
+        teacherName: proj.teacherName
+      });
+    });
+  });
+  document.getElementById("team-stat-items-count").textContent = `${allAggregatedItems.length}개`;
+  
+  const barChart = document.getElementById("team-bar-chart");
+  if (barChart) {
+    barChart.innerHTML = "";
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = allAggregatedItems.filter(i => i.element === elName);
+      const rateEl = allAggregatedItems.length > 0 ? Math.round((elItems.length / allAggregatedItems.length) * 100) : 0;
+      
+      barChart.innerHTML += `
+        <div class="bar-row">
+          <div class="bar-label-box">
+            <span>🛡️ ${elName}</span>
+            <span style="color: var(--text-secondary);">${rateEl}% (${elItems.length}개)</span>
+          </div>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  if (allAggregatedItems.length === 0) {
+    itemsContainer.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-tertiary); font-size: 0.85rem;">수집된 세부 실증 항목이 없습니다.</div>`;
+  } else {
+    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
+      const elItems = allAggregatedItems.filter(i => i.element === elName);
+      if (elItems.length > 0) {
+        const elSection = document.createElement("div");
+        elSection.style.marginBottom = "14px";
+        elSection.innerHTML = `
+          <h4 style="font-size:0.85rem; font-weight:800; color:var(--accent-color); margin-bottom:8px; border-bottom:1px dashed var(--border-color); padding-bottom:4px;">
+            🛡️ ${elName} (${elItems.length}건)
+          </h4>
+        `;
+        
+        const cardGrid = document.createElement("div");
+        cardGrid.style.display = "grid";
+        cardGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(320px, 1fr))";
+        cardGrid.style.gap = "10px";
+        
+        elItems.forEach(item => {
+          const card = document.createElement("div");
+          card.className = "kpi-card glass";
+          card.style.flexDirection = "column";
+          card.style.alignItems = "stretch";
+          card.style.padding = "14px";
+          card.style.gap = "8px";
+          
+          let sevClass = item.severity === '상' ? 'high' : item.severity === '중' ? 'mid' : 'low';
+          
+          card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:0.82rem; color:var(--text-primary);">${item.item}</strong>
+              <span class="severity-badge ${sevClass}">${item.severity}</span>
+            </div>
+            <div style="font-size:0.74rem; color:var(--text-tertiary); background-color:var(--bg-tertiary); padding:6px; border-radius:4px;">
+              <strong>기준:</strong> ${item.criterion}
+            </div>
+            <div style="font-size:0.78rem; line-height:1.4;">
+              <strong>분석내용:</strong> ${item.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">현상 미기록</span>'}
+            </div>
+            <div style="font-size:0.78rem; line-height:1.4;">
+              <strong>개선의견:</strong> ${item.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">개선안 미기록</span>'}
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:6px; margin-top:4px; font-size:0.7rem; color:var(--text-secondary);">
+              <span>교사: <strong>${item.teacherName}</strong></span>
+              <span>구분: ${item.type}</span>
+            </div>
+          `;
+          cardGrid.appendChild(card);
+        });
+        elSection.appendChild(cardGrid);
+        itemsContainer.appendChild(elSection);
+      }
+    });
+  }
+  
+  const matchingFeedbacks = matchingProjects.filter(p => p.feedback);
+  if (matchingFeedbacks.length === 0) {
+    feedbackContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 0.85rem;">⏳ 접수 및 조치 완료된 기업 피드백이 아직 존재하지 않습니다.</div>`;
+  } else {
+    matchingFeedbacks.forEach(proj => {
+      const fb = proj.feedback;
+      const fbCard = document.createElement("div");
+      fbCard.className = "feedback-receipt-card";
+      fbCard.style.margin = "0";
+      fbCard.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(142, 60%, 80%); padding-bottom:6px;">
+          <span style="font-weight:800; font-size:0.85rem; color:hsl(140, 80%, 25%);">
+            🏢 [기업 조치계획] ${fb.company || "제조기업"} (교사 ${proj.teacherName} 평가 대상)
+          </span>
+          <span style="font-size:0.72rem; color:var(--text-secondary);">${fb.date || ""}</span>
+        </div>
+        <p style="font-size:0.82rem; color:var(--text-primary); line-height:1.4; margin:0; white-space:pre-wrap;">${fb.text}</p>
+      `;
+      feedbackContainer.appendChild(fbCard);
+    });
+  }
+  
+  loadTeamInputs();
+}
+
+// 5. 로컬스토리지에 종합 결론 저장
+function saveTeamInputs() {
+  const teamName = getTeamReportTeamName();
+  const productName = document.getElementById("team-product-select").value;
+  
+  if (!teamName || !productName) return;
+  
+  const conclusion = document.getElementById("team-conclusion-input").value;
+  const monitoring = document.getElementById("team-monitoring-input").value;
+  
+  const data = { conclusion, monitoring };
+  localStorage.setItem(`softlap_team_report_${teamName}_${productName}`, JSON.stringify(data));
+}
+
+// 6. 로컬스토리지로부터 종합 결론 로드
+function loadTeamInputs() {
+  const teamName = getTeamReportTeamName();
+  const productName = document.getElementById("team-product-select").value;
+  
+  const conclusionText = document.getElementById("team-conclusion-input");
+  const monitoringText = document.getElementById("team-monitoring-input");
+  
+  if (!conclusionText || !monitoringText) return;
+  
+  if (!teamName || !productName) {
+    conclusionText.value = "";
+    monitoringText.value = "";
+    return;
+  }
+  
+  const saved = localStorage.getItem(`softlap_team_report_${teamName}_${productName}`);
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      conclusionText.value = data.conclusion || "";
+      monitoringText.value = data.monitoring || "";
+    } catch(e) {
+      conclusionText.value = "";
+      monitoringText.value = "";
+    }
+  } else {
+    conclusionText.value = "";
+    monitoringText.value = "";
+  }
+}
+
+// 7. 팀별 종합 보고서 인쇄
+function printTeamReport() {
+  const teamName = getTeamReportTeamName();
+  const productName = document.getElementById("team-product-select").value;
+  
+  if (!teamName || !productName) {
+    alert("취합할 실증 팀명과 대상 에듀테크 제품을 선택한 후 인쇄하십시오.");
+    return;
+  }
+  
+  renderTeamA4Preview();
+  
+  const editorArea = document.getElementById("editor-area");
+  const previewArea = document.getElementById("preview-area");
+  const dashboardArea = document.getElementById("dashboard-area");
+  const teamArea = document.getElementById("team-area");
+  
+  editorArea.style.display = "none";
+  previewArea.style.display = "block";
+  if (dashboardArea) dashboardArea.style.display = "none";
+  if (teamArea) teamArea.style.display = "none";
+  
+  setTimeout(() => {
+    window.print();
+    
+    editorArea.style.display = "none";
+    previewArea.style.display = "none";
+    if (dashboardArea) dashboardArea.style.display = "none";
+    if (teamArea) teamArea.style.display = "block";
+  }, 350);
+}
+
+// 8. 팀별 A4 인쇄 프리뷰 렌더링
+function renderTeamA4Preview() {
+  const container = document.getElementById("preview-container");
+  container.innerHTML = "";
+  
+  const teamName = getTeamReportTeamName();
+  const productName = document.getElementById("team-product-select").value;
+  const teachers = document.getElementById("team-teachers-display").value;
+  const conclusion = document.getElementById("team-conclusion-input").value;
+  const monitoring = document.getElementById("team-monitoring-input").value;
+  
+  const matchingProjects = (state.submittedList || []).filter(p => 
+    p.schoolName === teamName && 
+    p.meta?.targetProduct === productName
+  );
+  
+  const page1 = document.createElement("div");
+  page1.className = "report-a4-page";
+  page1.innerHTML = `
+    <span class="report-title-badge">에듀테크 소프트랩 공동 실증 종합 리포트</span>
+    <h1 class="report-h1" style="font-size:1.5rem; margin-top: 10px;">${productName || "에듀테크"} 공교육 적합성 공동 실증 종합 보고서</h1>
+    
+    <table class="report-meta-table" style="margin-top: 20px;">
+      <tr>
+        <td class="label-td">실증 팀명</td>
+        <td><strong>${teamName}</strong></td>
+        <td class="label-td">작성 일자</td>
+        <td><strong>${new Date().toISOString().split('T')[0]}</strong></td>
+      </tr>
+      <tr>
+        <td class="label-td">실증 대상 제품</td>
+        <td><strong>${productName}</strong></td>
+        <td class="label-td">참여 실증교사</td>
+        <td><strong>${teachers}</strong></td>
+      </tr>
+    </table>
+    
+    <h3 class="report-section-title" style="margin-top: 30px;">👥 팀 종합 실증 결론 및 제안</h3>
+    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
+      ${conclusion || "기재된 종합 실증 의견이 없습니다."}
+    </p>
+    
+    <h3 class="report-section-title" style="margin-top: 30px;">🔄 기업 피드백에 따른 모니터링 계획</h3>
+    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
+      ${monitoring || "기재된 모니터링 계획이 없습니다."}
+    </p>
+  `;
+  container.appendChild(page1);
+  
+  let currentPageNum = 2;
+  let currentPage = createTeamPageRest(currentPageNum, productName, teamName);
+  container.appendChild(currentPage);
+  
+  let currentTable = createTeamTableWrapper();
+  currentPage.appendChild(currentTable);
+  let currentTbody = currentTable.querySelector("tbody");
+  
+  const allAggregatedItems = [];
+  matchingProjects.forEach(p => {
+    (p.items || []).forEach(item => {
+      allAggregatedItems.push({
+        ...item,
+        teacherName: p.teacherName
+      });
+    });
+  });
+  
+  if (allAggregatedItems.length === 0) {
+    currentTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">수집된 세부 실증 항목이 없습니다.</td></tr>`;
+  } else {
+    for (let i = 0; i < allAggregatedItems.length; i++) {
+      const r = allAggregatedItems[i];
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>
+          <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
+            ${r.element}
+          </span>
+        </td>
+        <td><strong>${r.item}</strong></td>
+        <td style="font-size:0.7rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
+        <td style="font-weight:700;">${r.teacherName || "실증교사"}</td>
+        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.analysis || "분석내용 없음"}</td>
+        <td style="text-align:center;">
+          <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
+        </td>
+        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.improvement || "개선요청 없음"}</td>
+      `;
+      
+      currentPage.style.height = "auto";
+      currentPage.style.overflow = "visible";
+      currentTbody.appendChild(tr);
+      
+      if (currentPage.scrollHeight > 1115) {
+        currentTbody.removeChild(tr);
+        currentPage.style.height = "";
+        currentPage.style.overflow = "";
+        
+        currentPageNum++;
+        currentPage = createTeamPageRest(currentPageNum, productName, teamName);
+        container.appendChild(currentPage);
+        
+        currentTable = createTeamTableWrapper();
+        currentPage.appendChild(currentTable);
+        currentTbody = currentTable.querySelector("tbody");
+        
+        currentPage.style.height = "auto";
+        currentPage.style.overflow = "visible";
+        currentTbody.appendChild(tr);
+      }
+    }
+  }
+  
+  if (currentPage) {
+    currentPage.style.height = "";
+    currentPage.style.overflow = "";
+  }
+  
+  const feedbackPage = document.createElement("div");
+  feedbackPage.className = "report-a4-page";
+  feedbackPage.innerHTML = `
+    <span class="report-title-badge">수신 기업 피드백 내역</span>
+    <h3 class="report-section-title" style="margin-top:10px;">🏢 기업 공식 조치계획 및 피드백</h3>
+    <div style="display:flex; flex-direction:column; gap:16px; margin-top:20px;">
+      ${matchingProjects.map(p => {
+        const fb = p.feedback;
+        return `
+          <div style="border:1px solid #cbd5e1; border-radius:6px; padding:12px; background-color:#f8fafc;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:8px;">
+              <span style="font-weight:800; font-size:0.8rem; color:#0f172a;">🏢 ${fb ? fb.company : "제조기업"} (${p.teacherName} 교사 제출 대상)</span>
+              <span style="font-size:0.7rem; color:#64748b;">${fb ? fb.date : "-"}</span>
+            </div>
+            <p style="font-size:0.78rem; line-height:1.5; color:#334155; white-space:pre-wrap; margin:0;">
+              ${fb ? fb.text : "⏳ 피드백이 아직 등록되지 않았습니다."}
+            </p>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  container.appendChild(feedbackPage);
+}
+
+function createTeamPageRest(pageNum, productName, teamName) {
+  const page = document.createElement("div");
+  page.className = "report-a4-page";
+  
+  const miniHeader = document.createElement("div");
+  miniHeader.style.display = "flex";
+  miniHeader.style.justifyContent = "space-between";
+  miniHeader.style.alignItems = "center";
+  miniHeader.style.fontSize = "0.74rem";
+  miniHeader.style.color = "#64748b";
+  miniHeader.style.borderBottom = "1px solid #e2e8f0";
+  miniHeader.style.paddingBottom = "8px";
+  miniHeader.style.marginBottom = "20px";
+  miniHeader.innerHTML = `
+    <span><strong>${productName || "에듀테크"}</strong> 공동 실증 세부 내역 (계속)</span>
+    <span>${pageNum} 페이지</span>
+  `;
+  page.appendChild(miniHeader);
+  return page;
+}
+
+function createTeamTableWrapper() {
+  const table = document.createElement("table");
+  table.className = "report-checklist-grid";
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th style="width: 10%">대분류</th>
+        <th style="width: 12%">중분류</th>
+        <th style="width: 20%">점검 기준</th>
+        <th style="width: 10%">작성자</th>
+        <th style="width: 22%">분석 내용 (현상)</th>
+        <th style="width: 8%">심각성</th>
+        <th style="width: 18%">개선 요청사항</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  return table;
+}
 
 // 초기 로딩 바인딩
 if (document.readyState === "loading") {
@@ -3011,3 +4801,53 @@ if (document.readyState === "loading") {
 } else {
   initApp();
 }
+
+// ℹ️ [신규] 안내 정보 모달 제어 (서비스 소개, 개인정보 처리방침)
+function openInfoModal(type) {
+  const modal = document.getElementById("info-modal");
+  const title = document.getElementById("info-modal-title");
+  const content = document.getElementById("info-modal-content");
+  
+  if (!modal || !title || !content) return;
+  
+  if (type === 'intro') {
+    title.innerHTML = "🏫 서비스 소개";
+    content.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <p style="font-weight:700; font-size:0.9rem; color:var(--accent-color);">서울에듀테크소프트랩 통합 평가 대시보드</p>
+        <p>본 서비스는 공교육 현장에 도입 및 적용되는 다양한 에듀테크 프로그램의 적합성, 인프라 부하, 데이터 안전성을 현장 교사들의 검증 보고서 데이터를 통해 분석 및 추적하는 전문 협업 관리 플랫폼입니다.</p>
+        <div style="background-color:var(--bg-secondary); padding:14px; border-radius:8px; font-size:0.78rem; border:1px solid var(--border-color); display:flex; flex-direction:column; gap:8px;">
+          <strong>🎯 핵심 서비스 타겟 및 연동 흐름</strong>
+          <div>1) <strong>실증 교사:</strong> 교육 현장의 사용성 및 보안 개선 사항 체크리스트 등록</div>
+          <div>2) <strong>개발사(기업):</strong> 수집된 결함 요소 확인 및 보완 조치 계획 피드백 실시간 전송</div>
+          <div>3) <strong>소속 팀장:</strong> 각 평가 및 피드백을 실시간 자동 수집하여 A4 규격 공동 보고서 자동 편집/발행</div>
+        </div>
+      </div>
+    `;
+  } else if (type === 'privacy') {
+    title.innerHTML = "🔒 개인정보 처리방침";
+    content.innerHTML = `
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:45vh; overflow-y:auto; padding-right:6px; line-height:1.6;">
+        <p>서울에듀테크소프트랩은 개인정보보호법에 의거하여 이용자의 개인정보 및 권익을 보호하고 개인정보와 관련한 이용자의 고충을 원활하게 처리할 수 있도록 다음과 같은 처리 방침을 수립·공개합니다.</p>
+        <p><strong>1. 개인정보 수집 항목</strong><br>
+        회원가입 시 입력된 이메일(ID), 이름, 소속학교(기관명), 실증 팀명 및 플랫폼 접속 환경 정보(접속로그), 작성하신 개별 보고서 정보가 안전하게 수집됩니다.</p>
+        <p><strong>2. 개인정보의 이용 목적</strong><br>
+        수집된 정보는 본인 식별, 평가 보고서 데이터의 계정 매칭 및 클라우드 동기화, 기업 피드백 실시간 연동, 부정 가입 방지 이외의 목적으로는 사용되지 않습니다.</p>
+        <p><strong>3. 보유 및 이용 기간</strong><br>
+        이용자의 회원 탈퇴 처리 요청 시 또는 본 실증 프로그램 사업의 공식 종료 시까지 보유 및 활용되며, 파기 요청 시 복원할 수 없는 방식으로 영구 파기됩니다.</p>
+        <p><strong>4. 제3자 제공 고지</strong><br>
+        플랫폼은 이용자의 명시적 동의나 법령에 정한 경우를 제외하고는 수집 목적의 범위를 초과하여 제3자에게 개인정보를 양도하거나 유출하지 않습니다.</p>
+      </div>
+    `;
+  }
+  
+  modal.style.display = "flex";
+}
+
+function closeInfoModal() {
+  const modal = document.getElementById("info-modal");
+  if (modal) modal.style.display = "none";
+}
+
+window.openInfoModal = openInfoModal;
+window.closeInfoModal = closeInfoModal;
