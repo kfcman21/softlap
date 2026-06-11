@@ -668,7 +668,15 @@ app.get('/api/submitted', async (req, res) => {
           baseProj.schoolName = row.SCHOOL_NAME;
           baseProj.submitDate = row.SUBMIT_DATE;
           baseProj.email = row.EMAIL;
-          baseProj.feedback = fData || "";
+          if (fData) {
+            try {
+              baseProj.feedback = JSON.parse(fData);
+            } catch (jsonErr) {
+              baseProj.feedback = fData;
+            }
+          } else {
+            baseProj.feedback = "";
+          }
 
           submitted.push(baseProj);
         } catch(e) {}
@@ -709,7 +717,7 @@ app.post('/api/submitted', async (req, res) => {
           school_name: item.schoolName || "",
           submit_date: item.submitDate || "",
           proj_data: JSON.stringify(item),
-          feedback: item.feedback || ""
+          feedback: typeof item.feedback === 'object' ? JSON.stringify(item.feedback) : (item.feedback || "")
         });
       }
       await conn.commit();
@@ -745,9 +753,10 @@ app.post('/api/feedback', async (req, res) => {
       if (check.rows[0].PROJECT_DATA) pData = await check.rows[0].PROJECT_DATA.getData();
 
       // 2. Update Submission Feedback
+      const feedbackStr = typeof feedbackContent === 'object' ? JSON.stringify(feedbackContent) : feedbackContent;
       await conn.execute(
         `UPDATE SOFTLAP_SUBMITTED SET STATUS = '피드백 완료', FEEDBACK = :feedback WHERE PROJECT_ID = :id`,
-        [feedbackContent, projectId]
+        [feedbackStr, projectId]
       );
 
       // 3. Sync into User Projects

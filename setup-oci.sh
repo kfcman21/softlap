@@ -68,6 +68,9 @@ server {
     # ⚠️ 사용자의 도메인 기입 (도메인을 연결한 뒤 Let's Encrypt를 실행하면 인증서가 자동 갱신됩니다)
     server_name api.softlap.seoul.kr api.kfcman.link;
 
+    # 413 Request Entity Too Large 오류 해결을 위해 클라이언트 요청 바디 크기 제한 상향 (Express limit 15MB에 매칭)
+    client_max_body_size 20M;
+
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
