@@ -20,8 +20,16 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' })); // Support base64 canvas compressed images
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// Serve static frontend files from current directory
-app.use(express.static(__dirname));
+// Serve static frontend files from current directory with HTML caching disabled
+app.use(express.static(__dirname, {
+  setHeaders: function (res, filePath) {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // ==================== ORACLE DATABASE CONFIGURATION ====================
 let pool = null;
