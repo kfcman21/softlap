@@ -18,7 +18,10 @@ let lastSubmittedFetchTime = 0;
 let cachedSubmittedList = [];
 
 async function checkCentralDbStatus() {
-  const configuredUrl = localStorage.getItem("softlap_central_db_url");
+  let configuredUrl = localStorage.getItem("softlap_central_db_url");
+  if (!configuredUrl || configuredUrl === "http://localhost:3000" || configuredUrl === "http://127.0.0.1:3000" || configuredUrl === "localhost:3000") {
+    configuredUrl = "https://softlap.seoul.kr";
+  }
   
   const tryUrl = async (url) => {
     if (!url) return null;
@@ -53,21 +56,22 @@ async function checkCentralDbStatus() {
     }
   } else {
     // 2. 입력값이 없는 경우: 지능형 서버 자동 추적 시퀀스 가동
-    // A. 현재 브라우저의 도메인(Origin)을 기본 백엔드로 시도
-    connection = await tryUrl(window.location.origin);
+    // A. OCI 전용 보안 API 서버 주소 최우선 스캐닝 시도 (실시간 HTTPS 연동 보장)
+    connection = await tryUrl("https://softlap.seoul.kr");
     
-    // B. OCI 전용 보안 API 서버 주소 최우선 스캐닝 시도 (실시간 HTTPS 연동 보장)
     if (!connection) {
       connection = await tryUrl("https://api.kfcman.link");
-    }
-    if (!connection) {
-      connection = await tryUrl("https://softlap.seoul.kr");
     }
     if (!connection) {
       connection = await tryUrl("https://www.softlap.seoul.kr");
     }
     if (!connection) {
       connection = await tryUrl("https://api.softlap.seoul.kr");
+    }
+    
+    // B. 현재 브라우저의 도메인(Origin)을 기본 백엔드로 시도
+    if (!connection) {
+      connection = await tryUrl(window.location.origin);
     }
     
     // C. 로컬 서버(localhost:3000) 자동 스캐닝 시도 (정적 호스팅 사이트에서 로컬 서버 켰을 때 자동 연결용)
@@ -175,7 +179,19 @@ let state = {
     },
     items: []
   },
-  authMode: "login"        // 'login' 또는 'signup'
+  authMode: "login",        // 'login' 또는 'signup'
+  adminFilters: {
+    email: "",
+    name: "",
+    school: "",
+    team: "all",
+    role: "all",
+    password: ""
+  },
+  adminSort: {
+    column: "team",
+    direction: "asc"
+  }
 };
 
 // 앱 최초 로드 시 실행되는 초기화 라이프사이클
@@ -350,8 +366,14 @@ async function renderAdminUsersList() {
   if (!tbody) return;
   tbody.innerHTML = "";
   
-  const searchVal = document.getElementById("admin-search-input").value.trim().toLowerCase();
-  
+  const searchVal = document.getElementById("admin-search-input") ? document.getElementById("admin-search-input").value.trim().toLowerCase() : "";
+  const filterEmail = document.getElementById("admin-filter-email") ? document.getElementById("admin-filter-email").value.trim().toLowerCase() : "";
+  const filterName = document.getElementById("admin-filter-name") ? document.getElementById("admin-filter-name").value.trim().toLowerCase() : "";
+  const filterSchool = document.getElementById("admin-filter-school") ? document.getElementById("admin-filter-school").value.trim().toLowerCase() : "";
+  const filterTeam = document.getElementById("admin-filter-team") ? document.getElementById("admin-filter-team").value : "all";
+  const filterRole = document.getElementById("admin-filter-role") ? document.getElementById("admin-filter-role").value : "all";
+  const filterPassword = document.getElementById("admin-filter-password") ? document.getElementById("admin-filter-password").value.trim().toLowerCase() : "";
+
   let usersDB = {};
   let userEmails = [];
   let totalProjectsCount = 0;
@@ -379,13 +401,136 @@ async function renderAdminUsersList() {
   document.getElementById("admin-stat-users").textContent = `${actualUsersCount}명`;
   document.getElementById("admin-stat-projects").textContent = `${totalProjectsCount}개`;
 
-  // 검색어 필터링
+  // 팀 필터 옵션 채우기 및 필터값 조회
+  const teamFilterEl = document.getElementById("admin-team-filter");
+  const colTeamFilterEl = document.getElementById("admin-filter-team");
+  
+  // 유니크 팀 목록 수집
+  const teams = new Set();
+  Object.keys(usersDB).forEach(email => {
+    if (email === "admin") return;
+    const user = usersDB[email];
+    if (user.team && user.team.trim()) {
+      teams.add(user.team.trim());
+    }
+  });
+  
+  const sortedTeams = Array.from(teams).sort();
+  
+  const populateTeamSelect = (el, isTop) => {
+    if (!el) return;
+    const previousSelection = el.value || "all";
+    el.innerHTML = isTop
+      ? '<option value="all">🔍 전체 팀</option><option value="none">👤 팀 미지정</option>'
+      : '<option value="all">전체</option><option value="none">미지정</option>';
+    sortedTeams.forEach(t => {
+      const option = document.createElement("option");
+      option.value = t;
+      option.textContent = isTop ? `👥 ${t}` : t;
+      el.appendChild(option);
+    });
+    if (previousSelection === "none" || sortedTeams.includes(previousSelection)) {
+      el.value = previousSelection;
+    } else {
+      el.value = "all";
+    }
+  };
+
+  populateTeamSelect(teamFilterEl, true);
+  populateTeamSelect(colTeamFilterEl, false);
+
+  // 현재 정렬에 따라 헤더 아이콘 갱신
+  const cols = ["email", "name", "school", "team", "role", "password"];
+  cols.forEach(col => {
+    const iconEl = document.getElementById(`sort-icon-${col}`);
+    if (iconEl) {
+      if (state.adminSort.column === col) {
+        iconEl.innerHTML = state.adminSort.direction === "asc" ? " ▲" : " ▼";
+        iconEl.style.color = "var(--accent-color)";
+      } else {
+        iconEl.innerHTML = " ↕";
+        iconEl.style.color = "var(--text-tertiary)";
+      }
+    }
+  });
+
+  const activeTeamFilter = filterTeam !== "all" ? filterTeam : (teamFilterEl ? teamFilterEl.value : "all");
+
+  // 검색어 및 팀 필터링
   const filteredEmails = userEmails.filter(email => {
     if (email === "admin") return false; // 관리자 계정은 가입자 리스트에서 제외
     const user = usersDB[email];
-    return email.toLowerCase().includes(searchVal) || 
-           (user.name && user.name.toLowerCase().includes(searchVal)) ||
-           (user.school && user.school.toLowerCase().includes(searchVal));
+    const role = user.role || (user.isEnterprise ? "enterprise" : "teacher");
+    
+    const matchesSearch = !searchVal ||
+                          email.toLowerCase().includes(searchVal) || 
+                          (user.name && user.name.toLowerCase().includes(searchVal)) ||
+                          (user.school && user.school.toLowerCase().includes(searchVal));
+                          
+    const matchesEmail = !filterEmail || email.toLowerCase().includes(filterEmail);
+    const matchesName = !filterName || (user.name && user.name.toLowerCase().includes(filterName));
+    const matchesSchool = !filterSchool || (user.school && user.school.toLowerCase().includes(filterSchool));
+    
+    let matchesTeam = true;
+    const userTeam = (user.team || "").trim();
+    if (activeTeamFilter === "none") {
+      matchesTeam = userTeam === "";
+    } else if (activeTeamFilter !== "all") {
+      matchesTeam = userTeam === activeTeamFilter;
+    }
+
+    let matchesRole = true;
+    if (filterRole !== "all") {
+      matchesRole = role === filterRole;
+    }
+
+    const matchesPassword = !filterPassword || (user.password && String(user.password).toLowerCase().includes(filterPassword));
+    
+    return matchesSearch && matchesEmail && matchesName && matchesSchool && matchesTeam && matchesRole && matchesPassword;
+  });
+
+  // 정렬 적용
+  const sortBy = state.adminSort.column;
+  const isAsc = state.adminSort.direction === "asc";
+
+  filteredEmails.sort((a, b) => {
+    let valA = "";
+    let valB = "";
+    
+    if (sortBy === "email") {
+      valA = a;
+      valB = b;
+    } else if (sortBy === "name") {
+      valA = usersDB[a].name || "";
+      valB = usersDB[b].name || "";
+    } else if (sortBy === "school") {
+      valA = usersDB[a].school || "";
+      valB = usersDB[b].school || "";
+    } else if (sortBy === "team") {
+      valA = (usersDB[a].team || "").trim();
+      valB = (usersDB[b].team || "").trim();
+      
+      if (valA === "" && valB !== "") return 1;
+      if (valA !== "" && valB === "") return -1;
+      if (valA === "" && valB === "") {
+        return a.localeCompare(b);
+      }
+    } else if (sortBy === "role") {
+      valA = usersDB[a].role || (usersDB[a].isEnterprise ? "enterprise" : "teacher");
+      valB = usersDB[b].role || (usersDB[b].isEnterprise ? "enterprise" : "teacher");
+    } else if (sortBy === "password") {
+      valA = String(usersDB[a].password || "");
+      valB = String(usersDB[b].password || "");
+    }
+    
+    let comparison = 0;
+    if (sortBy === "email" || sortBy === "password") {
+      comparison = valA.localeCompare(valB);
+    } else {
+      comparison = valA.localeCompare(valB, 'ko');
+    }
+    
+    return isAsc ? comparison : -comparison;
   });
 
   if (filteredEmails.length === 0) {
@@ -399,8 +544,28 @@ async function renderAdminUsersList() {
     return;
   }
 
+  let currentGroupTeam = null;
   filteredEmails.forEach(email => {
     const user = usersDB[email];
+    
+    // 팀별 정렬일 때 팀명 구분용 행 헤더 추가
+    if (sortBy === "team") {
+      const userTeam = (user.team || "").trim() || "팀 미지정";
+      if (userTeam !== currentGroupTeam) {
+        currentGroupTeam = userTeam;
+        const groupTr = document.createElement("tr");
+        groupTr.style.background = "linear-gradient(90deg, var(--bg-tertiary) 0%, transparent 100%)";
+        const countInTeam = filteredEmails.filter(e => ((usersDB[e].team || "").trim() || "팀 미지정") === userTeam).length;
+        
+        groupTr.innerHTML = `
+          <td colspan="7" style="padding: 10px 14px; color: var(--accent-color); font-size: 0.8rem; font-weight: 800; border-left: 4px solid var(--accent-color); border-bottom: 1px solid var(--border-color); text-align: left;">
+            👥 ${userTeam} (${countInTeam}명)
+          </td>
+        `;
+        tbody.appendChild(groupTr);
+      }
+    }
+
     const tr = document.createElement("tr");
 
     // 현재 역할 결정
@@ -429,7 +594,6 @@ async function renderAdminUsersList() {
       </select>`;
 
     // 실증 팀명 입력 인풋
-    // user.team 값이 빈 문자열이나 undefined일 때를 위한 대체
     const currentTeam = user.team || "";
     const teamInput = `
       <input type="text"
@@ -440,13 +604,13 @@ async function renderAdminUsersList() {
     `;
 
     tr.innerHTML = `
-      <td><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
-      <td><strong>${user.name || "-"}</strong>${roleBadge}</td>
-      <td>${user.school || "서울에듀테크소프트랩"}</td>
-      <td>${teamInput}</td>
-      <td>${roleSelect}</td>
-      <td><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
-      <td>
+      <td data-label="이메일 계정"><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
+      <td data-label="대표명 (교사명 / 기업명)"><strong>${user.name || "-"}</strong>${roleBadge}</td>
+      <td data-label="소속 학교/기관/업체">${user.school || "서울에듀테크소프트랩"}</td>
+      <td data-label="실증 팀명">${teamInput}</td>
+      <td data-label="역할 변경">${roleSelect}</td>
+      <td data-label="비밀번호 (보안 확인)"><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
+      <td data-label="관리 조치">
         <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${safeEmail}')">🔑 비번변경</button>
         <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${safeEmail}')">🗑️ 계정삭제</button>
       </td>
@@ -454,6 +618,25 @@ async function renderAdminUsersList() {
     tbody.appendChild(tr);
   });
 }
+
+window.handleAdminSort = function(column) {
+  if (state.adminSort.column === column) {
+    state.adminSort.direction = state.adminSort.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.adminSort.column = column;
+    state.adminSort.direction = "asc";
+  }
+  
+  // Sync the top dropdown if applicable
+  const sortSelectEl = document.getElementById("admin-sort-select");
+  if (sortSelectEl) {
+    if (column === "email" || column === "name" || column === "team") {
+      sortSelectEl.value = column;
+    }
+  }
+  
+  renderAdminUsersList();
+};
 
 // 관리자 전용: 실증 팀명 즉시 변경 처리기
 async function adminChangeTeam(email, newTeam) {
@@ -1402,6 +1585,64 @@ function setupEventListeners() {
   safeBindInput("admin-search-input", () => {
     renderAdminUsersList();
   });
+  
+  // Sync admin-team-filter with col team filter
+  safeBindChange("admin-team-filter", () => {
+    const topFilter = document.getElementById("admin-team-filter");
+    const colFilter = document.getElementById("admin-filter-team");
+    if (topFilter && colFilter) {
+      colFilter.value = topFilter.value;
+    }
+    renderAdminUsersList();
+  });
+  
+  safeBindChange("admin-sort-select", () => {
+    const val = document.getElementById("admin-sort-select").value;
+    state.adminSort.column = val;
+    state.adminSort.direction = "asc";
+    renderAdminUsersList();
+  });
+
+  // Column level filter listeners
+  ["admin-filter-email", "admin-filter-name", "admin-filter-school", "admin-filter-password"].forEach(id => {
+    safeBindInput(id, () => {
+      renderAdminUsersList();
+    });
+  });
+
+  safeBindChange("admin-filter-team", () => {
+    const topFilter = document.getElementById("admin-team-filter");
+    const colFilter = document.getElementById("admin-filter-team");
+    if (topFilter && colFilter) {
+      topFilter.value = colFilter.value;
+    }
+    renderAdminUsersList();
+  });
+
+  safeBindChange("admin-filter-role", () => {
+    renderAdminUsersList();
+  });
+
+  safeBindClick("btn-admin-clear-filters", () => {
+    ["admin-filter-email", "admin-filter-name", "admin-filter-school", "admin-filter-password", "admin-search-input"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    ["admin-filter-team", "admin-filter-role", "admin-team-filter"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "all";
+    });
+    state.adminSort.column = "team";
+    state.adminSort.direction = "asc";
+    
+    // Sync the top dropdown if applicable
+    const sortSelectEl = document.getElementById("admin-sort-select");
+    if (sortSelectEl) {
+      sortSelectEl.value = "team";
+    }
+    
+    renderAdminUsersList();
+  });
 
   const btnSaveCentral = document.getElementById("btn-save-central-db-url");
   if (btnSaveCentral) {
@@ -1473,8 +1714,10 @@ function setupEventListeners() {
 
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
+  safeBindClick("btn-export-csv", exportCSV);
   safeBindClick("btn-print", () => window.print());
   safeBindClick("btn-theme-switch", toggleTheme);
+  safeBindClick("btn-close-ai-assistant", closeAiAssistant);
 
   // 사이드바 액션
   safeBindClick("btn-load-sample", loadSampleData);
@@ -1831,6 +2074,15 @@ function renderChecklistGrid() {
   filtered.forEach(rowData => {
     const tr = document.createElement("tr");
     tr.dataset.id = rowData.id;
+
+    // AI 도우미 작동: 행 클릭 시 AI 도우미 슬라이드 기동
+    tr.addEventListener("click", (e) => {
+      // Form/Input/Button 요소를 직접 조작하는 상황이 아니면 도우미 가동
+      if (e.target.closest('select') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('button')) {
+        return;
+      }
+      openAiAssistant(rowData, tr);
+    });
 
     // 0. 인쇄용 선택 체크박스 (rowData.selected === undefined 이면 true가 디폴트)
     const tdSelect = document.createElement("td");
@@ -2378,8 +2630,57 @@ function renderDashboard() {
           circle.setAttribute("fill", "transparent");
           circle.setAttribute("stroke", seg.color);
           circle.setAttribute("stroke-width", "3");
-          circle.setAttribute("stroke-dasharray", `${seg.percentage} 100`);
+          // 처음 로딩 시 부드럽게 채워지는 애니메이션 기법 응용 (CSS transition 바인딩)
+          circle.style.transition = "stroke-width 0.25s ease, transform 0.25s ease, stroke-dasharray 0.5s ease-out";
+          circle.style.transformOrigin = "center";
+          circle.setAttribute("stroke-dasharray", `0 100`);
+          
+          setTimeout(() => {
+            circle.setAttribute("stroke-dasharray", `${seg.percentage} 100`);
+          }, 50);
+          
           circle.setAttribute("stroke-dashoffset", `${currentOffset}`);
+          circle.style.cursor = "pointer";
+
+          // 마우스 호버 시 입체적 확대 피드백
+          circle.addEventListener("mouseenter", () => {
+            circle.setAttribute("stroke-width", "4.5");
+            circle.style.transform = "scale(1.03)";
+          });
+          circle.addEventListener("mouseleave", () => {
+            circle.setAttribute("stroke-width", "3");
+            circle.style.transform = "scale(1)";
+          });
+
+          // 클릭 시 해당 위험도만 편집 시트에서 필터링해서 집중 조치하도록 UX 브릿지 연결
+          circle.addEventListener("click", () => {
+            const severityVal = seg.label.includes("상") ? "상" : seg.label.includes("중") ? "중" : "하";
+            switchTab("edit");
+            state.filterElement = "전체";
+            renderChecklistGrid();
+            
+            // DOM 행 직접 필터링 조작
+            const tbody = document.getElementById("checklist-tbody");
+            if (tbody) {
+              const rows = tbody.querySelectorAll("tr");
+              rows.forEach(tr => {
+                const rowId = tr.dataset.id;
+                const rowData = state.activeProject.items.find(item => item.id == rowId);
+                if (rowData && rowData.severity !== severityVal) {
+                  tr.style.display = "none";
+                } else {
+                  tr.style.display = "";
+                }
+              });
+            }
+            showToast(`대시보드 스마트 필터: 심각도 [${severityVal}] 항목만 표시 중입니다. (대분류 변경 시 초기화)`);
+          });
+
+          // SVG 툴팁 추가
+          const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+          title.textContent = `${seg.label}: ${seg.count}건 (${percentStr}) - 클릭 시 이 등급만 필터링`;
+          circle.appendChild(title);
+
           donutSegments.appendChild(circle);
           
           currentOffset -= seg.percentage;
@@ -2388,9 +2689,9 @@ function renderDashboard() {
         // 범례 HTML 조립
         const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
         donutLegend.innerHTML += `
-          <div class="legend-item">
+          <div class="legend-item" style="cursor: pointer;" title="클릭 시 이 등급만 필터링" onclick="const sevVal = '${seg.label.includes("상") ? "상" : seg.label.includes("중") ? "중" : "하"}'; switchTab('edit'); state.filterElement = '전체'; renderChecklistGrid(); const tbody = document.getElementById('checklist-tbody'); if(tbody){ tbody.querySelectorAll('tr').forEach(tr => { const rowData = state.activeProject.items.find(item => item.id == tr.dataset.id); if (rowData && rowData.severity !== sevVal) { tr.style.display = 'none'; } else { tr.style.display = ''; } }); } showToast('심각도 ['+sevVal+'] 항목으로 필터링되었습니다.');">
             <span class="legend-color" style="background-color: ${seg.color};"></span>
-            <span style="font-weight:700;">${seg.label}:</span> 
+            <span style="font-weight:700; text-decoration: underline;">${seg.label}:</span> 
             <span>${seg.count}건 (${percentStr})</span>
           </div>
         `;
@@ -2412,18 +2713,37 @@ function renderDashboard() {
       const selectedEl = selectedElItems.length;
       const rateEl = totalEl > 0 ? Math.round((selectedEl / totalEl) * 100) : 0;
 
-      // 바 로우 HTML 구성
-      barChartElements.innerHTML += `
-        <div class="bar-row">
-          <div class="bar-label-box">
-            <span>🛡️ ${elName}</span>
-            <span style="color: var(--text-secondary);">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
-          </div>
-          <div class="bar-bg">
-            <div class="bar-fill" style="width: ${rateEl}%; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%));"></div>
-          </div>
+      // 바 로우 HTML 구성 및 클릭 시 해당 대분류 즉시 필터 이동 인터랙션 구현
+      const rowDiv = document.createElement("div");
+      rowDiv.className = "bar-row";
+      rowDiv.style.cursor = "pointer";
+      rowDiv.title = `클릭 시 [${elName}] 실증지만 필터링하여 작성판으로 이동합니다.`;
+      
+      rowDiv.innerHTML = `
+        <div class="bar-label-box" style="transition: color 0.2s ease;">
+          <span style="font-weight:700;">🛡️ ${elName}</span>
+          <span style="color: var(--text-secondary); font-size:0.74rem;">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
+        </div>
+        <div class="bar-bg" style="border-radius:9999px; overflow:hidden; background-color: var(--bg-tertiary); height: 8px;">
+          <div class="bar-fill" style="width: 0%; height: 100%; border-radius:9999px; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%)); transition: width 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
         </div>
       `;
+      
+      // 애니메이션 효과
+      setTimeout(() => {
+        const fill = rowDiv.querySelector(".bar-fill");
+        if (fill) fill.style.width = `${rateEl}%`;
+      }, 80);
+
+      rowDiv.addEventListener("click", () => {
+        state.filterElement = elName;
+        localStorage.setItem("softlap_filter_element", elName);
+        switchTab("edit");
+        renderChecklistGrid();
+        showToast(`필터 연동 완료: [${elName}] 항목만 편집판에 노출됩니다.`);
+      });
+      
+      barChartElements.appendChild(rowDiv);
     });
   }
 
@@ -4239,7 +4559,7 @@ async function loadTeamMembers() {
   const leaderEmail = state.currentUser?.email;
   const teamName = state.currentUser?.team || state.currentUser?.school || '';
 
-  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--text-tertiary);">...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:hsl(220, 15%, 75%);">...</td></tr>';
 
   if (!leaderEmail) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--danger-color);">로그인 정보를 찾을 수 없습니다.</td></tr>';
@@ -4257,7 +4577,7 @@ async function loadTeamMembers() {
     const members = await res.json();
 
     if (members.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--text-tertiary);">'
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:18px;color:hsl(220, 15%, 75%);">'
         + '<div style="font-size:0.85rem;margin-bottom:6px;">현재 <strong>' + (teamName || '팀명 없음') + '</strong> 팀명으로 가입한 교사가 없습니다.</div>'
         + '<div style="font-size:0.75rem;">팀원들이 회원가입 시 같은 팀명을 입력했는지 확인하세요.</div>'
         + '</td></tr>';
@@ -4274,8 +4594,8 @@ async function loadTeamMembers() {
       const safeName = (member.name || '').replace(/'/g, "\\'");
       const teamLabel = member.team || member.school || '(팀명 없음)';
       tr.innerHTML = '<td style="text-align:center;padding:8px 6px;font-weight:800;color:hsl(200,100%,70%);font-size:0.8rem;">' + (idx + 1) + '</td>'
-        + '<td style="padding:8px 10px;"><strong style="font-size:0.82rem;">' + (member.name || '-') + '</strong></td>'
-        + '<td style="padding:8px 10px;font-size:0.78rem;color:var(--text-secondary);">' + (member.school || '-') + '</td>'
+        + '<td style="padding:8px 10px;color:#ffffff;"><strong style="font-size:0.82rem;color:#ffffff;">' + (member.name || '-') + '</strong></td>'
+        + '<td style="padding:8px 10px;font-size:0.78rem;color:hsl(220, 15%, 75%);">' + (member.school || '-') + '</td>'
         + '<td style="padding:8px 10px;"><span style="background:hsl(220,30%,20%);padding:2px 8px;border-radius:20px;font-size:0.72rem;border:1px solid hsl(220,30%,28%);color:hsl(200,60%,65%);font-weight:600;">' + teamLabel + '</span></td>'
         + '<td style="text-align:center;padding:6px;"><button class="btn" style="font-size:0.68rem;padding:3px 10px;border-color:hsl(0,70%,55%);color:hsl(0,70%,65%);background:hsl(0,40%,15%);font-weight:700;" onclick="kickTeamMember(\'' + safeEmail + '\', \'' + safeName + '\')">내보내기</button></td>';
       tbody.appendChild(tr);
@@ -4921,3 +5241,139 @@ function closeInfoModal() {
 
 window.openInfoModal = openInfoModal;
 window.closeInfoModal = closeInfoModal;
+
+// ==================== [신규 추가] AI 실증 작성 도우미 및 CSV 내보내기 로직 ====================
+let activeRowElement = null;
+let activeRowDataId = null;
+
+function openAiAssistant(rowData, trElement) {
+  const panel = document.getElementById("ai-assistant-panel");
+  if (!panel) return;
+  
+  // 기존 하이라이트 행 복구
+  const prevHighlight = document.querySelector(".active-row-highlight");
+  if (prevHighlight) {
+    prevHighlight.classList.remove("active-row-highlight");
+  }
+  
+  activeRowElement = trElement;
+  activeRowDataId = rowData.id;
+  trElement.classList.add("active-row-highlight");
+
+  // AI 패널에 슬라이드 인 애니메이션 적용
+  panel.classList.add("open");
+  
+  // 헤더 및 웰컴 페이지 토글
+  document.getElementById("ai-assistant-welcome").style.display = "none";
+  const activeSection = document.getElementById("ai-assistant-active");
+  activeSection.style.display = "flex";
+  
+  document.getElementById("ai-meta-element-item").textContent = `📍 ${rowData.element} > ${rowData.item}`;
+  document.getElementById("ai-meta-criterion").textContent = rowData.criterion;
+  
+  // 템플릿 목록 가져오기
+  const suggestions = getAiTemplatesFor(rowData.element, rowData.item);
+  const container = document.getElementById("ai-template-suggestions");
+  container.innerHTML = "";
+  
+  suggestions.forEach((s, idx) => {
+    const card = document.createElement("div");
+    card.className = "ai-suggestion-card";
+    card.innerHTML = `
+      <div style="font-weight: 800; font-size: 0.76rem; color: var(--accent-color); display: flex; justify-content: space-between; align-items: center;">
+        <span>💡 ${s.description}</span>
+        <span class="severity-badge ${s.severity === '상' ? 'high' : s.severity === '중' ? 'mid' : 'low'}" style="transform: scale(0.85);">${s.severity}</span>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.4;">
+        <strong>[현상]</strong> ${s.analysis}
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">
+        <strong>[대책]</strong> ${s.improvement}
+      </div>
+      <button class="btn btn-primary" style="margin-top: 8px; width: 100%; font-size: 0.68rem; padding: 4px; justify-content: center; font-weight: bold;" onclick="applyAiTemplate(${idx}, '${rowData.id}')">
+        ⚡ 이 내용 적용하기
+      </button>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function applyAiTemplate(suggestionIdx, rowId) {
+  const rowData = state.activeProject.items.find(r => r.id == rowId);
+  if (!rowData) return;
+  
+  const suggestions = getAiTemplatesFor(rowData.element, rowData.item);
+  const s = suggestions[suggestionIdx];
+  if (!s) return;
+  
+  // 데이터 반영
+  rowData.analysis = s.analysis;
+  rowData.severity = s.severity;
+  rowData.improvement = s.improvement;
+  
+  // 프로젝트 동기화 저장 및 리렌더링
+  saveActiveProject();
+  renderChecklistGrid();
+  
+  // 리렌더링 후 하이라이트 복원 및 도우미 화면 연동 싱크
+  setTimeout(() => {
+    const newTr = document.querySelector(`tr[data-id="${rowId}"]`);
+    if (newTr) {
+      openAiAssistant(rowData, newTr);
+    }
+  }, 80);
+  
+  showToast("AI 템플릿 예시가 작성란에 자동 반영되었습니다!");
+}
+window.applyAiTemplate = applyAiTemplate;
+
+function closeAiAssistant() {
+  const panel = document.getElementById("ai-assistant-panel");
+  if (panel) panel.classList.remove("open");
+  if (activeRowElement) {
+    activeRowElement.classList.remove("active-row-highlight");
+    activeRowElement = null;
+  }
+  activeRowDataId = null;
+}
+window.closeAiAssistant = closeAiAssistant;
+
+function exportCSV() {
+  if (!state.activeProjectId) {
+    alert("내보낼 실증 프로젝트가 없습니다.");
+    return;
+  }
+
+  const meta = state.activeProject.meta;
+  const items = state.activeProject.items || [];
+  
+  // Excel 한글 인코딩 깨짐을 유니코드 BOM 헤더로 해결 (\ufeff)
+  let csvContent = "\ufeff";
+  csvContent += "에듀테크 실증 평가 보고서\n";
+  csvContent += `실증 대상 제품,${meta.targetProduct || "미기재"}\n`;
+  csvContent += `개발사/제조사,${meta.developer || "미기재"}\n`;
+  csvContent += `OS 종류,${meta.osType || "미기재"},OS 버전,${meta.osVersion || "미기재"}\n`;
+  csvContent += `사용 기기 모델,${meta.modelName || "미기재"}\n`;
+  csvContent += `학교 네트워크,${meta.network || "미기재"}\n`;
+  csvContent += `적용 교과 단원,${meta.usageEnv || "미기재"}\n`;
+  csvContent += `소속 학교,${meta.schoolName || "미기재"},실증 교사,${meta.teacherName || "미기재"}\n`;
+  csvContent += `작성일자,${meta.reportDate}\n\n`;
+  
+  csvContent += "대분류(요소),중분류(실증항목),점검 기준,구분,분석 내용(현상),심각성,개선 사항(기대결과)\n";
+  
+  items.forEach(r => {
+    const esc = (text) => `"${(text || "").replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+    csvContent += `${esc(r.element)},${esc(r.item)},${esc(r.criterion)},${esc(r.type)},${esc(r.analysis)},${esc(r.severity)},${esc(r.improvement)}\n`;
+  });
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `softlap_report_${meta.targetProduct || "report"}_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast("CSV 파일 다운로드가 완료되었습니다!");
+}
+window.exportCSV = exportCSV;

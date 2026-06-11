@@ -2040,4 +2040,134 @@ body {
   }
 }
 
+/* ==================== AI 실증 작성 도우미 슬라이드 패널 스타일 ==================== */
+.ai-helper-panel {
+  position: fixed;
+  top: 65px; /* 탑바 아래에 배치 */
+  right: -360px; /* 기본 숨김 */
+  width: 350px;
+  height: calc(100vh - 65px);
+  background-color: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 99;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-helper-panel.open {
+  right: 0; /* 열림 상태 */
+}
+
+.ai-helper-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-tertiary);
+}
+
+.btn-close-ai {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-close-ai:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--danger-color);
+}
+
+.ai-helper-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-welcome-icon {
+  animation: bounceLight 2s infinite ease-in-out;
+}
+
+@keyframes bounceLight {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* AI 제안 카드 디자인 (글래스모피즘 효과 응용) */
+.ai-suggestion-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.25s ease;
+}
+
+.ai-suggestion-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-color);
+  box-shadow: 0 8px 16px rgba(234, 179, 8, 0.06);
+}
+
+/* 테이블의 현재 선택된 행에 대한 네온 스타일 하이라이트 */
+.active-row-highlight {
+  background-color: var(--accent-light) !important;
+  box-shadow: inset 4px 0 0 0 var(--accent-color) !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 어두운 테마에서의 하이라이트 보정 */
+[data-theme="dark"] .active-row-highlight {
+  background-color: rgba(234, 179, 8, 0.08) !important;
+  box-shadow: inset 4px 0 0 0 var(--accent-color) !important;
+}
+
+/* 관리자 회원관리 테이블 헤더 및 필터 스타일링 */
+.admin-header-row th {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.admin-header-row th:hover {
+  background-color: var(--accent-light) !important;
+  color: var(--accent-color) !important;
+}
+
+.admin-header-row th span {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.7rem;
+  transition: transform 0.2s ease;
+}
+
+.admin-filter-row th {
+  background-color: var(--bg-secondary) !important;
+  padding: 6px 10px !important;
+  border-bottom: 2px solid var(--border-color) !important;
+}
+
+.admin-col-filter {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-col-filter:focus {
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08) !important;
+}
+
 
