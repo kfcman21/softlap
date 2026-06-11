@@ -736,7 +736,7 @@ app.post('/api/submitted', async (req, res) => {
 });
 
 app.post('/api/feedback', async (req, res) => {
-  const { projectId, feedbackContent } = req.body;
+  const { projectId, feedbackContent, items } = req.body;
   if (!projectId || !feedbackContent) return res.status(400).json({ error: "피드백 정보 누락" });
 
   if (useOracle) {
@@ -752,37 +752,41 @@ app.post('/api/feedback', async (req, res) => {
       let pData = "";
       if (check.rows[0].PROJECT_DATA) pData = await check.rows[0].PROJECT_DATA.getData();
 
-      // 2. Update Submission Feedback
+      // Update project data with new items and feedback status
+      let updatedProjData = "";
+      if (pData) {
+        try {
+          const baseProj = JSON.parse(pData);
+          if (items) baseProj.items = items;
+          baseProj.status = "피드백 완료";
+          baseProj.feedback = feedbackContent;
+          updatedProjData = JSON.stringify(baseProj);
+        } catch (parseErr) {
+          console.error("제출물 프로젝트 JSON 파싱 실패:", parseErr);
+        }
+      }
+
+      // 2. Update Submission Feedback and PROJECT_DATA
       const feedbackStr = typeof feedbackContent === 'object' ? JSON.stringify(feedbackContent) : feedbackContent;
-      await conn.execute(
-        `UPDATE SOFTLAP_SUBMITTED SET STATUS = '피드백 완료', FEEDBACK = :feedback WHERE PROJECT_ID = :id`,
-        [feedbackStr, projectId]
-      );
+      if (updatedProjData) {
+        await conn.execute(
+          `UPDATE SOFTLAP_SUBMITTED SET STATUS = '피드백 완료', FEEDBACK = :feedback, PROJECT_DATA = :proj_data WHERE PROJECT_ID = :id`,
+          { feedback: feedbackStr, proj_data: updatedProjData, id: projectId }
+        );
+      } else {
+        await conn.execute(
+          `UPDATE SOFTLAP_SUBMITTED SET STATUS = '피드백 완료', FEEDBACK = :feedback WHERE PROJECT_ID = :id`,
+          { feedback: feedbackStr, id: projectId }
+        );
+      }
 
       // 3. Sync into User Projects
       const lowerEmail = email ? email.toLowerCase() : "";
-      if (lowerEmail && pData) {
-        const userProjectsResult = await conn.execute(
-          `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
-          [projectId, lowerEmail]
+      if (lowerEmail && updatedProjData) {
+        await conn.execute(
+          `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
+          { data: updatedProjData, proj_id: projectId, email: lowerEmail }
         );
-
-        if (userProjectsResult.rows.length > 0) {
-          let oldProjData = "";
-          if (userProjectsResult.rows[0].PROJECT_DATA) {
-            oldProjData = await userProjectsResult.rows[0].PROJECT_DATA.getData();
-          }
-          if (oldProjData) {
-            const oldProjObj = JSON.parse(oldProjData);
-            oldProjObj.status = "피드백 완료";
-            oldProjObj.feedback = feedbackContent;
-
-            await conn.execute(
-              `UPDATE SOFTLAP_PROJECTS SET PROJECT_DATA = :data WHERE PROJECT_ID = :proj_id AND LOWER(EMAIL) = :email`,
-              [JSON.stringify(oldProjObj), projectId, lowerEmail]
-            );
-          }
-        }
       }
       
       await conn.commit();
@@ -800,6 +804,7 @@ app.post('/api/feedback', async (req, res) => {
 
     item.feedback = feedbackContent;
     item.status = "피드백 완료";
+    if (items) item.items = items;
     
     const teacherEmail = item.email ? item.email.toLowerCase() : "";
     if (teacherEmail && dbData.projects[teacherEmail]) {
@@ -807,6 +812,7 @@ app.post('/api/feedback', async (req, res) => {
       if (proj) {
         proj.status = "피드백 완료";
         proj.feedback = feedbackContent;
+        if (items) proj.items = items;
       }
     }
     writeLocalDb(dbData);

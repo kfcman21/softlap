@@ -2256,6 +2256,28 @@ function renderChecklistGrid() {
       saveActiveProject();
     });
     tdAnalysis.appendChild(analysisArea);
+
+    // 개발사 조치 피드백이 존재할 경우 하단에 표시
+    if (rowData.feedbackText) {
+      const fbBlock = document.createElement("div");
+      fbBlock.style.marginTop = "8px";
+      fbBlock.style.borderTop = "1px dashed var(--border-color)";
+      fbBlock.style.paddingTop = "6px";
+      fbBlock.style.fontSize = "0.72rem";
+      
+      const badgeColor = rowData.feedbackStatus === "조치 완료" ? "var(--success-color)" : rowData.feedbackStatus === "조치 예정" ? "var(--warning-color)" : rowData.feedbackStatus === "검토중" ? "var(--accent-color)" : "var(--text-secondary)";
+      fbBlock.innerHTML = `
+        <div style="font-weight:700; color:var(--success-color); display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+          <span>🏢 개발사 피드백:</span>
+          <span style="font-size:0.68rem; font-weight:700; color:${badgeColor};">[${rowData.feedbackStatus || "대기중"}]</span>
+        </div>
+        <div style="color:var(--text-secondary); background:var(--bg-tertiary); padding:4px 6px; border-radius:4px; font-style:italic;">
+          ${rowData.feedbackText}
+        </div>
+      `;
+      tdAnalysis.appendChild(fbBlock);
+    }
+
     tr.appendChild(tdAnalysis);
 
     // 6. 심각성
@@ -3708,6 +3730,41 @@ function viewSubmittedProject(projectId) {
         severityBadge = `<span class="status-badge" style="color:var(--success-color); background:var(--success-bg); border-color:var(--success-color);">✅ 하</span>`;
       }
 
+      const isEnterprise = state.currentUser && state.currentUser.role === "enterprise";
+      let feedbackHtml = "";
+      
+      if (isEnterprise) {
+        feedbackHtml = `
+          <div style="margin-top:8px; border-top:1px dashed var(--border-color); padding-top:8px;">
+            <div style="font-weight:700; font-size:0.75rem; color:var(--success-color); margin-bottom:4px;">🏢 개발사 조치 피드백:</div>
+            <textarea class="item-feedback-input" style="width:100%; min-height:50px; font-size:0.75rem; padding:6px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); resize:vertical;" placeholder="조치 예정 내용 또는 패치 계획 기재...">${item.feedbackText || ""}</textarea>
+            <div style="margin-top:4px; display:flex; align-items:center; gap:6px;">
+              <span style="font-size:0.72rem; color:var(--text-secondary);">조치 상태:</span>
+              <select class="item-feedback-status" style="font-size:0.72rem; padding:2px; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-weight:bold;">
+                <option value="대기중" ${item.feedbackStatus === "대기중" || !item.feedbackStatus ? "selected" : ""}>⏳ 대기중</option>
+                <option value="검토중" ${item.feedbackStatus === "검토중" ? "selected" : ""}>🔍 검토중</option>
+                <option value="조치 예정" ${item.feedbackStatus === "조치 예정" ? "selected" : ""}>📅 조치 예정</option>
+                <option value="조치 완료" ${item.feedbackStatus === "조치 완료" ? "selected" : ""}>✅ 조치 완료</option>
+                <option value="수용 불가" ${item.feedbackStatus === "수용 불가" ? "selected" : ""}>❌ 수용 불가</option>
+              </select>
+            </div>
+          </div>
+        `;
+      } else if (item.feedbackText) {
+        const badgeColor = item.feedbackStatus === "조치 완료" ? "var(--success-color)" : item.feedbackStatus === "조치 예정" ? "var(--warning-color)" : item.feedbackStatus === "검토중" ? "var(--accent-color)" : "var(--text-secondary)";
+        feedbackHtml = `
+          <div style="margin-top:8px; border-top:1px dashed var(--border-color); padding-top:8px; font-size:0.75rem;">
+            <div style="font-weight:700; color:var(--success-color); display:flex; justify-content:space-between; align-items:center;">
+              <span>🏢 개발사 조치 피드백:</span>
+              <span style="font-size:0.68rem; font-weight:700; color:${badgeColor};">[${item.feedbackStatus || "대기중"}]</span>
+            </div>
+            <div style="margin-top:4px; color:var(--text-primary); font-style:italic; background:var(--bg-secondary); padding:6px; border-radius:4px;">
+              ${item.feedbackText}
+            </div>
+          </div>
+        `;
+      }
+
       tr.innerHTML = `
         <td data-label="평가 요소 및 항목">
           <div style="font-weight:700;">${item.element}</div>
@@ -3719,6 +3776,7 @@ function viewSubmittedProject(projectId) {
             <strong>실증 분석:</strong> ${item.analysis || "(관찰 정보 없음)"}
           </div>
           ${item.improvement ? `<div style="margin-top:4px; font-size:0.72rem; color:var(--text-secondary);">💡 권장 대책: ${item.improvement}</div>` : ""}
+          ${feedbackHtml}
         </td>
         <td data-label="심각도" style="text-align:center; vertical-align:middle;">${severityBadge}</td>
         <td data-label="기재 여부" style="text-align:center; vertical-align:middle; font-weight:700; color:var(--text-secondary);">
@@ -3758,6 +3816,20 @@ async function submitEnterpriseFeedback() {
     return;
   }
 
+  const project = state.submittedList.find(p => p.id === activeReviewProjectId);
+  if (!project) return;
+
+  // 1. 각 항목별 피드백 데이터 수집 및 업데이트
+  const trElements = document.querySelectorAll("#rev-checklist-tbody tr");
+  trElements.forEach((tr, index) => {
+    const textEl = tr.querySelector(".item-feedback-input");
+    const statusEl = tr.querySelector(".item-feedback-status");
+    if (textEl && project.items[index]) {
+      project.items[index].feedbackText = textEl.value.trim();
+      project.items[index].feedbackStatus = statusEl.value;
+    }
+  });
+
   const feedbackObj = {
     company: state.currentUser.name || "에듀테크 개발사",
     text: feedbackText,
@@ -3765,11 +3837,15 @@ async function submitEnterpriseFeedback() {
   };
 
   try {
-    // 1. 서버 피드백 반영 API 호출
+    // 2. 서버 피드백 반영 API 호출 (항목별 피드백 배열 포함 전달)
     const response = await fetch(`${centralDbUrl}/api/feedback`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: activeReviewProjectId, feedbackContent: feedbackObj })
+      body: JSON.stringify({ 
+        projectId: activeReviewProjectId, 
+        feedbackContent: feedbackObj,
+        items: project.items
+      })
     });
 
     if (response.ok) {
@@ -4879,6 +4955,22 @@ function renderTeamReportCompiled() {
           
           let sevClass = item.severity === '상' ? 'high' : item.severity === '중' ? 'mid' : 'low';
           
+          let feedbackBlockHtml = "";
+          if (item.feedbackText) {
+            const badgeColor = item.feedbackStatus === "조치 완료" ? "var(--success-color)" : item.feedbackStatus === "조치 예정" ? "var(--warning-color)" : item.feedbackStatus === "검토중" ? "var(--accent-color)" : "var(--text-secondary)";
+            feedbackBlockHtml = `
+              <div style="font-size:0.75rem; border-top:1px dashed var(--border-color); padding-top:6px; margin-top:4px;">
+                <div style="font-weight:700; color:var(--success-color); display:flex; justify-content:space-between; align-items:center;">
+                  <span>🏢 개발사 피드백:</span>
+                  <span style="font-size:0.68rem; font-weight:700; color:${badgeColor};">[${item.feedbackStatus || "대기중"}]</span>
+                </div>
+                <div style="color:var(--text-secondary); font-style:italic; margin-top:2px; background:var(--bg-tertiary); padding:4px 6px; border-radius:4px;">
+                  ${item.feedbackText}
+                </div>
+              </div>
+            `;
+          }
+
           card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <strong style="font-size:0.82rem; color:var(--text-primary);">${item.item}</strong>
@@ -4893,6 +4985,7 @@ function renderTeamReportCompiled() {
             <div style="font-size:0.78rem; line-height:1.4;">
               <strong>개선의견:</strong> ${item.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">개선안 미기록</span>'}
             </div>
+            ${feedbackBlockHtml}
             <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:6px; margin-top:4px; font-size:0.7rem; color:var(--text-secondary);">
               <span>교사: <strong>${item.teacherName}</strong></span>
               <span>구분: ${item.type}</span>
