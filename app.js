@@ -835,6 +835,10 @@ async function saveProjectsList() {
     });
     
     if (!res.ok) {
+      if (res.status === 413) {
+        alert("사진 이미지의 용량이 초과했습니다.");
+        return;
+      }
       throw new Error("저장 실패");
     }
   } catch (e) {
@@ -3523,6 +3527,10 @@ async function submitProjectToEnterprise() {
     if (postRes.ok) {
       showToast("🎉 실증 보고서가 협력 개발사에 제출되었습니다! 피드백 대기중.");
     } else {
+      if (postRes.status === 413) {
+        alert("사진 이미지의 용량이 초과했습니다.");
+        return;
+      }
       throw new Error("서버 제출 실패");
     }
   } catch (err) {
