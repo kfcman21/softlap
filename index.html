@@ -1035,21 +1035,21 @@
   </div>
 
   <!-- ==================== F. 기업용 교사 실증서 상세 조회 및 피드백 작성 모달 ==================== -->
-  <div id="company-review-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
-    <div class="auth-card" style="max-width: 1000px; width: 95%; height: 90vh; display: flex; flex-direction: column; padding: 24px; gap: 20px; border: 2px solid var(--success-color);">
+  <div id="company-review-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: var(--bg-primary); z-index: 2000; flex-direction: column; padding: 30px 40px; gap: 20px; box-sizing: border-box; overflow: hidden;">
+    <div style="display: flex; flex-direction: column; width: 100%; height: 100%; gap: 20px;">
       <!-- 모달 헤더 -->
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--success-color); padding-bottom: 16px;">
         <div>
-          <h3 id="review-modal-title" style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary);">📝 실증 평가서 상세 검토 센터</h3>
-          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">해당 현직 교사께서 보고서에 기재하신 등급 및 위협 상세 내역입니다.</p>
+          <h3 id="review-modal-title" style="font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; color: var(--text-primary);">📝 실증 평가서 상세 검토 센터</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">해당 현직 교사께서 보고서에 기재하신 등급 및 위협 상세 내역입니다.</p>
         </div>
-        <button id="btn-close-review-modal" style="background: none; border: none; font-size: 1.6rem; cursor: pointer; color: var(--text-secondary);">&times;</button>
+        <button id="btn-close-review-modal" style="background: var(--bg-secondary); border: 1px solid var(--border-color); font-size: 0.9rem; padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text-secondary); font-weight: 700; display: flex; align-items: center; gap: 4px;">닫기 &times;</button>
       </div>
 
       <!-- 모달 메인 콘텐츠 영역 (2분할 레이아웃) -->
       <div style="display: flex; gap: 20px; flex: 1; overflow: hidden; min-height: 0;">
         <!-- 좌측: 교사가 입력한 상세 실증 내용 (스크롤 영역) -->
-        <div style="flex: 1.3; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 10px; border-right: 1px solid var(--border-color);">
+        <div style="flex: 1.8; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 20px; border-right: 1px solid var(--border-color);">
           <!-- A. 메타 정보 카드 -->
           <div class="form-header-box" style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
             <h4 style="font-size: 0.85rem; font-weight: 800; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; color: var(--accent-color);">📋 실증 대상 환경 요약</h4>
