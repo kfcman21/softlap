@@ -2095,6 +2095,11 @@ function renderPresetGuideTree() {
           alert("실증 보고서 파일을 먼저 선택하시거나 왼쪽의 ➕ 단추로 개설하십시오.");
           return;
         }
+        // ✅ 제출 완료된 보고서는 항목 추가 차단
+        if (state.activeProject && state.activeProject.submitted) {
+          showToast("⛔ 이미 기업에 제출 완료된 보고서입니다. 새 항목을 추가할 수 없습니다.");
+          return;
+        }
         // ✅ [버그 수정] 현재 탭이 에디터가 아니어도 자동으로 에디터 탭으로 전환
         if (typeof switchTab === "function") {
           switchTab("edit");
@@ -2649,6 +2654,12 @@ function addNewChecklistRow() {
     return;
   }
 
+  // ✅ 제출 완료된 보고서는 새 항목 추가 차단
+  if (state.activeProject && state.activeProject.submitted) {
+    showToast("⛔ 이미 기업에 제출 완료된 보고서입니다. 새 항목을 추가할 수 없습니다.");
+    return;
+  }
+
   const elKeys = Object.keys(EMPIRICAL_STANDARDS);
   const defEl = elKeys[0];
   const items = Object.keys(EMPIRICAL_STANDARDS[defEl].items);
@@ -2676,6 +2687,11 @@ function addNewChecklistRow() {
 
 // 점검 행 지우기
 function deleteChecklistRow(id) {
+  // ✅ 제출 완료된 보고서는 항목 삭제 차단
+  if (state.activeProject && state.activeProject.submitted) {
+    showToast("⛔ 이미 기업에 제출 완료된 보고서입니다. 항목을 삭제할 수 없습니다.");
+    return;
+  }
   state.activeProject.items = state.activeProject.items.filter(r => r.id !== id);
   if (state.selectedItemId === id) {
     state.selectedItemId = null; // 삭제된 항목의 선택 해제
