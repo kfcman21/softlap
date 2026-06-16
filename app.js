@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -3051,14 +3051,14 @@ function renderA4Preview() {
   // A4 Landscape: 297mm(가로) × 210mm(세로)
   // 상하 여백 각 15mm → 내용 세로 = 180mm ≈ 680px
   // 좌우 여백 각 15mm → 내용 가로 = 267mm (열 폭 여유 충분)
-  const PAGE_HEIGHT_PX   = 650;  // A4 가로 모드 내용 영역 세로 높이(px, 여유 있게 설정)
-  const PAGE1_HEADER_PX  = 245;  // 1페이지 상단 헤더 영역 높이 (가로 모드에서 메타테이블이 낮아짐)
+  const PAGE_HEIGHT_PX   = 560;  // 보수적: 일찍 다음 페이지로 분리해 내용 잘림 방지
+  const PAGE1_HEADER_PX  = 230;  // 1페이지 헤더(배지+제목+메타테이블+섹션제목) 높이
   const PAGE_REST_HDR_PX = 50;   // 2페이지~ 미니 헤더 높이
   const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
   const ROW_MIN_PX       = 55;   // 행 최소 높이
-  const CHARS_PER_LINE   = 24;   // 분석내용 셀 한 줄 글자 수 기준 (가로 모드에서 열이 넓어져 더 많이 들어감)
-  const LINE_HEIGHT_PX   = 14;   // 한 줄 높이(px)
-  const CELL_PADDING_PX  = 16;   // 셀 상하 패딩 합계
+  const CHARS_PER_LINE   = 13;   // 보수적 13자 기준(열이 좁아 줄바꿈 많음)
+  const LINE_HEIGHT_PX   = 16;   // 한 줄 높이(px)
+  const CELL_PADDING_PX  = 22;   // 셀 상하 패딩 + 여백 합계
 
   // 한 행의 예상 높이 계산 (텍스트 양 기반)
   function estimateRowHeight(r) {

@@ -808,15 +808,16 @@ body {
 
 /* A4 가로(Landscape) 모드 설정 */
 .report-a4-page {
-  width: 297mm;   /* A4 가로 폭 */
-  height: 210mm;  /* A4 가로 높이 */
+  width: 297mm;      /* A4 가로 폭 */
+  min-height: 210mm; /* 최소 높이만 지정 → 내용 많으면 자동 늘어남 */
+  height: auto;      /* 고정 높이 제거 → 잘림 현상 방지 */
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible; /* hidden → visible: 텍스트 잘림 방지 */
   position: relative;
   background-color: #ffffff;
   color: #0f172a;
   box-shadow: var(--shadow-lg);
-  padding: 12mm 15mm;  /* 상하 여백을 12mm로 줄여 내용공간 확보 */
+  padding: 12mm 15mm;
   border-radius: 4px;
   font-family: 'Noto Sans KR', sans-serif;
 }
