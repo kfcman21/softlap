@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -3140,9 +3140,7 @@ function renderA4Preview() {
     return table;
   };
 
-  // ─── 페이지 분할 로직 (누적 높이 기반, 안정적) ───
-  // ★ 핵심: 1페이지 헤더(배지+제목+메타테이블+섹션제목) 실제 높이를 정확히 반영
-  // 배지: ~16px, h1: ~40px, 메타테이블: ~165px, 섹션제목: ~35px, 간격: ~20px → 합계 ~276px
+  // ─── 페이지 분할 + rowspan 로직 ───
   const PAGE1_HEADER_REAL = 276;
 
   let currentPageNum = 1;
@@ -3153,9 +3151,14 @@ function renderA4Preview() {
   currentPage.appendChild(currentTable);
   let currentTbody = currentTable.querySelector("tbody");
 
-  // 1페이지 사용 가능 높이 = 전체 - 실제헤더 - 테이블헤더
   let usedHeight = PAGE1_HEADER_REAL + TABLE_HEADER_PX;
   let availableHeight = PAGE_HEIGHT_PX;
+
+  // rowspan을 위해: 같은 element 그룹의 크기를 미리 계산
+  // 단, 페이지 경계를 넘으면 새 그룹으로 처리
+  let lastElementOnPage = null; // 현재 페이지에서 마지막으로 출력된 element 이름
+  let elementTdRef = null;      // 현재 rowspan 중인 td 참조
+  let elementRowspan = 0;       // 현재 rowspan td의 카운터
 
   for (let i = 0; i < items.length; i++) {
     const r = items[i];
@@ -3163,7 +3166,6 @@ function renderA4Preview() {
 
     // 현재 페이지에 행이 들어가지 않으면 새 페이지 생성
     if (usedHeight + rowH > availableHeight) {
-      // 새 페이지 생성
       currentPageNum++;
       currentPage = createPageRest(currentPageNum);
       container.appendChild(currentPage);
@@ -3172,19 +3174,41 @@ function renderA4Preview() {
       currentPage.appendChild(currentTable);
       currentTbody = currentTable.querySelector("tbody");
 
-      // 새 페이지 사용 가능 높이 초기화
       usedHeight = PAGE_REST_HDR_PX + TABLE_HEADER_PX;
       availableHeight = PAGE_HEIGHT_PX;
+
+      // 페이지 바뀌면 element 그룹 리셋 (새 페이지에서 배지 다시 표시)
+      lastElementOnPage = null;
+      elementTdRef = null;
+      elementRowspan = 0;
     }
 
-    // tr 생성 및 삽입
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td style="text-align:center; vertical-align:middle;">
-        <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
-          ${r.element}
-        </span>
-      </td>
+
+    // 같은 element가 연속으로 나오면 rowspan 증가, 아니면 새 배지 td 생성
+    const isNewGroup = (r.element !== lastElementOnPage);
+
+    if (isNewGroup) {
+      // 새 대분류 그룹: 배지 td 생성
+      const elementTd = document.createElement("td");
+      elementTd.style.cssText = "text-align:center; vertical-align:middle; border:1px solid #e2e8f0;";
+      elementTd.rowSpan = 1; // 나중에 증가시킴
+      const std = EMPIRICAL_STANDARDS[r.element] || {};
+      elementTd.innerHTML = `<span class="report-element-badge" style="background-color:${std.bg||'#f1f5f9'};color:${std.color||'#334155'};border:1px solid ${std.borderColor||'#cbd5e1'}">${r.element}</span>`;
+      tr.appendChild(elementTd);
+
+      elementTdRef = elementTd;
+      elementRowspan = 1;
+      lastElementOnPage = r.element;
+    } else {
+      // 같은 대분류 계속: rowspan 증가만 (td 없이 tr 시작)
+      elementRowspan++;
+      elementTdRef.rowSpan = elementRowspan;
+    }
+
+    // 나머지 컬럼 추가
+    const restCells = document.createElement("template");
+    restCells.innerHTML = `
       <td><strong>${r.item}</strong></td>
       <td style="font-size:0.75rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
       <td style="text-align:center;">${r.type}</td>
@@ -3196,18 +3220,15 @@ function renderA4Preview() {
       </td>
       <td style="white-space: pre-wrap; vertical-align: top;">${r.improvement || "<span style='color:#94a3b8'>요청없음</span>"}</td>
       <td style="text-align:center; vertical-align: middle;">
-        ${r.screenshot ? `
-          <div class="print-evidence-img-box" style="margin-top: 4px;">
-            <img src="${r.screenshot}" class="print-evidence-img" style="max-width: 50px; max-height: 50px; border-radius: 4px;">
-          </div>
-        ` : "<span style='color:#94a3b8; font-size:0.7rem;'>없음</span>"}
+        ${r.screenshot ? `<div class="print-evidence-img-box" style="margin-top: 4px;"><img src="${r.screenshot}" class="print-evidence-img" style="max-width: 50px; max-height: 50px; border-radius: 4px;"></div>` : "<span style='color:#94a3b8; font-size:0.7rem;'>없음</span>"}
       </td>
       <td style="text-align:center; vertical-align: middle; font-size:0.7rem;">
-        ${r.videoLink ? `
-          <a href="${r.videoLink}" target="_blank" style="color: var(--danger-color); font-weight:700; text-decoration:underline;">📺 보기</a>
-        ` : "<span style='color:#94a3b8;'>없음</span>"}
+        ${r.videoLink ? `<a href="${r.videoLink}" target="_blank" style="color:var(--danger-color);font-weight:700;text-decoration:underline;">📺 보기</a>` : "<span style='color:#94a3b8;'>없음</span>"}
       </td>
     `;
+    while (restCells.content.firstChild) {
+      tr.appendChild(restCells.content.firstChild);
+    }
 
     currentTbody.appendChild(tr);
     usedHeight += rowH;
