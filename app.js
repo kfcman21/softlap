@@ -3036,7 +3036,7 @@ function renderA4Preview() {
 
     const sectionTitle = document.createElement("h3");
     sectionTitle.className = "report-section-title";
-    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
+    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기업 평가 항목";
     page.appendChild(sectionTitle);
 
     page.innerHTML += `
@@ -3095,7 +3095,7 @@ function renderA4Preview() {
 
     const sectionTitle = document.createElement("h3");
     sectionTitle.className = "report-section-title";
-    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
+    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기업 평가 항목";
     page.appendChild(sectionTitle);
 
     return page;
