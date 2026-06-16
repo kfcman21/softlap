@@ -893,13 +893,15 @@ body {
 
 .report-element-badge {
   display: inline-block;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
+  padding: 5px 10px;              /* 패딩 넓게 */
+  border-radius: 10px;            /* 더 둥글게 */
+  font-size: 0.68rem;
   font-weight: 700;
   text-align: center;
-  word-break: keep-all !important;  /* td의 break-word보다 강제 우선 적용 */
-  line-height: 1.4;
+  word-break: keep-all !important;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); /* 은은한 그림자 */
 }
 
 /* 토스트 */
