@@ -3138,6 +3138,10 @@ function renderA4Preview() {
   };
 
   // ─── 페이지 분할 로직 (누적 높이 기반, 안정적) ───
+  // ★ 핵심: 1페이지 헤더(배지+제목+메타테이블+섹션제목) 실제 높이를 정확히 반영
+  // 배지: ~16px, h1: ~40px, 메타테이블: ~165px, 섹션제목: ~35px, 간격: ~20px → 합계 ~276px
+  const PAGE1_HEADER_REAL = 276;
+
   let currentPageNum = 1;
   let currentPage   = createPageOne();
   container.appendChild(currentPage);
@@ -3146,8 +3150,8 @@ function renderA4Preview() {
   currentPage.appendChild(currentTable);
   let currentTbody = currentTable.querySelector("tbody");
 
-  // 1페이지 사용 가능 높이 = 전체 - 헤더 - 테이블헤더
-  let usedHeight = PAGE1_HEADER_PX + TABLE_HEADER_PX;
+  // 1페이지 사용 가능 높이 = 전체 - 실제헤더 - 테이블헤더
+  let usedHeight = PAGE1_HEADER_REAL + TABLE_HEADER_PX;
   let availableHeight = PAGE_HEIGHT_PX;
 
   for (let i = 0; i < items.length; i++) {
