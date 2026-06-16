@@ -3047,6 +3047,32 @@ function renderA4Preview() {
     return;
   }
 
+  // ─── A4 페이지 높이 계산 상수 (mm → px, 96dpi 기준) ───
+  // A4 = 297mm. 인쇄 여백 상하 각 20mm → 내용 영역 = 257mm
+  // 1mm ≈ 3.7795px → 257mm ≈ 972px
+  // 1페이지: 헤더(배지+제목+메타테이블+섹션제목) 약 260px 차감 → 남은 공간 ≈ 712px
+  // 2페이지~: 미니헤더 약 50px 차감 → 남은 공간 ≈ 922px
+  const PAGE_HEIGHT_PX   = 972;  // A4 내용 영역 전체 높이(px)
+  const PAGE1_HEADER_PX  = 285;  // 1페이지 상단 헤더 영역 높이
+  const PAGE_REST_HDR_PX = 55;   // 2페이지~ 미니 헤더 높이
+  const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
+  const ROW_MIN_PX       = 60;   // 행 최소 높이
+  const CHARS_PER_LINE   = 18;   // 분석내용 셀 한 줄 글자 수 기준
+  const LINE_HEIGHT_PX   = 14;   // 한 줄 높이(px)
+  const CELL_PADDING_PX  = 16;   // 셀 상하 패딩 합계
+
+  // 한 행의 예상 높이 계산 (텍스트 양 기반)
+  function estimateRowHeight(r) {
+    const criterionLines = Math.ceil((r.criterion || "").length / 22) || 1;
+    const analysisLines  = Math.ceil((r.analysis  || "").length / CHARS_PER_LINE) || 1;
+    const improvLines    = Math.ceil((r.improvement || "").length / 22) || 1;
+    const maxLines = Math.max(criterionLines, analysisLines, improvLines, 2);
+    const textHeight = maxLines * LINE_HEIGHT_PX + CELL_PADDING_PX;
+    // 사진 첨부 시 추가 높이
+    const photoExtra = r.screenshot ? 60 : 0;
+    return Math.max(ROW_MIN_PX, textHeight + photoExtra);
+  }
+
   // 1페이지 메인 컨텐츠 빌더
   const createPageOne = () => {
     const page = document.createElement("div");
@@ -3079,14 +3105,7 @@ function renderA4Preview() {
     page.className = "report-a4-page";
 
     const miniHeader = document.createElement("div");
-    miniHeader.style.display = "flex";
-    miniHeader.style.justifyContent = "space-between";
-    miniHeader.style.alignItems = "center";
-    miniHeader.style.fontSize = "0.74rem";
-    miniHeader.style.color = "#64748b";
-    miniHeader.style.borderBottom = "1px solid #e2e8f0";
-    miniHeader.style.paddingBottom = "8px";
-    miniHeader.style.marginBottom = "20px";
+    miniHeader.style.cssText = "display:flex; justify-content:space-between; align-items:center; font-size:0.74rem; color:#64748b; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:12px;";
     miniHeader.innerHTML = `
       <span><strong>${meta.targetProduct || "에듀테크"}</strong> 공교육 적합성 평가서 (계속)</span>
       <span>${pageNum} 페이지</span>
@@ -3119,18 +3138,40 @@ function renderA4Preview() {
     return table;
   };
 
+  // ─── 페이지 분할 로직 (누적 높이 기반, 안정적) ───
   let currentPageNum = 1;
-  let currentPage = createPageOne();
+  let currentPage   = createPageOne();
   container.appendChild(currentPage);
 
   let currentTable = createTableWrapper();
   currentPage.appendChild(currentTable);
   let currentTbody = currentTable.querySelector("tbody");
 
+  // 1페이지 사용 가능 높이 = 전체 - 헤더 - 테이블헤더
+  let usedHeight = PAGE1_HEADER_PX + TABLE_HEADER_PX;
+  let availableHeight = PAGE_HEIGHT_PX;
+
   for (let i = 0; i < items.length; i++) {
     const r = items[i];
-    
-    // tr 요소를 노드로 직접 파싱해서 실시간 삽입/제거
+    const rowH = estimateRowHeight(r);
+
+    // 현재 페이지에 행이 들어가지 않으면 새 페이지 생성
+    if (usedHeight + rowH > availableHeight) {
+      // 새 페이지 생성
+      currentPageNum++;
+      currentPage = createPageRest(currentPageNum);
+      container.appendChild(currentPage);
+
+      currentTable = createTableWrapper();
+      currentPage.appendChild(currentTable);
+      currentTbody = currentTable.querySelector("tbody");
+
+      // 새 페이지 사용 가능 높이 초기화
+      usedHeight = PAGE_REST_HDR_PX + TABLE_HEADER_PX;
+      availableHeight = PAGE_HEIGHT_PX;
+    }
+
+    // tr 생성 및 삽입
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>
@@ -3162,47 +3203,41 @@ function renderA4Preview() {
       </td>
     `;
 
-    // 측정전 일시적으로 자동 높이/오버플로우 표시로 풀어서 정확한 scrollHeight 측정 (A4 297mm의 픽셀 환산 규격 대응)
-    currentPage.style.height = "auto";
-    currentPage.style.overflow = "visible";
-
     currentTbody.appendChild(tr);
-
-    // 1115px를 초과할 경우 실시간 레이아웃 계산에 의해 즉시 다음 페이지로 이월
-    if (currentPage.scrollHeight > 1115) {
-      // 1. 현재 오버플로우 페이지에서 해당 tr 노드 제거
-      currentTbody.removeChild(tr);
-
-      // 2. 현재 페이지 규격 최종 고정 (A4 297mm 고정 적용)
-      currentPage.style.height = "";
-      currentPage.style.overflow = "";
-
-      // 3. 신규 페이지 껍데기 개설 및 컨테이너 삽입
-      currentPageNum++;
-      currentPage = createPageRest(currentPageNum);
-      container.appendChild(currentPage);
-
-      // 4. 신규 페이지 전용 테이블 및 tbody 개설
-      currentTable = createTableWrapper();
-      currentPage.appendChild(currentTable);
-      currentTbody = currentTable.querySelector("tbody");
-
-      // 5. 새 페이지도 높이 측정을 위해 임시 해제
-      currentPage.style.height = "auto";
-      currentPage.style.overflow = "visible";
-
-      // 6. 새 페이지의 tbody로 노드 이관 이월
-      currentTbody.appendChild(tr);
-    }
+    usedHeight += rowH;
   }
 
-  // 최종 조립 후 마지막 남은 페이지의 인쇄용 A4 높이 고정 규격 복원
-  if (currentPage) {
-    currentPage.style.height = "";
-    currentPage.style.overflow = "";
-    adjustPreviewScale(); // [신규] 모바일 크기에 맞춰 A4 미리보기 동적 축소/스케일링 처리
-  }
+  adjustPreviewScale(); // 모바일 크기에 맞춰 A4 미리보기 동적 축소/스케일링 처리
 }
+    
+    const badge = document.createElement("span");
+    badge.className = "report-title-badge";
+    badge.textContent = `에듀테크 소프트랩 교사 실증 결과 리포트`;
+    page.appendChild(badge);
+
+    const h1 = document.createElement("h1");
+    h1.className = "report-h1";
+    h1.textContent = `${meta.targetProduct || "미지정 에듀테크"} 공교육 적합성 개별 실증 평가서`;
+    page.appendChild(h1);
+
+    const metaTable = createMetaTableA4(meta);
+    page.appendChild(metaTable);
+
+    const sectionTitle = document.createElement("h3");
+    sectionTitle.className = "report-section-title";
+    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
+    page.appendChild(sectionTitle);
+
+    page.innerHTML += `
+      <p class="report-para" style="text-align:center; padding:60px; border:1px dashed #cbd5e1; margin-top:20px; font-weight:500; color:#94a3b8;">
+        기록된 분석 문항이 없습니다. 에디터 탭에서 실증 평가 행을 기록해 주세요.
+      </p>
+    `;
+    container.appendChild(page);
+    return;
+  }
+
+
 
 // 메타 테이블 HTML 헬퍼
 function createMetaTableA4(meta) {
