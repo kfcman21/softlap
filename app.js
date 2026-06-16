@@ -760,7 +760,24 @@ async function loadUserProjects() {
       state.projects = remoteProjects || [];
       
       const isAdmin = state.currentUser.isAdmin || state.currentUser.role === "admin";
-      
+
+      // ── 웰컴 샘플 자동 정리 ──────────────────────────────────────────────
+      // welcome_으로 시작하는 샘플 프로젝트가 남아있으면 클라이언트에서 즉시 제거하고
+      // 서버에도 업데이트하여 영구 삭제합니다.
+      const hasWelcomeSample = state.projects.some(p => String(p.id || "").startsWith("welcome_"));
+      if (hasWelcomeSample && !isAdmin) {
+        // 1) 클라이언트 메모리에서 즉시 필터링
+        state.projects = state.projects.filter(p => !String(p.id || "").startsWith("welcome_"));
+        // 2) 서버에 welcome_ 없는 상태로 저장 (백그라운드 처리)
+        fetch(`${centralDbUrl}/api/projects`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
+        }).catch(e => console.warn("웰컴 샘플 정리 저장 실패:", e));
+        console.log("🗑️ 웰컴 샘플 프로젝트가 보관함에서 자동 삭제되었습니다.");
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       if (isAdmin) {
         // 관리자인 경우, 다른 교사들이 제출한 모든 리포트도 보관함 목록에 합쳐서 조회 및 제출 취소할 수 있게 덤프
         try {
@@ -786,22 +803,7 @@ async function loadUserProjects() {
         }
       }
       
-      // 양쪽 다 데이터가 전혀 없을 때 웰컴 샘플 프로젝트 자동 배포 (관리자 제외)
-      if (state.projects.length === 0 && !isAdmin) {
-        const welcomeProj = JSON.parse(JSON.stringify(WELCOME_SAMPLE_PROJECT));
-        welcomeProj.id = "welcome_" + Date.now();
-        welcomeProj.meta.teacherName = (state.currentUser.name && state.currentUser.school) ? `${state.currentUser.name} (${state.currentUser.school})` : (state.currentUser.name || "");
-        welcomeProj.meta.schoolName = state.currentUser.team || state.currentUser.school || "";
-        
-        state.projects = [welcomeProj];
-        
-        // 웰컴 데이터 생성 후 즉시 서버에 저장
-        await fetch(`${centralDbUrl}/api/projects`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: state.currentUser.email, projects: state.projects })
-        });
-      }
+      // 프로젝트가 없을 때는 빈 상태 유지 (샘플 자동 배포 없음)
     } else {
       throw new Error("서버 응답 에러");
     }
@@ -818,9 +820,8 @@ async function loadUserProjects() {
       state.activeProjectId = state.projects[0].id;
     }
     loadActiveProject();
-  } else {
-    createNewProject(false); // 보관함이 완전히 비어있을 시 자동 하나 개설
   }
+  // 보관함이 비어있으면 빈 상태 유지 (자동 개설 없음)
 }
 
 // 프로젝트 목록 전체 저장 및 동기화 헬퍼 함수

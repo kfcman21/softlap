@@ -687,6 +687,44 @@ app.post('/api/projects', async (req, res) => {
   }
 });
 
+// D-0. 웰컴 샘플 프로젝트 일괄 정리 API (모든 계정의 welcome_ 접두어 프로젝트 삭제)
+app.delete('/api/projects/cleanup-welcome', async (req, res) => {
+  let deletedCount = 0;
+
+  if (useOracle) {
+    let conn;
+    try {
+      conn = await getConnectionWithRetry();
+      // Oracle: PROJECT_ID가 'welcome_'으로 시작하는 행 모두 삭제
+      const result = await conn.execute(
+        `DELETE FROM SOFTLAP_PROJECTS WHERE PROJECT_ID LIKE 'welcome_%'`
+      );
+      await conn.commit();
+      deletedCount = result.rowsAffected || 0;
+      console.log(`🗑️ [웰컴 샘플 정리] Oracle DB에서 ${deletedCount}개의 샘플 프로젝트 삭제 완료`);
+      res.json({ success: true, deletedCount });
+    } catch (err) {
+      res.status(500).json({ error: "Oracle DB 정리 실패: " + err.message });
+    } finally {
+      if (conn) await conn.close();
+    }
+  } else {
+    // Local JSON DB: 모든 사용자의 projects 배열에서 welcome_ ID 필터링
+    const dbData = await readLocalDbAsync();
+    for (const email of Object.keys(dbData.projects || {})) {
+      const before = dbData.projects[email].length;
+      // welcome_으로 시작하는 id를 가진 프로젝트만 제거
+      dbData.projects[email] = dbData.projects[email].filter(
+        p => !String(p.id || "").startsWith("welcome_")
+      );
+      deletedCount += before - dbData.projects[email].length;
+    }
+    await writeLocalDbAsync(dbData);
+    console.log(`🗑️ [웰컴 샘플 정리] 로컬 JSON DB에서 ${deletedCount}개의 샘플 프로젝트 삭제 완료`);
+    res.json({ success: true, deletedCount });
+  }
+});
+
 // D. Edutech Registry API
 app.get('/api/registry', async (req, res) => {
   if (useOracle) {
