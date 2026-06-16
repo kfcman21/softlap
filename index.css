@@ -897,6 +897,9 @@ body {
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 700;
+  text-align: center;       /* 줄바꿈 시 각 줄 가운데 정렬 */
+  word-break: keep-all;     /* 한국어 단어 중간에서 끊기지 않도록 */
+  line-height: 1.4;
 }
 
 /* 토스트 */
