@@ -3057,8 +3057,8 @@ function renderA4Preview() {
   const PAGE_REST_HDR_PX = 50;   // 2페이지~ 미니 헤더 높이
   const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
   const ROW_MIN_PX       = 55;   // 행 최소 높이
-  const ROW_MAX_PX       = 200;  // 행 최대 높이 상한선 (어떤 행도 1페이지에 반드시 배치)
-  const CHARS_PER_LINE   = 13;   // 보수적 13자 기준(열이 좁아 줄바꿈 많음)
+  const ROW_MAX_PX       = 120;  // 행 최대 높이 상한선 (낮을수록 한 페이지에 더 많은 행 배치)
+  const CHARS_PER_LINE   = 18;   // 실제 열 폭 기준 18자 (개선요청사항 칸 넓어진 것 반영)
   const LINE_HEIGHT_PX   = 16;   // 한 줄 높이(px)
   const CELL_PADDING_PX  = 22;   // 셀 상하 패딩 + 여백 합계
 
