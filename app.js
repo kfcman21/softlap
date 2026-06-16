@@ -836,18 +836,47 @@ async function saveProjectsList() {
     
     if (!res.ok) {
       if (res.status === 413) {
-        alert("사진 이미지의 용량이 초과했습니다.");
+        showErrorPopup(
+          "사진 이미지 용량 초과", 
+          "증빙 자료(사진) 파일의 누적 데이터 크기가 서버 허용 한도(15MB)를 초과하여 저장할 수 없습니다.", 
+          "업로드한 사진 이미지의 크기를 더 작게 압축하거나 개수를 조정한 뒤 다시 시도해 주십시오."
+        );
         return;
       }
-      throw new Error("저장 실패");
+      throw new Error(res.statusText || "서버 응답 오류");
     }
   } catch (e) {
     console.error("원격 서버 저장 실패:", e);
-    alert("❌ [네트워크 오류] 실증 보고서가 데이터베이스에 저장되지 않았습니다!\n현재 작성 중인 화면을 새로고침하지 마시고, 네트워크가 연결된 후 다시 타이핑하거나 변경해 주십시오.");
+    showErrorPopup(
+      "데이터베이스 백업 실패", 
+      `원격 API 서버와 통신 도중 실패가 발생했습니다: ${e.message}`, 
+      "현재 작성 중인 에디터 화면을 절대로 새로고침(F5)하지 마십시오! 새로고침 시 미저장 내역이 소실될 수 있으니 네트워크가 정상 복구된 후 값을 약간 변경해 수동 저장을 재시도해 주십시오."
+    );
   }
 }
 
-// 프로젝트 저장
+// 자동 저장 상태 인디케이터 갱신 헬퍼
+function updateAutosaveIndicator(status) {
+  const el = document.getElementById("autosave-indicator");
+  if (!el) return;
+  
+  el.className = "autosave-badge"; // 클래스 리셋
+  
+  if (status === "saving") {
+    el.classList.add("saving");
+    el.textContent = "작성 중...";
+  } else if (status === "saved") {
+    el.classList.add("saved");
+    el.textContent = "저장 완료";
+  } else if (status === "synced") {
+    el.classList.add("synced");
+    el.textContent = "동기화 완료";
+  }
+}
+
+let autosaveTimer = null;
+
+// 프로젝트 저장 (500ms 디바운스 자동 저장 탑재)
 async function saveActiveProject() {
   if (!state.activeProjectId) return;
 
@@ -857,16 +886,64 @@ async function saveActiveProject() {
     state.projects[index].items = state.activeProject.items;
   }
   
-  await saveProjectsList();
+  updateAutosaveIndicator("saving");
   
-  // 사이드바 목록 리프레시 (제품명 연동 반영용)
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  
+  autosaveTimer = setTimeout(async () => {
+    try {
+      await saveProjectsList();
+      updateAutosaveIndicator("synced");
+    } catch (e) {
+      updateAutosaveIndicator("saved"); // 원격 저장 실패 시에도 로컬엔 반영됨
+    }
+    
+    // 사이드바 목록 리프레시 (제품명 연동 반영용)
+    renderCabinetList();
+    updateSummaryStats();
+    
+    // 하단 꼬리말 업데이트
+    const footerProd = document.getElementById("footer-active-product");
+    if (footerProd) {
+      footerProd.textContent = state.activeProject.meta.targetProduct || "제품명 미기재";
+    }
+
+    // 만약 오라클 클라우드 연동이 켜진 경우 비동기로 클라우드 동기화 수행
+    if (oracleConfig.enabled && oracleConfig.endpoint) {
+      syncToOracleCloud();
+    }
+  }, 500);
+}
+
+// 강제 즉각 동기화 (Ctrl + S 및 주요 이벤트 대응)
+async function saveActiveProjectImmediately() {
+  if (!state.activeProjectId) return;
+
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  
+  const index = state.projects.findIndex(p => p.id === state.activeProjectId);
+  if (index !== -1) {
+    state.projects[index].meta = state.activeProject.meta;
+    state.projects[index].items = state.activeProject.items;
+  }
+  
+  updateAutosaveIndicator("saving");
+  
+  try {
+    await saveProjectsList();
+    updateAutosaveIndicator("synced");
+  } catch (e) {
+    updateAutosaveIndicator("saved");
+  }
+  
   renderCabinetList();
   updateSummaryStats();
   
-  // 하단 꼬리말 업데이트
-  document.getElementById("footer-active-product").textContent = state.activeProject.meta.targetProduct || "제품명 미기재";
+  const footerProd = document.getElementById("footer-active-product");
+  if (footerProd) {
+    footerProd.textContent = state.activeProject.meta.targetProduct || "제품명 미기재";
+  }
 
-  // 만약 오라클 클라우드 연동이 켜진 경우 비동기로 클라우드 동기화 수행
   if (oracleConfig.enabled && oracleConfig.endpoint) {
     syncToOracleCloud();
   }
@@ -1364,10 +1441,18 @@ async function handleAuthSubmit() {
         }
       } else {
         const errData = await response.json();
-        alert(errData.error || "아이디 또는 비밀번호가 일치하지 않습니다.");
+        showErrorPopup(
+          "로그인 실패", 
+          errData.error || "아이디 또는 비밀번호가 일치하지 않습니다.", 
+          "입력하신 이메일과 비밀번호를 다시 확인해 주세요. 특히 영어 대소문자나 오타가 없는지 점검하십시오."
+        );
       }
     } catch (err) {
-      alert("로그인 서버 통신 오류: " + err.message);
+      showErrorPopup(
+        "로그인 통신 오류", 
+        err.message, 
+        "로컬 백엔드 서버(PORT 3000)가 정상 기동 중인지 확인해 주십시오. 서버 콘솔에 오류 메시지가 떠있을 수 있습니다."
+      );
     }
     return;
   }
@@ -1435,10 +1520,18 @@ async function handleAuthSubmit() {
         showToast("서울에듀테크소프트랩 회원 가입이 완료되어 웰컴 프로젝트가 배포되었습니다!");
       } else {
         const errData = await response.json();
-        alert(errData.error || "회원 가입에 실패했습니다.");
+        showErrorPopup(
+          "회원 가입 실패", 
+          errData.error || "회원 가입에 실패했습니다.", 
+          "이미 사용 중인 이메일 계정이거나 입력 조건에 어긋난 부분이 없는지 대조해 주십시오."
+        );
       }
     } catch (err) {
-      alert("회원가입 서버 통신 오류: " + err.message);
+      showErrorPopup(
+        "회원가입 통신 오류", 
+        err.message, 
+        "서버 네트워크 포트가 활성화 상태인지 점검하고 방화벽에 의해 통신이 막히지 않았는지 확인하십시오."
+      );
     }
     return;
   }
@@ -1882,6 +1975,7 @@ function setupEventListeners() {
   document.getElementById("btn-company-logout").addEventListener("click", () => showAuthScreen());
   document.getElementById("company-search-input").addEventListener("input", renderEnterpriseDashboard);
   document.getElementById("company-filter-status").addEventListener("change", renderEnterpriseDashboard);
+  document.getElementById("btn-company-excel-download").addEventListener("click", downloadEnterpriseExcel); // [신규] 엑셀 다운로드 이벤트 연동
   document.getElementById("btn-close-review-modal").addEventListener("click", closeReviewModal);
   document.getElementById("btn-submit-feedback").addEventListener("click", submitEnterpriseFeedback);
   
@@ -1908,17 +2002,24 @@ function setupEventListeners() {
   if (btnCancelFeedback) {
     btnCancelFeedback.addEventListener("click", cancelEnterpriseFeedback);
   }
+
+  // 글로벌 키보드 단축키 등록
+  setupShortcutKeys();
 }
 
 // 테마 관리
 function applyTheme() {
   const currentTheme = localStorage.getItem(THEME_KEY) || "light";
   document.documentElement.setAttribute("data-theme", currentTheme);
+  document.documentElement.classList.toggle("dark", currentTheme === "dark");
+  
   const icon = document.querySelector("#btn-theme-switch span");
-  if (currentTheme === "dark") {
-    icon.textContent = "☀️";
-  } else {
-    icon.textContent = "🌙";
+  if (icon) {
+    if (currentTheme === "dark") {
+      icon.textContent = "☀️";
+    } else {
+      icon.textContent = "🌙";
+    }
   }
 }
 
@@ -1929,6 +2030,8 @@ function toggleTheme() {
   applyTheme();
   showToast(`${nextTheme === "dark" ? "다크" : "라이트"} 모드 작동 중`);
 }
+
+
 
 // 사이드바 트리뷰 구성
 function renderPresetGuideTree() {
@@ -1992,6 +2095,10 @@ function renderPresetGuideTree() {
           alert("실증 보고서 파일을 먼저 선택하시거나 왼쪽의 ➕ 단추로 개설하십시오.");
           return;
         }
+        // ✅ [버그 수정] 현재 탭이 에디터가 아니어도 자동으로 에디터 탭으로 전환
+        if (typeof switchTab === "function") {
+          switchTab("edit");
+        }
         addPresetItemRow(elementName, itemName);
       });
 
@@ -2021,6 +2128,18 @@ function addPresetItemRow(elementName, itemName) {
   };
 
   state.activeProject.items.push(newRow);
+  state.selectedItemId = newRow.id; // 새 항목으로 포커스 자동 지정
+
+  // ✅ [버그 수정] 왼쪽 메뉴 클릭 시 추가된 항목이 바로 보이도록
+  // 상단 필터를 새로 추가한 항목의 요소(대분류)로 자동 전환
+  if (state.filterElement !== "전체" && state.filterElement !== elementName) {
+    state.filterElement = elementName;
+    localStorage.setItem("softlap_filter_element", elementName);
+    // 필터 셀렉트 UI도 동기화
+    const filterSelect = document.getElementById("editor-filter-select");
+    if (filterSelect) filterSelect.value = elementName;
+  }
+
   saveActiveProject();
   renderChecklistGrid();
   showToast(`[${elementName} - ${itemName}]이 실증지에 추가되었습니다.`);
@@ -2040,11 +2159,11 @@ function renderFilterOptions() {
   });
 }
 
-// 실증지 기입 에디터 테이블 그리기
+// 실증지 기입 에디터 테이블 그리기 (스플릿 뷰 개편)
 function renderChecklistGrid() {
-  const tbody = document.getElementById("checklist-tbody");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+  const cardList = document.getElementById("checklist-card-list");
+  if (!cardList) return;
+  cardList.innerHTML = "";
 
   const isSubmitted = !!state.activeProject.submitted;
   const btnAddRow = document.getElementById("btn-add-row");
@@ -2064,400 +2183,463 @@ function renderChecklistGrid() {
     : rows.filter(r => r.element === state.filterElement);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="11" style="text-align:center; padding:40px; color:var(--text-tertiary);">
-          추가된 평가 기준 문항이 없습니다.<br>
-          ${isSubmitted ? "제출 완료되어 새로운 평가 기준을 추가할 수 없습니다." : "왼쪽의 <strong>[클릭 시 보관함에 추가]</strong> 가이드를 통해 분석할 세부 항목들을 터치해 추가하세요."}
-        </td>
-      </tr>
+    cardList.innerHTML = `
+      <div class="text-center py-12 px-4 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+        <span class="text-3xl block mb-2">📁</span>
+        ${isSubmitted ? "제출 완료되어 새로운 평가 기준을 추가할 수 없습니다." : "분석할 세부 항목들이 없습니다.<br>상단의 <strong>➕ 항목 추가</strong> 또는 왼쪽 가이드에서 항목을 터치해 추가하세요."}
+      </div>
     `;
+    // 선택된 아이템 초기화 및 상세 폼 숨김
+    state.selectedItemId = null;
+    updateDetailEditorView();
     return;
   }
 
+  // 만약 선택된 아이템 ID가 없거나 필터링된 결과에 속하지 않는다면 첫 번째 항목을 선택
+  if (!state.selectedItemId || !filtered.some(r => r.id === state.selectedItemId)) {
+    state.selectedItemId = filtered[0].id;
+  }
+
   filtered.forEach(rowData => {
-    const tr = document.createElement("tr");
-    tr.dataset.id = rowData.id;
-
-    // AI 도우미 작동: 행 클릭 시 AI 도우미 슬라이드 기동
-    tr.addEventListener("click", (e) => {
-      // Form/Input/Button 요소를 직접 조작하는 상황이 아니면 도우미 가동
-      if (e.target.closest('select') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('button')) {
-        return;
-      }
-      openAiAssistant(rowData, tr);
-    });
-
-    // 0. 인쇄용 선택 체크박스 (rowData.selected === undefined 이면 true가 디폴트)
-    const tdSelect = document.createElement("td");
-    tdSelect.setAttribute("data-label", "인쇄");
-    tdSelect.style.textAlign = "center";
-    tdSelect.style.verticalAlign = "middle";
+    const card = document.createElement("div");
+    card.dataset.id = rowData.id;
     
-    const selectCheck = document.createElement("input");
-    selectCheck.type = "checkbox";
-    selectCheck.checked = rowData.selected !== false;
-    selectCheck.style.width = "17px";
-    selectCheck.style.height = "17px";
-    selectCheck.style.cursor = isSubmitted ? "not-allowed" : "pointer";
-    selectCheck.title = "A4 보고서 인쇄물에 포함할지 여부 결정";
-    if (isSubmitted) selectCheck.disabled = true;
+    // 카드의 활성화 상태 디자인 정의
+    const isSelected = rowData.id === state.selectedItemId;
     
-    // 미선택 상태인 행은 불투명도를 살짝 낮춰 비활성화 피드백 제공
+    // 요소별 가이드 컬러 가져오기
+    const elementColor = EMPIRICAL_STANDARDS[rowData.element]?.color || "#cbd5e1";
+    
+    card.className = `p-4 rounded-xl border transition-all duration-200 cursor-pointer relative ${
+      isSelected 
+        ? "bg-indigo-50/70 border-indigo-500 shadow-md ring-2 ring-indigo-500/20 dark:bg-slate-700 dark:border-indigo-400" 
+        : "bg-white border-slate-200 hover:border-slate-300 dark:bg-slate-800 dark:border-slate-700 dark:hover:border-slate-600 shadow-sm"
+    }`;
+
+    // 인쇄 여부에 따른 불투명도 조절
     if (rowData.selected === false) {
-      tr.style.opacity = "0.55";
-      tr.style.backgroundColor = "var(--bg-tertiary)";
+      card.style.opacity = "0.6";
     } else {
-      tr.style.opacity = "1";
-      tr.style.backgroundColor = "";
-    }
-    
-    selectCheck.addEventListener("change", (e) => {
-      rowData.selected = e.target.checked;
-      if (rowData.selected === false) {
-        tr.style.opacity = "0.55";
-        tr.style.backgroundColor = "var(--bg-tertiary)";
-      } else {
-        tr.style.opacity = "1";
-        tr.style.backgroundColor = "";
-      }
-      saveActiveProject();
-    });
-    
-    tdSelect.appendChild(selectCheck);
-    tr.appendChild(tdSelect);
-
-    // 1. 대분류 요소 선택
-    const tdElement = document.createElement("td");
-    tdElement.setAttribute("data-label", "대분류(요소)");
-    const elSelect = document.createElement("select");
-    elSelect.className = "table-select";
-    if (isSubmitted) elSelect.disabled = true;
-    Object.keys(EMPIRICAL_STANDARDS).forEach(el => {
-      const opt = document.createElement("option");
-      opt.value = el;
-      opt.textContent = el;
-      if (el === rowData.element) opt.selected = true;
-      elSelect.appendChild(opt);
-    });
-    elSelect.addEventListener("change", (e) => {
-      rowData.element = e.target.value;
-      const items = Object.keys(EMPIRICAL_STANDARDS[rowData.element].items);
-      rowData.item = items[0];
-      rowData.criterion = EMPIRICAL_STANDARDS[rowData.element].items[rowData.item].criteria[0];
-      saveActiveProject();
-      renderChecklistGrid();
-    });
-    tdElement.appendChild(elSelect);
-    tr.appendChild(tdElement);
-
-    // 2. 중분류 항목 선택
-    const tdItem = document.createElement("td");
-    tdItem.setAttribute("data-label", "중분류(항목)");
-    const itemSelect = document.createElement("select");
-    itemSelect.className = "table-select";
-    if (isSubmitted) itemSelect.disabled = true;
-    const items = Object.keys(EMPIRICAL_STANDARDS[rowData.element].items);
-    items.forEach(it => {
-      const isEssential = EMPIRICAL_STANDARDS[rowData.element].items[it].isEssential;
-      const opt = document.createElement("option");
-      opt.value = it;
-      opt.textContent = isEssential ? `⭐ ${it}` : it;
-      if (it === rowData.item) opt.selected = true;
-      itemSelect.appendChild(opt);
-    });
-    itemSelect.addEventListener("change", (e) => {
-      rowData.item = e.target.value;
-      rowData.criterion = EMPIRICAL_STANDARDS[rowData.element].items[rowData.item].criteria[0];
-      saveActiveProject();
-      renderChecklistGrid();
-    });
-    tdItem.appendChild(itemSelect);
-    tr.appendChild(tdItem);
-
-    // 3. 점검 기준 (교사가 자기 표현 문장으로 직접 수정할 수 있는 커스텀 텍스트 에디터)
-    const tdCriterion = document.createElement("td");
-    tdCriterion.setAttribute("data-label", "점검 기준 / 내용 정의 (자유 편집가능 ✍️)");
-    const critWrapper = document.createElement("div");
-    critWrapper.style.display = "flex";
-    critWrapper.style.flexDirection = "column";
-    critWrapper.style.gap = "4px";
-
-    const critSelect = document.createElement("select");
-    critSelect.className = "table-select";
-    critSelect.style.fontSize = "0.72rem";
-    critSelect.style.padding = "3px";
-    if (isSubmitted) critSelect.disabled = true;
-
-    const criteria = EMPIRICAL_STANDARDS[rowData.element].items[rowData.item].criteria;
-    criteria.forEach(cr => {
-      const opt = document.createElement("option");
-      opt.value = cr;
-      opt.textContent = cr.length > 30 ? cr.substring(0, 30) + "..." : cr;
-      if (cr === rowData.criterion) opt.selected = true;
-      critSelect.appendChild(opt);
-    });
-
-    const critArea = document.createElement("textarea");
-    critArea.className = "table-textarea";
-    critArea.value = rowData.criterion;
-    critArea.placeholder = "점검 기준을 본인의 교실 상황 언어로 편집 수정하십시오.";
-    critArea.style.fontSize = "0.76rem";
-    critArea.style.minHeight = "48px";
-    if (isSubmitted) critArea.disabled = true;
-
-    critSelect.addEventListener("change", (e) => {
-      rowData.criterion = e.target.value;
-      critArea.value = e.target.value;
-      saveActiveProject();
-    });
-
-    critArea.addEventListener("input", (e) => {
-      rowData.criterion = e.target.value;
-      saveActiveProject();
-    });
-
-    critWrapper.appendChild(critSelect);
-    critWrapper.appendChild(critArea);
-    tdCriterion.appendChild(critWrapper);
-    tr.appendChild(tdCriterion);
-
-    // 4. 구분 (점검기준 / 점검결과)
-    const tdType = document.createElement("td");
-    tdType.setAttribute("data-label", "구분");
-    const typeSelect = document.createElement("select");
-    typeSelect.className = "table-select";
-    if (isSubmitted) typeSelect.disabled = true;
-    ["점검기준", "점검결과"].forEach(tp => {
-      const opt = document.createElement("option");
-      opt.value = tp;
-      opt.textContent = tp;
-      if (tp === rowData.type) opt.selected = true;
-      typeSelect.appendChild(opt);
-    });
-    typeSelect.addEventListener("change", (e) => {
-      rowData.type = e.target.value;
-      saveActiveProject();
-    });
-    tdType.appendChild(typeSelect);
-    tr.appendChild(tdType);
-
-    // 5. 분석 내용 (실제결과/현상)
-    const tdAnalysis = document.createElement("td");
-    tdAnalysis.setAttribute("data-label", "분석 내용 (실제결과/현상)");
-    const analysisArea = document.createElement("textarea");
-    analysisArea.className = "table-textarea";
-    analysisArea.value = rowData.analysis || "";
-    analysisArea.placeholder = "교실 속 실증 상황에서 수집된 버그 및 학생의 행동 현상을 기록하세요.";
-    analysisArea.style.minHeight = "54px";
-    if (isSubmitted) analysisArea.disabled = true;
-    analysisArea.addEventListener("input", (e) => {
-      rowData.analysis = e.target.value;
-      saveActiveProject();
-    });
-    tdAnalysis.appendChild(analysisArea);
-
-    // 개발사 조치 피드백이 존재할 경우 하단에 표시
-    if (rowData.feedbackText) {
-      const fbBlock = document.createElement("div");
-      fbBlock.style.marginTop = "8px";
-      fbBlock.style.borderTop = "1px dashed var(--border-color)";
-      fbBlock.style.paddingTop = "6px";
-      fbBlock.style.fontSize = "0.72rem";
-      
-      const badgeColor = rowData.feedbackStatus === "조치 완료" ? "var(--success-color)" : rowData.feedbackStatus === "조치 예정" ? "var(--warning-color)" : rowData.feedbackStatus === "검토중" ? "var(--accent-color)" : "var(--text-secondary)";
-      fbBlock.innerHTML = `
-        <div style="font-weight:700; color:var(--success-color); display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-          <span>🏢 개발사 피드백:</span>
-          <span style="font-size:0.68rem; font-weight:700; color:${badgeColor};">[${rowData.feedbackStatus || "대기중"}]</span>
-        </div>
-        <div style="color:var(--text-secondary); background:var(--bg-tertiary); padding:4px 6px; border-radius:4px; font-style:italic;">
-          ${rowData.feedbackText}
-        </div>
-      `;
-      tdAnalysis.appendChild(fbBlock);
+      card.style.opacity = "1";
     }
 
-    tr.appendChild(tdAnalysis);
-
-    // 6. 심각성
-    const tdSeverity = document.createElement("td");
-    tdSeverity.setAttribute("data-label", "심각성");
-    const sevSelect = document.createElement("select");
-    sevSelect.className = "table-select";
-    sevSelect.style.fontWeight = "bold";
-    if (isSubmitted) sevSelect.disabled = true;
-
-    const styleSeverity = (sel, val) => {
-      if (val === "상") {
-        sel.style.color = "var(--danger-color)";
-        sel.style.backgroundColor = "var(--danger-bg)";
-      } else if (val === "중") {
-        sel.style.color = "var(--warning-color)";
-        sel.style.backgroundColor = "var(--warning-bg)";
-      } else {
-        sel.style.color = "var(--success-color)";
-        sel.style.backgroundColor = "var(--success-bg)";
-      }
-    };
-
-    ["하", "중", "상"].forEach(sv => {
-      const opt = document.createElement("option");
-      opt.value = sv;
-      opt.textContent = sv;
-      if (sv === rowData.severity) opt.selected = true;
-      sevSelect.appendChild(opt);
-    });
-    styleSeverity(sevSelect, rowData.severity);
-
-    sevSelect.addEventListener("change", (e) => {
-      rowData.severity = e.target.value;
-      styleSeverity(sevSelect, e.target.value);
-      saveActiveProject();
-    });
-    tdSeverity.appendChild(sevSelect);
-    tr.appendChild(tdSeverity);
-
-    // 7. 개선 사항 (기대결과)
-    const tdImprovement = document.createElement("td");
-    tdImprovement.setAttribute("data-label", "개선 사항 (기대결과)");
-    const impArea = document.createElement("textarea");
-    impArea.className = "table-textarea";
-    impArea.value = rowData.improvement || "";
-    impArea.placeholder = "안전 조치 및 개선되어야 할 규격 요구사항 기재";
-    impArea.style.minHeight = "54px";
-    if (isSubmitted) impArea.disabled = true;
-    impArea.addEventListener("input", (e) => {
-      rowData.improvement = e.target.value;
-      saveActiveProject();
-    });
-    tdImprovement.appendChild(impArea);
-    tr.appendChild(tdImprovement);
-
-    // 8. [신규] 증빙 사진 스크린샷 업로드 및 캡처 열 추가
-    const tdEvidence = document.createElement("td");
-    tdEvidence.setAttribute("data-label", "사진");
-    tdEvidence.style.textAlign = "center";
-    tdEvidence.style.verticalAlign = "middle";
-
-    if (rowData.screenshot) {
-      // 썸네일 컨테이너
-      const thumbContainer = document.createElement("div");
-      thumbContainer.className = "evidence-thumb-container";
-      
-      const img = document.createElement("img");
-      img.src = rowData.screenshot;
-      img.className = "evidence-thumb";
-      img.title = "클릭하여 원본 크기 증빙 검토";
-      img.addEventListener("click", () => openLightbox(rowData.screenshot));
-      thumbContainer.appendChild(img);
-
-      // 삭제 단추
-      if (!isSubmitted) {
-        const delThumbBtn = document.createElement("button");
-        delThumbBtn.className = "btn-evidence-delete";
-        delThumbBtn.innerHTML = "&times;";
-        delThumbBtn.title = "증빙 사진 제거";
-        delThumbBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (confirm("첨부된 스크린샷 증빙을 지우시겠습니까?")) {
-            rowData.screenshot = "";
-            saveActiveProject();
-            renderChecklistGrid();
-          }
-        });
-        thumbContainer.appendChild(delThumbBtn);
-      }
-
-      tdEvidence.appendChild(thumbContainer);
+    // 심각성별 태그 매칭
+    let severityBadge = "";
+    if (rowData.severity === "상") {
+      severityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30">🔴 상</span>`;
+    } else if (rowData.severity === "중") {
+      severityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">🟡 중</span>`;
     } else {
-      if (isSubmitted) {
-        const emptyTxt = document.createElement("span");
-        emptyTxt.style.fontSize = "0.72rem";
-        emptyTxt.style.color = "var(--text-tertiary)";
-        emptyTxt.textContent = "사진 없음";
-        tdEvidence.appendChild(emptyTxt);
-      } else {
-        // 사진 첨부 버튼
-        const label = document.createElement("label");
-        label.className = "btn-evidence-attach";
-        label.innerHTML = "📷 첨부";
-        
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = "image/*";
-        fileInput.style.display = "none";
-        
-        fileInput.addEventListener("change", async (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          showToast("스크린샷 증빙 이미지를 경량 압축 처리 중...");
-          try {
-            const compressedBase64 = await compressImageToBase64(file);
-            rowData.screenshot = compressedBase64;
-            saveActiveProject();
-            renderChecklistGrid();
-            showToast("📸 증빙 사진이 480px 초경량 포맷으로 압축 첨부되었습니다.");
-          } catch (err) {
-            console.error("이미지 압축 실패:", err);
-            alert("사진 업로드 도중 에러가 발생했습니다.");
-          }
-        });
-
-        label.appendChild(fileInput);
-        tdEvidence.appendChild(label);
-      }
+      severityBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30">🟢 하</span>`;
     }
-    tr.appendChild(tdEvidence);
 
-    // 8-B. [신규] 동영상 링크 입력 공간 (유튜브 등 링크)
-    const tdVideo = document.createElement("td");
-    tdVideo.setAttribute("data-label", "동영상");
-    tdVideo.style.textAlign = "center";
-    tdVideo.style.verticalAlign = "middle";
+    // 사진 증빙 첨부 여부 뱃지
+    const photoBadge = rowData.screenshot ? `<span class="text-xs" title="사진 증빙 포함">📷</span>` : "";
+    const videoBadge = rowData.videoLink ? `<span class="text-xs" title="동영상 증빙 포함">🎥</span>` : "";
 
-    const videoInput = document.createElement("input");
-    videoInput.type = "url";
-    videoInput.className = "input-control";
-    videoInput.style.fontSize = "0.72rem";
-    videoInput.style.padding = "4px 6px";
-    videoInput.style.width = "95%";
-    videoInput.placeholder = "유튜브 동영상 링크...";
-    videoInput.value = rowData.videoLink || "";
-    if (isSubmitted) videoInput.disabled = true;
+    card.innerHTML = `
+      <div class="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl" style="background-color: ${elementColor};"></div>
+      <div class="pl-2 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[11px] font-extrabold uppercase tracking-wide text-slate-400 dark:text-slate-500">${rowData.element}</span>
+          <div class="flex items-center gap-1.5">
+            ${photoBadge}
+            ${videoBadge}
+            ${severityBadge}
+          </div>
+        </div>
+        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">${rowData.item}</h4>
+        <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">${rowData.criterion || "점검 기준 미기입"}</p>
+        <div class="flex items-center justify-between text-[11px] pt-1 text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700/50">
+          <span>구분: ${rowData.type || "점검기준"}</span>
+          <span class="${rowData.analysis ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-400 dark:text-slate-500"}">${rowData.analysis ? "✍️ 작성됨" : "⬜ 대기중"}</span>
+        </div>
+      </div>
+    `;
 
-    videoInput.addEventListener("input", (e) => {
-      rowData.videoLink = e.target.value;
-      saveActiveProject();
+    card.addEventListener("click", () => {
+      state.selectedItemId = rowData.id;
+      renderChecklistGrid();
+      openAiAssistant(rowData, card);
     });
 
-    tdVideo.appendChild(videoInput);
-    tr.appendChild(tdVideo);
-
-    // 9. 행 삭제
-    const tdDelete = document.createElement("td");
-    tdDelete.setAttribute("data-label", "삭제");
-    const delBtn = document.createElement("button");
-    delBtn.className = "btn-delete";
-    delBtn.innerHTML = "🗑️";
-    if (isSubmitted) {
-      delBtn.disabled = true;
-      delBtn.style.opacity = "0.4";
-      delBtn.style.cursor = "not-allowed";
-    }
-    delBtn.addEventListener("click", () => {
-      deleteChecklistRow(rowData.id);
-    });
-    tdDelete.appendChild(delBtn);
-    tr.appendChild(tdDelete);
-
-    tbody.appendChild(tr);
+    cardList.appendChild(card);
   });
+
+  // 상세 에디터 뷰 동기화
+  updateDetailEditorView();
+  
   checkTeamDuplication();
   if (state.currentTab === "dashboard") {
     renderDashboard();
   }
+}
+
+// 선택된 실증 항목의 상세 편집 영역 갱신 및 데이터 맵핑
+function updateDetailEditorView() {
+  const placeholder = document.getElementById("detail-placeholder");
+  const formArea = document.getElementById("detail-editor-form");
+  if (!placeholder || !formArea) return;
+
+  const rows = state.activeProject.items || [];
+  const activeItem = rows.find(r => r.id === state.selectedItemId);
+  const isSubmitted = !!state.activeProject.submitted;
+
+  if (!activeItem) {
+    placeholder.classList.remove("hidden");
+    formArea.classList.add("hidden");
+    return;
+  }
+
+  placeholder.classList.add("hidden");
+  formArea.classList.remove("hidden");
+
+  // 헤더 및 뱃지 세팅
+  const elementBadge = document.getElementById("detail-badge-element");
+  const itemBadge = document.getElementById("detail-badge-item");
+  const checkPrint = document.getElementById("detail-checkbox-print");
+  const btnDelete = document.getElementById("btn-detail-delete");
+
+  if (elementBadge) {
+    elementBadge.textContent = activeItem.element;
+    const elementColor = EMPIRICAL_STANDARDS[activeItem.element]?.color || "#cbd5e1";
+    elementBadge.style.backgroundColor = `${elementColor}15`;
+    elementBadge.style.color = elementColor;
+  }
+  if (itemBadge) itemBadge.textContent = activeItem.item;
+  if (checkPrint) {
+    checkPrint.checked = activeItem.selected !== false;
+    checkPrint.disabled = isSubmitted;
+  }
+  if (btnDelete) {
+    btnDelete.style.display = isSubmitted ? "none" : "inline-flex";
+  }
+
+  // 1. 대분류 / 중분류 / 구분 드롭다운 빌드 및 선택 세팅
+  const selectElement = document.getElementById("detail-select-element");
+  const selectItem = document.getElementById("detail-select-item");
+  const selectType = document.getElementById("detail-select-type");
+
+  if (selectElement) {
+    selectElement.innerHTML = "";
+    selectElement.disabled = isSubmitted;
+    Object.keys(EMPIRICAL_STANDARDS).forEach(el => {
+      const opt = document.createElement("option");
+      opt.value = el;
+      opt.textContent = el;
+      if (el === activeItem.element) opt.selected = true;
+      selectElement.appendChild(opt);
+    });
+  }
+
+  if (selectItem) {
+    selectItem.innerHTML = "";
+    selectItem.disabled = isSubmitted;
+    const items = Object.keys(EMPIRICAL_STANDARDS[activeItem.element]?.items || {});
+    items.forEach(it => {
+      const isEssential = EMPIRICAL_STANDARDS[activeItem.element].items[it].isEssential;
+      const opt = document.createElement("option");
+      opt.value = it;
+      opt.textContent = isEssential ? `⭐ ${it}` : it;
+      if (it === activeItem.item) opt.selected = true;
+      selectItem.appendChild(opt);
+    });
+  }
+
+  if (selectType) {
+    selectType.value = activeItem.type || "점검기준";
+    selectType.disabled = isSubmitted;
+  }
+
+  // 2. 점검 기준 텍스트 및 프리셋 드롭다운 세팅
+  const selectPreset = document.getElementById("detail-select-criterion-preset");
+  const textareaCriterion = document.getElementById("detail-textarea-criterion");
+
+  if (selectPreset) {
+    selectPreset.innerHTML = "";
+    selectPreset.disabled = isSubmitted;
+    const criteria = EMPIRICAL_STANDARDS[activeItem.element]?.items[activeItem.item]?.criteria || [];
+    criteria.forEach(cr => {
+      const opt = document.createElement("option");
+      opt.value = cr;
+      opt.textContent = cr.length > 40 ? cr.substring(0, 40) + "..." : cr;
+      if (cr === activeItem.criterion) opt.selected = true;
+      selectPreset.appendChild(opt);
+    });
+  }
+
+  if (textareaCriterion) {
+    textareaCriterion.value = activeItem.criterion || "";
+    textareaCriterion.disabled = isSubmitted;
+  }
+
+  // 3. 분석 내용 & 심각성 세팅
+  const textareaAnalysis = document.getElementById("detail-textarea-analysis");
+  const selectSeverity = document.getElementById("detail-select-severity");
+
+  if (textareaAnalysis) {
+    textareaAnalysis.value = activeItem.analysis || "";
+    textareaAnalysis.disabled = isSubmitted;
+  }
+
+  if (selectSeverity) {
+    selectSeverity.value = activeItem.severity || "하";
+    selectSeverity.disabled = isSubmitted;
+    
+    // 심각성별 인풋 컬러링 피드백
+    if (activeItem.severity === "상") {
+      selectSeverity.className = "w-full text-sm rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 p-2.5 font-bold focus:ring-2 focus:ring-rose-500";
+    } else if (activeItem.severity === "중") {
+      selectSeverity.className = "w-full text-sm rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 p-2.5 font-bold focus:ring-2 focus:ring-amber-500";
+    } else {
+      selectSeverity.className = "w-full text-sm rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 p-2.5 font-bold focus:ring-2 focus:ring-emerald-500";
+    }
+  }
+
+  // 개발사 조치 피드백 표시
+  const feedbackBlock = document.getElementById("detail-feedback-block");
+  const feedbackStatus = document.getElementById("detail-feedback-status");
+  const feedbackText = document.getElementById("detail-feedback-text");
+
+  if (feedbackBlock && feedbackStatus && feedbackText) {
+    if (activeItem.feedbackText) {
+      feedbackBlock.classList.remove("hidden");
+      feedbackText.textContent = activeItem.feedbackText;
+      feedbackStatus.textContent = activeItem.feedbackStatus || "검토중";
+      
+      const badgeColor = activeItem.feedbackStatus === "조치 완료" ? "bg-emerald-100 text-emerald-800" : activeItem.feedbackStatus === "조치 예정" ? "bg-amber-100 text-amber-800" : "bg-indigo-100 text-indigo-800";
+      feedbackStatus.className = `px-2.5 py-0.5 rounded text-[10px] font-extrabold ${badgeColor}`;
+    } else {
+      feedbackBlock.classList.add("hidden");
+    }
+  }
+
+  // 4. 개선 사항 세팅
+  const textareaImprovement = document.getElementById("detail-textarea-improvement");
+  if (textareaImprovement) {
+    textareaImprovement.value = activeItem.improvement || "";
+    textareaImprovement.disabled = isSubmitted;
+  }
+
+  // 5. 사진 업로드 컨테이너 빌드
+  const photoContainer = document.getElementById("detail-photo-container");
+  if (photoContainer) {
+    photoContainer.innerHTML = "";
+    
+    if (activeItem.screenshot) {
+      photoContainer.innerHTML = `
+        <div class="relative inline-block border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+          <img src="${activeItem.screenshot}" class="h-28 max-w-[200px] object-cover cursor-pointer hover:opacity-90 transition-opacity" title="클릭하여 원본 크기 증빙 검토" id="detail-evidence-img">
+          ${!isSubmitted ? `
+            <button id="btn-detail-photo-delete" class="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-red-600 text-white rounded-full text-xs transition-colors duration-200 shadow-md" title="증빙 사진 제거">
+              &times;
+            </button>
+          ` : ""}
+        </div>
+      `;
+      
+      const imgEl = photoContainer.querySelector("#detail-evidence-img");
+      if (imgEl) {
+        imgEl.addEventListener("click", () => openLightbox(activeItem.screenshot));
+      }
+      
+      const btnDelPhoto = photoContainer.querySelector("#btn-detail-photo-delete");
+      if (btnDelPhoto) {
+        btnDelPhoto.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (confirm("첨부된 스크린샷 증빙을 지우시겠습니까?")) {
+            activeItem.screenshot = "";
+            saveActiveProject();
+            renderChecklistGrid();
+          }
+        });
+      }
+    } else {
+      if (isSubmitted) {
+        photoContainer.innerHTML = `<span class="text-xs text-slate-400 dark:text-slate-500">등록된 사진 증빙 없음</span>`;
+      } else {
+        photoContainer.innerHTML = `
+          <label class="flex flex-col items-center justify-center h-28 max-w-[200px] rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-indigo-500 dark:hover:border-indigo-400 cursor-pointer transition-all duration-200 bg-slate-50 hover:bg-indigo-50/20 dark:bg-slate-800/40">
+            <span class="text-2xl mb-1">📷</span>
+            <span class="text-xs font-bold text-slate-600 dark:text-slate-400">사진 첨부하기</span>
+            <input type="file" id="detail-input-photo" accept="image/*" class="hidden">
+          </label>
+        `;
+        
+        const fileInput = photoContainer.querySelector("#detail-input-photo");
+        if (fileInput) {
+          fileInput.addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showToast("스크린샷 증빙 이미지를 경량 압축 처리 중...");
+            try {
+              const compressedBase64 = await compressImageToBase64(file);
+              activeItem.screenshot = compressedBase64;
+              saveActiveProject();
+              renderChecklistGrid();
+              showToast("📸 증빙 사진이 480px 초경량 포맷으로 압축 첨부되었습니다.");
+            } catch (err) {
+              console.error("이미지 압축 실패:", err);
+              alert("사진 업로드 도중 에러가 발생했습니다.");
+            }
+          });
+        }
+      }
+    }
+  }
+
+  // 6. 동영상 링크 세팅
+  const inputVideo = document.getElementById("detail-input-video");
+  if (inputVideo) {
+    inputVideo.value = activeItem.videoLink || "";
+    inputVideo.disabled = isSubmitted;
+  }
+
+  // 상세 폼 이벤트 바인딩 처리 (한 번만 실행되도록 초기화 관리)
+  setupDetailEditorEvents();
+}
+
+// 상세 에디터 폼의 입력 필드 이벤트 핸들러 일괄 등록
+function setupDetailEditorEvents() {
+  if (state.detailEditorInitialized) return;
+  state.detailEditorInitialized = true;
+
+  const getActiveItem = () => {
+    return (state.activeProject.items || []).find(r => r.id === state.selectedItemId);
+  };
+
+  // 1. 대분류 변경
+  document.getElementById("detail-select-element")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.element = e.target.value;
+    const items = Object.keys(EMPIRICAL_STANDARDS[item.element]?.items || {});
+    item.item = items[0] || "";
+    item.criterion = EMPIRICAL_STANDARDS[item.element]?.items[item.item]?.criteria[0] || "";
+    saveActiveProject();
+    renderChecklistGrid();
+  });
+
+  // 2. 중분류 변경
+  document.getElementById("detail-select-item")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.item = e.target.value;
+    item.criterion = EMPIRICAL_STANDARDS[item.element]?.items[item.item]?.criteria[0] || "";
+    saveActiveProject();
+    renderChecklistGrid();
+  });
+
+  // 3. 구분 변경
+  document.getElementById("detail-select-type")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.type = e.target.value;
+    saveActiveProject();
+    // 카드 상태 갱신을 위해 렌더링 호출하되 입력 포커스 유지를 위해 카드 자체만 갱신
+    renderChecklistGrid();
+  });
+
+  // 4. 프리셋 변경
+  document.getElementById("detail-select-criterion-preset")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.criterion = e.target.value;
+    const txtCriterion = document.getElementById("detail-textarea-criterion");
+    if (txtCriterion) txtCriterion.value = e.target.value;
+    saveActiveProject();
+    renderChecklistGrid();
+  });
+
+  // 5. 점검 기준 직접 편집
+  document.getElementById("detail-textarea-criterion")?.addEventListener("input", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.criterion = e.target.value;
+    saveActiveProject();
+    
+    // 왼쪽 카드의 설명 텍스트도 실시간 동기화
+    const cardEl = document.querySelector(`div[data-id="${item.id}"] p`);
+    if (cardEl) cardEl.textContent = e.target.value;
+  });
+
+  // 6. 분석 내용 직접 편집
+  document.getElementById("detail-textarea-analysis")?.addEventListener("input", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.analysis = e.target.value;
+    saveActiveProject();
+    
+    // 왼쪽 카드의 작성됨 상태 뱃지 실시간 동기화
+    const statusEl = document.querySelector(`div[data-id="${item.id}"] .pl-2 .flex:last-child span:last-child`);
+    if (statusEl) {
+      if (e.target.value) {
+        statusEl.textContent = "✍️ 작성됨";
+        statusEl.className = "text-indigo-600 dark:text-indigo-400 font-semibold";
+      } else {
+        statusEl.textContent = "⬜ 대기중";
+        statusEl.className = "text-slate-400 dark:text-slate-500";
+      }
+    }
+  });
+
+  // 7. 심각성 변경
+  document.getElementById("detail-select-severity")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.severity = e.target.value;
+    
+    const selectSev = e.target;
+    if (item.severity === "상") {
+      selectSev.className = "w-full text-sm rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 p-2.5 font-bold focus:ring-2 focus:ring-rose-500";
+    } else if (item.severity === "중") {
+      selectSev.className = "w-full text-sm rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 p-2.5 font-bold focus:ring-2 focus:ring-amber-500";
+    } else {
+      selectSev.className = "w-full text-sm rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 p-2.5 font-bold focus:ring-2 focus:ring-emerald-500";
+    }
+    
+    saveActiveProject();
+    renderChecklistGrid();
+  });
+
+  // 8. 개선 요청사항 변경
+  document.getElementById("detail-textarea-improvement")?.addEventListener("input", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.improvement = e.target.value;
+    saveActiveProject();
+  });
+
+  // 9. 동영상 링크 변경
+  document.getElementById("detail-input-video")?.addEventListener("input", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.videoLink = e.target.value;
+    saveActiveProject();
+    renderChecklistGrid();
+  });
+
+  // 10. 인쇄 포함 체크박스 변경
+  document.getElementById("detail-checkbox-print")?.addEventListener("change", (e) => {
+    const item = getActiveItem();
+    if (!item) return;
+    item.selected = e.target.checked;
+    
+    const cardEl = document.querySelector(`div[data-id="${item.id}"]`);
+    if (cardEl) {
+      cardEl.style.opacity = e.target.checked ? "1" : "0.6";
+    }
+    
+    saveActiveProject();
+  });
+
+  // 11. 현재 항목 삭제
+  document.getElementById("btn-detail-delete")?.addEventListener("click", () => {
+    const item = getActiveItem();
+    if (!item) return;
+    deleteChecklistRow(item.id);
+  });
 }
 
 // 빈 점검 행 추가
@@ -2486,6 +2668,7 @@ function addNewChecklistRow() {
   };
 
   state.activeProject.items.push(newRow);
+  state.selectedItemId = newRow.id; // 새 항목으로 포커스 자동 지정
   saveActiveProject();
   renderChecklistGrid();
   showToast("빈 점검 행이 추가되었습니다.");
@@ -2494,6 +2677,9 @@ function addNewChecklistRow() {
 // 점검 행 지우기
 function deleteChecklistRow(id) {
   state.activeProject.items = state.activeProject.items.filter(r => r.id !== id);
+  if (state.selectedItemId === id) {
+    state.selectedItemId = null; // 삭제된 항목의 선택 해제
+  }
   saveActiveProject();
   renderChecklistGrid();
   showToast("선택 항목을 삭제했습니다.");
@@ -2998,6 +3184,7 @@ function renderA4Preview() {
   if (currentPage) {
     currentPage.style.height = "";
     currentPage.style.overflow = "";
+    adjustPreviewScale(); // [신규] 모바일 크기에 맞춰 A4 미리보기 동적 축소/스케일링 처리
   }
 }
 
@@ -3237,7 +3424,11 @@ async function testOracleConnection() {
   const token = document.getElementById("oracle-token-input").value.trim();
   
   if (!endpoint) {
-    alert("오라클 Autonomous DB의 ORDS REST API Endpoint URL을 기재해 주십시오.");
+    showErrorPopup(
+      "오라클 연동 설정 오류", 
+      "오라클 Autonomous DB의 ORDS REST API Endpoint URL이 비어 있습니다.", 
+      "오라클 클라우드 설정 란에 연동을 위한 올바른 REST API 엔드포인트 URL 주소(https://...)를 기입한 후 테스트를 수행해 주십시오."
+    );
     return;
   }
 
@@ -3279,12 +3470,20 @@ async function testOracleConnection() {
         throw new Error("서버 응답 오류");
       }
     } else {
-      alert("올바른 REST URL 형식이 아닙니다 (https://...로 시작해야 합니다).");
+      showErrorPopup(
+        "오라클 연동 설정 오류", 
+        "입력하신 REST API URL 형식이 올바르지 않습니다.", 
+        "오라클 ORDS REST API Endpoint 주소는 반드시 'https://' 로 시작하는 정상적인 URL 형식이어야 합니다."
+      );
       badge.textContent = "로컬 저장";
       badge.style.backgroundColor = "var(--text-tertiary)";
     }
   } catch (err) {
-    alert("❌ 오라클 클라우드 접속 실패!\n\nREST API Endpoint 또는 Network 방화벽 설정을 확인하십시오.\n(Autonomous DB의 'IP 허용 정책' 또는 CORS 설정을 검토해 주세요)");
+    showErrorPopup(
+      "Oracle Cloud DB 접속 실패", 
+      `ORDS REST API Endpoint에 접근할 수 없습니다: ${err.message}`, 
+      "오라클 Autonomous DB 방화벽에 현재 컴퓨터의 IP 주소가 허용 설정(ACL)되어 있는지 확인하고, 기입하신 URL 주소의 오타 여부 및 CORS 허용 필드를 점검하십시오."
+    );
     badge.textContent = "로컬 저장";
     badge.style.backgroundColor = "var(--text-tertiary)";
     oracleConfig.enabled = false;
@@ -3483,13 +3682,72 @@ async function submitProjectToEnterprise() {
   
   // 필수 환경 정보 체크
   const meta = state.activeProject.meta;
-  if (!meta.targetProduct || meta.targetProduct === "새로운 에듀테크 프로그램") {
-    alert("제출 전에 메타 카드 정보에 '에듀테크 제품명'을 정확히 선택하거나 입력해 주십시오.");
+  const missingMeta = [];
+  
+  if (!meta.targetProduct || meta.targetProduct.trim() === "" || meta.targetProduct === "새로운 에듀테크 프로그램") {
+    missingMeta.push("• 실증 대상 제품명");
+  }
+  if (!meta.reportDate || meta.reportDate.trim() === "") {
+    missingMeta.push("• 작성(실증) 일자");
+  }
+  if (!meta.schoolName || meta.schoolName.trim() === "") {
+    missingMeta.push("• 실증 팀명");
+  }
+  if (!meta.teacherName || meta.teacherName.trim() === "") {
+    missingMeta.push("• 실증 수행 교사명");
+  }
+
+  if (missingMeta.length > 0) {
+    showErrorPopup(
+      "제출 오류 (필수 정보 누락)", 
+      `보고서를 기업에 제출하기 위해 필요한 환경 정보가 입력되지 않았습니다.<br><br><strong>누락된 정보:</strong><br>${missingMeta.join("<br>")}`, 
+      "화면 상단의 '에듀테크 실증 대상 및 환경 정보 입력' 카드 내에서 누락된 환경 정보를 정확하게 기입하신 뒤 다시 제출해 주십시오."
+    );
     return;
   }
 
   if (state.activeProject.items.length === 0) {
-    alert("제출 전에 최소 1개 이상의 실증 평가 점검 기준을 리스트에 작성해 주십시오.");
+    showErrorPopup(
+      "제출 오류 (문항 없음)", 
+      "작성된 실증 평가 기준 문항이 존재하지 않습니다.", 
+      "에디터 화면에서 왼쪽 ➕ 단추로 실증 보고서 파일을 재생성하여 30개 기본 문항을 리로드하거나 기준을 작성하십시오."
+    );
+    return;
+  }
+
+  // 실제 교실 분석 내용 및 개선 사항 기입 유무 검출 (선택된 문항 기준)
+  const activeItems = state.activeProject.items.filter(r => r.selected !== false);
+  const emptyAnalysisItems = activeItems.filter(r => !r.analysis || r.analysis.trim() === "");
+  const emptyImprovementItems = activeItems.filter(r => !r.improvement || r.improvement.trim() === "");
+
+  if (emptyAnalysisItems.length > 0 || emptyImprovementItems.length > 0) {
+    let errorMessage = "보고서 제출을 위한 실증 필수 기입란이 채워지지 않았습니다:<br><br>";
+    
+    if (emptyAnalysisItems.length > 0) {
+      errorMessage += "<strong>⚠️ 실제 교실 분석내용 및 현상 누락 문항:</strong><br>";
+      emptyAnalysisItems.slice(0, 3).forEach(r => {
+        errorMessage += `- [${r.element}] ${r.item}<br>`;
+      });
+      if (emptyAnalysisItems.length > 3) errorMessage += `&nbsp;&nbsp;외 ${emptyAnalysisItems.length - 3}건 추가 누락<br>`;
+    }
+    
+    if (emptyAnalysisItems.length > 0 && emptyImprovementItems.length > 0) {
+      errorMessage += "<br>";
+    }
+
+    if (emptyImprovementItems.length > 0) {
+      errorMessage += "<strong>⚠️ 개선 요청사항(기대결과) 누락 문항:</strong><br>";
+      emptyImprovementItems.slice(0, 3).forEach(r => {
+        errorMessage += `- [${r.element}] ${r.item}<br>`;
+      });
+      if (emptyImprovementItems.length > 3) errorMessage += `&nbsp;&nbsp;외 ${emptyImprovementItems.length - 3}건 추가 누락<br>`;
+    }
+
+    showErrorPopup(
+      "제출 오류 (미입력 항목 존재)", 
+      errorMessage, 
+      "작성 에디터 화면으로 돌아가 해당 문항의 실제 현상 관찰 내용과 소프트웨어 개선 요청사항을 성실히 입력해 주십시오."
+    );
     return;
   }
 
@@ -5347,19 +5605,26 @@ window.closeInfoModal = closeInfoModal;
 let activeRowElement = null;
 let activeRowDataId = null;
 
-function openAiAssistant(rowData, trElement) {
+function openAiAssistant(rowData, cardElement) {
   const panel = document.getElementById("ai-assistant-panel");
   if (!panel) return;
   
-  // 기존 하이라이트 행 복구
+  // 기존 하이라이트 카드 복구
   const prevHighlight = document.querySelector(".active-row-highlight");
   if (prevHighlight) {
     prevHighlight.classList.remove("active-row-highlight");
+    // 활성화 디자인 테두리 리셋
+    prevHighlight.classList.remove("bg-indigo-50/70", "border-indigo-500", "shadow-md", "ring-2", "ring-indigo-500/20", "dark:bg-slate-700", "dark:border-indigo-400");
+    prevHighlight.classList.add("bg-white", "border-slate-200", "dark:bg-slate-800", "dark:border-slate-700");
   }
   
-  activeRowElement = trElement;
+  activeRowElement = cardElement;
   activeRowDataId = rowData.id;
-  trElement.classList.add("active-row-highlight");
+  cardElement.classList.add("active-row-highlight");
+  
+  // 선택된 카드의 디자인 강조 보장
+  cardElement.classList.remove("bg-white", "border-slate-200", "dark:bg-slate-800", "dark:border-slate-700");
+  cardElement.classList.add("bg-indigo-50/70", "border-indigo-500", "shadow-md", "ring-2", "ring-indigo-500/20", "dark:bg-slate-700", "dark:border-indigo-400");
 
   // AI 패널에 슬라이드 인 애니메이션 적용
   panel.classList.add("open");
@@ -5379,7 +5644,7 @@ function openAiAssistant(rowData, trElement) {
   
   suggestions.forEach((s, idx) => {
     const card = document.createElement("div");
-    card.className = "ai-suggestion-card";
+    card.className = "ai-suggestion-card p-3 rounded-lg border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-indigo-500 transition-colors shadow-sm";
     card.innerHTML = `
       <div style="font-weight: 800; font-size: 0.76rem; color: var(--accent-color); display: flex; justify-content: space-between; align-items: center;">
         <span>💡 ${s.description}</span>
@@ -5418,9 +5683,9 @@ function applyAiTemplate(suggestionIdx, rowId) {
   
   // 리렌더링 후 하이라이트 복원 및 도우미 화면 연동 싱크
   setTimeout(() => {
-    const newTr = document.querySelector(`tr[data-id="${rowId}"]`);
-    if (newTr) {
-      openAiAssistant(rowData, newTr);
+    const newCard = document.querySelector(`div[data-id="${rowId}"]`);
+    if (newCard) {
+      openAiAssistant(rowData, newCard);
     }
   }, 80);
   
@@ -5433,6 +5698,8 @@ function closeAiAssistant() {
   if (panel) panel.classList.remove("open");
   if (activeRowElement) {
     activeRowElement.classList.remove("active-row-highlight");
+    activeRowElement.classList.remove("bg-indigo-50/70", "border-indigo-500", "shadow-md", "ring-2", "ring-indigo-500/20", "dark:bg-slate-700", "dark:border-indigo-400");
+    activeRowElement.classList.add("bg-white", "border-slate-200", "dark:bg-slate-800", "dark:border-slate-700");
     activeRowElement = null;
   }
   activeRowDataId = null;
@@ -5478,3 +5745,282 @@ function exportCSV() {
   showToast("CSV 파일 다운로드가 완료되었습니다!");
 }
 window.exportCSV = exportCSV;
+
+// ==================== [신규] 기업 제출 데이터 및 피드백 전체 엑셀(CSV) 다운로드 함수 ====================
+function downloadEnterpriseExcel() {
+  if (!state.submittedList || state.submittedList.length === 0) {
+    alert("다운로드할 제출물 데이터가 존재하지 않습니다.");
+    return;
+  }
+
+  const companyProduct = state.currentUser.name;
+  const targetCompProduct = companyProduct.trim().toLowerCase().replace(/\s+/g, '');
+  
+  // 로그인한 기업의 제품 보고서만 추출
+  const companySubmissions = state.submittedList.filter(item => {
+    const pProduct = (item.meta?.targetProduct || "").trim().toLowerCase().replace(/\s+/g, '');
+    return pProduct === targetCompProduct;
+  });
+
+  if (companySubmissions.length === 0) {
+    alert("이 기업에 제출된 보고서 데이터가 없습니다.");
+    return;
+  }
+
+  // CSV 헤더 (문항 수준 데이터 포함)
+  const headers = [
+    "제출 번호",
+    "교사 이메일",
+    "교사명",
+    "소속 학교",
+    "제출일자",
+    "대상 제품명",
+    "진행 상태",
+    "종합 피드백 내용",
+    "대분류 (요소)",
+    "중분류 (실증항목)",
+    "점검 기준",
+    "구분",
+    "교실 분석내용 및 현상",
+    "심각성"
+  ];
+
+  const csvRows = [headers.join(",")];
+
+  companySubmissions.forEach(submission => {
+    const items = submission.items || [];
+    const feedbackClean = submission.feedback 
+      ? `"${String(submission.feedback).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
+      : '""';
+      
+    // 선택된 항목만 엑셀로 내보내기 (selected !== false)
+    const activeItems = items.filter(i => i.selected !== false);
+    
+    if (activeItems.length === 0) {
+      // 문항이 없는 경우 제출 보고서 기본 정보만 삽입
+      const row = [
+        `"${submission.id}"`,
+        `"${submission.email || ''}"`,
+        `"${submission.teacherName || ''}"`,
+        `"${submission.schoolName || ''}"`,
+        `"${submission.submitDate || ''}"`,
+        `"${submission.meta?.targetProduct || ''}"`,
+        `"${submission.status || '피드백 대기'}"`,
+        feedbackClean,
+        '""', '""', '""', '""', '""', '""'
+      ];
+      csvRows.push(row.join(","));
+    } else {
+      activeItems.forEach(item => {
+        const catClean = item.category || item.element ? `"${String(item.category || item.element).replace(/"/g, '""')}"` : '""';
+        const subClean = item.subcategory || item.item ? `"${String(item.subcategory || item.item).replace(/"/g, '""')}"` : '""';
+        const criteriaClean = item.criteria || item.criterion ? `"${String(item.criteria || item.criterion).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"` : '""';
+        const typeClean = item.type ? `"${String(item.type).replace(/"/g, '""')}"` : '""';
+        const analysisClean = item.analysis ? `"${String(item.analysis).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"` : '""';
+        const severityClean = item.severity ? `"${String(item.severity).replace(/"/g, '""')}"` : '""';
+
+        const row = [
+          `"${submission.id}"`,
+          `"${submission.email || ''}"`,
+          `"${submission.teacherName || ''}"`,
+          `"${submission.schoolName || ''}"`,
+          `"${submission.submitDate || ''}"`,
+          `"${submission.meta?.targetProduct || ''}"`,
+          `"${submission.status || '피드백 대기'}"`,
+          feedbackClean,
+          catClean,
+          subClean,
+          criteriaClean,
+          typeClean,
+          analysisClean,
+          severityClean
+        ];
+        csvRows.push(row.join(","));
+      });
+    }
+  });
+
+  // UTF-8 BOM과 함께 엑셀용 CSV 파일 빌드
+  const csvContent = "\ufeff" + csvRows.join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", `에듀테크_소프트랩_실증_피드백_자료_${dateStr}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast("엑셀 파일 다운로드가 완료되었습니다!");
+}
+window.downloadEnterpriseExcel = downloadEnterpriseExcel;
+
+// ==================== [신규] 모바일 A4 미리보기 자동 스케일링 함수 ====================
+function adjustPreviewScale() {
+  const container = document.getElementById("preview-container");
+  if (!container) return;
+  
+  const pages = container.querySelectorAll(".report-a4-page");
+  if (pages.length === 0) return;
+  
+  if (window.innerWidth <= 768) {
+    const containerWidth = container.clientWidth;
+    const a4PixelWidth = 794; // 96dpi 기준 A4 210mm 폭 픽셀 변환
+    const scale = containerWidth / a4PixelWidth;
+    
+    pages.forEach(page => {
+      page.style.transform = `scale(${scale})`;
+      page.style.transformOrigin = "top center";
+      
+      const a4PixelHeight = 1123; // 96dpi 기준 A4 297mm 높이 픽셀 변환
+      const scaledHeight = a4PixelHeight * scale;
+      const negativeMargin = a4PixelHeight - scaledHeight;
+      page.style.marginBottom = `-${negativeMargin}px`;
+    });
+  } else {
+    // 데스크톱 뷰 리셋
+    pages.forEach(page => {
+      page.style.transform = "";
+      page.style.transformOrigin = "";
+      page.style.marginBottom = "";
+    });
+  }
+}
+window.adjustPreviewScale = adjustPreviewScale;
+
+// 윈도우 resize 이벤트 연동
+window.addEventListener("resize", adjustPreviewScale);
+
+// ==================== [신규] 오류 발생 원인 명확화 커스텀 팝업 시스템 ====================
+function showErrorPopup(title, reason, suggestion = "네트워크 연결 상태를 확인하거나 시스템 관리자에게 문의해 주십시오.") {
+  const exist = document.getElementById("custom-error-popup");
+  if (exist) exist.remove();
+
+  const popup = document.createElement("div");
+  popup.id = "custom-error-popup";
+  popup.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+  `;
+
+  popup.innerHTML = `
+    <div class="auth-card" style="width: 90%; max-width: 420px; border-top: 5px solid var(--danger-color); padding: 24px; display:flex; flex-direction:column; gap:16px; box-shadow: var(--shadow-lg); background-color: var(--bg-secondary); border-radius: var(--radius-lg);">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size: 2.2rem;">🚨</span>
+        <div style="display:flex; flex-direction:column;">
+          <h3 style="font-size:1.1rem; font-weight:800; color:var(--text-primary); margin:0;">${title}</h3>
+          <span style="font-size:0.7rem; color:var(--text-tertiary); margin-top:2px; font-weight:700; letter-spacing:0.05em;">SYSTEM ERROR DETAIL</span>
+        </div>
+      </div>
+      
+      <div style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 14px; border-radius: var(--radius-md); font-size:0.8rem; line-height:1.5; color:var(--danger-color); word-break:break-all; font-weight:600;">
+        ⚠️ <strong>오류 원인:</strong><br>
+        <div style="margin-top:6px; font-family: monospace; font-size:0.76rem; color:var(--text-primary); font-weight:normal;">${reason}</div>
+      </div>
+
+      <div style="font-size:0.76rem; color:var(--text-secondary); line-height:1.5; background-color: rgba(234,179,8,0.06); border: 1px solid rgba(234,179,8,0.15); padding:10px; border-radius:var(--radius-md);">
+        💡 <strong>해결 방법 제안:</strong><br>${suggestion}
+      </div>
+
+      <button id="btn-close-error-popup" class="btn btn-primary" style="background-color: var(--danger-color); border-color: var(--danger-color); width: 100%; justify-content:center; padding:10px 12px; font-weight:800; margin-top:4px; border-radius:var(--radius-md); font-size:0.88rem;">확인</button>
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  const closeBtn = document.getElementById("btn-close-error-popup");
+  if (closeBtn) {
+    closeBtn.focus();
+    closeBtn.addEventListener("click", () => {
+      popup.remove();
+    });
+  }
+}
+window.showErrorPopup = showErrorPopup;
+
+// 다음 점검 항목으로 자동 이동 및 포커스 헬퍼
+function selectNextChecklistItem() {
+  const rows = state.activeProject.items || [];
+  const filtered = state.filterElement === "전체"
+    ? rows
+    : rows.filter(r => r.element === state.filterElement);
+    
+  if (filtered.length <= 1) return;
+  
+  const currentIndex = filtered.findIndex(r => r.id === state.selectedItemId);
+  if (currentIndex === -1) return;
+  
+  const nextIndex = (currentIndex + 1) % filtered.length;
+  const nextItem = filtered[nextIndex];
+  
+  state.selectedItemId = nextItem.id;
+  renderChecklistGrid();
+  
+  // 포커싱 및 AI 헬퍼 활성화 연동
+  setTimeout(() => {
+    const activeCard = document.querySelector(`div[data-id="${nextItem.id}"]`);
+    if (activeCard) {
+      openAiAssistant(nextItem, activeCard);
+    }
+    
+    // 다음 항목으로 이동한 후 기입을 즉시 시작할 수 있도록 textarea에 포커스 자동 유도
+    const txtAnalysis = document.getElementById("detail-textarea-analysis");
+    if (txtAnalysis) {
+      txtAnalysis.focus();
+      // 텍스트 맨 뒤에 커서 배치
+      const val = txtAnalysis.value;
+      txtAnalysis.value = "";
+      txtAnalysis.value = val;
+    }
+  }, 100);
+}
+
+// 글로벌 키보드 단축키 이벤트 리스너 설정
+function setupShortcutKeys() {
+  window.addEventListener("keydown", (e) => {
+    // 1. Ctrl + Enter: 현재 작성 종료하고 다음 항목으로 점프
+    if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault();
+      selectNextChecklistItem();
+      showToast("Ctrl + Enter: 다음 실증 항목으로 전환되었습니다.");
+    }
+    
+    // 2. Ctrl + S: 강제 즉시 저장 및 OCI 서버 백업 동기화
+    if (e.ctrlKey && e.key === "s") {
+      e.preventDefault();
+      saveActiveProjectImmediately();
+      showToast("Ctrl + S: 보고서 수동 동기화가 완료되었습니다.");
+    }
+    
+    // 3. Alt + N / Alt + A: 새 점검 행(Row) 추가
+    if (e.altKey && (e.key === "n" || e.key === "a" || e.key === "N" || e.key === "A")) {
+      e.preventDefault();
+      addNewChecklistRow();
+    }
+    
+    // 4. Alt + D: 현재 선택된 점검 항목 강제 삭제
+    if (e.altKey && (e.key === "d" || e.key === "D")) {
+      e.preventDefault();
+      const rows = state.activeProject.items || [];
+      const activeItem = rows.find(r => r.id === state.selectedItemId);
+      if (activeItem) {
+        if (confirm(`⚠️ [단축키 경고]\n\n현재 선택된 [${activeItem.element} ➔ ${activeItem.item}] 항목을 삭제하시겠습니까?`)) {
+          deleteChecklistRow(activeItem.id);
+        }
+      }
+    }
+  });
+}

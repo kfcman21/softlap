@@ -10,124 +10,143 @@
   <meta name="keywords" content="에듀테크, 소프트랩, 실증보고서, 개별 교사 실증, 공교육적합도, 30대항목, 로그인, 데이터베이스">
   <meta name="author" content="Antigravity WebLab">
   
+  <!-- Tailwind CSS CDN 및 커스텀 설정 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: 'hsl(215, 100%, 97%)',
+              100: 'hsl(215, 100%, 94%)',
+              500: 'hsl(215, 90%, 50%)',
+              600: 'hsl(215, 90%, 42%)',
+              700: 'hsl(215, 90%, 35%)',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
   <!-- 스타일시트 연동 -->
   <link rel="stylesheet" href="index.css?v=1.2.5">
 </head>
 <body>
 
   <!-- ==================== A. 회원가입 및 로그인 오버레이 스크린 ==================== -->
-  <div id="auth-container">
+  <div id="auth-container" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-md transition-all duration-300">
     <!-- 비주얼 애니메이션용 블러 원들 -->
-    <div class="bg-circle bg-circle-1" aria-hidden="true"></div>
-    <div class="bg-circle bg-circle-2" aria-hidden="true"></div>
+    <div class="absolute w-[350px] h-[350px] rounded-full bg-indigo-500/10 blur-[80px] top-10 left-10 animate-pulse" aria-hidden="true"></div>
+    <div class="absolute w-[350px] h-[350px] rounded-full bg-sky-500/10 blur-[80px] bottom-10 right-10 animate-pulse" aria-hidden="true"></div>
 
     <!-- 인증 조작용 카드 뷰 -->
-    <div class="auth-card" id="auth-card">
-      <div class="auth-header">
-        <div style="font-size: 0.85rem; font-weight: 800; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">🏫 서울에듀테크소프트랩</div>
-        <h2 id="auth-title">교사 회원 로그인</h2>
-        <p id="auth-desc">EdTech Pilot Report System</p>
-        <div id="auth-db-status" style="margin-top: 10px; font-size: 0.72rem; font-weight: bold; padding: 5px 12px; border-radius: 6px; display: inline-block;"></div>
+    <div class="relative w-full max-w-[460px] mx-4 bg-white/90 dark:bg-slate-900/90 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-2xl backdrop-blur-lg p-8 transition-transform duration-300 transform hover:scale-[1.01]" id="auth-card">
+      <div class="text-center mb-6">
+        <div class="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1.5">🏫 서울에듀테크소프트랩</div>
+        <h2 id="auth-title" class="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">교사 회원 로그인</h2>
+        <p id="auth-desc" class="text-xs text-slate-400 dark:text-slate-500 mt-1 uppercase font-semibold tracking-wider">EdTech Pilot Report System</p>
+        <div id="auth-db-status" class="mt-3 text-[10px] font-bold px-3 py-1 rounded-full inline-block"></div>
       </div>
 
-      <div class="auth-form" id="auth-form">
+      <div class="space-y-4" id="auth-form">
         <!-- 이메일 입력 -->
-        <div class="auth-input-group" id="group-email">
-          <label for="auth-email">이메일 주소</label>
-          <input type="email" id="auth-email" class="auth-input" placeholder="teacher@school.edu">
+        <div class="space-y-1.5" id="group-email">
+          <label for="auth-email" class="block text-xs font-bold text-slate-500 dark:text-slate-400">이메일 주소</label>
+          <input type="email" id="auth-email" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="teacher@school.edu">
         </div>
 
         <!-- 비밀번호 입력 -->
-        <div class="auth-input-group" id="group-password">
-          <label for="auth-password">비밀번호</label>
-          <div style="position: relative; width: 100%;">
-            <input type="password" id="auth-password" class="auth-input" style="padding-right: 40px;" placeholder="••••••••">
-            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; padding: 0; outline: none; z-index: 10;" title="비밀번호 보이기">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 20px; height: 20px; pointer-events: none;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+        <div class="space-y-1.5" id="group-password">
+          <label for="auth-password" class="block text-xs font-bold text-slate-500 dark:text-slate-400">비밀번호</label>
+          <div class="relative w-full">
+            <input type="password" id="auth-password" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 pr-10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="••••••••">
+            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none" onclick="togglePasswordVisibility('auth-password', this)" title="비밀번호 보이기">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
             </button>
           </div>
         </div>
 
         <!-- 회원 역할 구분 (회원가입 시 노출) -->
-        <div class="auth-input-group" id="group-role" style="display: none; flex-direction: column; gap: 6px;">
-          <label>회원 역할 구분</label>
-          <div style="display: flex; gap: 8px; width: 100%; flex-wrap: wrap;">
-            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary); border-color: var(--accent-color);" id="label-role-teacher">
-              <input type="radio" name="auth-role" value="teacher" checked style="margin: 0; cursor: pointer;"> 👨‍🏫 실증 교사
+        <div class="space-y-1.5" id="group-role" style="display: none;">
+          <label class="block text-xs font-bold text-slate-500 dark:text-slate-400">회원 역할 구분</label>
+          <div class="flex gap-2 w-full flex-wrap">
+            <label class="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 p-2.5 border rounded-lg cursor-pointer text-xs font-bold transition-all duration-200" id="label-role-teacher">
+              <input type="radio" name="auth-role" value="teacher" checked class="cursor-pointer text-indigo-600 focus:ring-indigo-500"> 👨‍🏫 실증 교사
             </label>
-            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-leader">
-              <input type="radio" name="auth-role" value="team_leader" style="margin: 0; cursor: pointer;"> 👑 팀 장
+            <label class="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 p-2.5 border rounded-lg cursor-pointer text-xs font-bold transition-all duration-200" id="label-role-leader">
+              <input type="radio" name="auth-role" value="team_leader" class="cursor-pointer text-indigo-600 focus:ring-indigo-500"> 👑 팀 장
             </label>
-            <label style="flex: 1; min-width: 90px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: bold; background-color: var(--bg-secondary);" id="label-role-enterprise">
-              <input type="radio" name="auth-role" value="enterprise" style="margin: 0; cursor: pointer;"> 🏢 에듀테크 기업
+            <label class="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 p-2.5 border rounded-lg cursor-pointer text-xs font-bold transition-all duration-200" id="label-role-enterprise">
+              <input type="radio" name="auth-role" value="enterprise" class="cursor-pointer text-indigo-600 focus:ring-indigo-500"> 🏢 기업
             </label>
           </div>
         </div>
 
         <!-- 실증 수행 교사명 입력 (회원가입 시 노출) -->
-        <div class="auth-input-group" id="group-auth-name" style="display: none;">
-          <label for="auth-name">실증 수행 교사명</label>
-          <input type="text" id="auth-name" class="auth-input" placeholder="예: 박찬규">
+        <div class="space-y-1.5" id="group-auth-name" style="display: none;">
+          <label for="auth-name" class="block text-xs font-bold text-slate-500 dark:text-slate-400">실증 수행 교사명 / 대표명</label>
+          <input type="text" id="auth-name" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="예: 박찬규">
         </div>
 
         <!-- 소속 학교명 입력 (회원가입 시 노출) -->
-        <div class="auth-input-group" id="group-auth-school" style="display: none;">
-          <label for="auth-school">소속 학교명</label>
-          <input type="text" id="auth-school" class="auth-input" placeholder="예: 서울미래초등학교">
+        <div class="space-y-1.5" id="group-auth-school" style="display: none;">
+          <label for="auth-school" class="block text-xs font-bold text-slate-500 dark:text-slate-400">소속 학교명 / 기관명</label>
+          <input type="text" id="auth-school" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="예: 서울미래초등학교">
         </div>
 
         <!-- 소속 팀명 직접 입력 (회원가입 시 노출) -->
-        <div class="auth-input-group" id="group-auth-team" style="display: none; flex-direction: column; gap: 6px;">
-          <label for="auth-team">소속 팀명 설정</label>
-          <input type="text" id="auth-team" class="auth-input" placeholder="소속 팀명 또는 학교명을 입력하십시오.">
+        <div class="space-y-1.5" id="group-auth-team" style="display: none;">
+          <label for="auth-team" class="block text-xs font-bold text-slate-500 dark:text-slate-400">소속 팀명 설정</label>
+          <input type="text" id="auth-team" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="소속 팀명 또는 학교명을 입력하십시오.">
           <!-- 팀장 전용 안내 박스 -->
-          <div id="leader-team-guide" style="display: none; background: linear-gradient(135deg, hsl(45,100%,97%), hsl(45,100%,93%)); border: 1.5px solid hsl(45,100%,75%); border-radius: 8px; padding: 10px 12px; font-size: 0.74rem; color: hsl(35,90%,25%); line-height: 1.6;">
-            <div style="font-weight: 800; margin-bottom: 4px;">👑 팀장 가입 안내</div>
+          <div id="leader-team-guide" style="display: none;" class="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+            <div class="font-extrabold flex items-center gap-1">👑 팀장 가입 안내</div>
             <div>• 팀장이 <strong>먼저</strong> 팀명을 정해서 가입합니다.</div>
             <div>• 이후 팀원들이 <strong>동일한 팀명</strong>으로 가입하면 자동으로 같은 팀이 됩니다.</div>
-            <div style="margin-top: 6px; padding: 6px 8px; background: hsl(45,100%,88%); border-radius: 6px; font-weight: 700;">
-              💡 추천 팀명 형식: <code style="background: hsl(45,100%,80%); padding: 1px 5px; border-radius: 4px;">제품명-팀명</code><br>
-              예시: <code style="background: hsl(45,100%,80%); padding: 1px 5px; border-radius: 4px;">클래스팅AI-서울A팀</code>
+            <div class="mt-2 p-2 bg-amber-100/50 dark:bg-amber-900/40 rounded border border-amber-200/40 font-bold">
+              💡 추천 형식: <code class="bg-amber-200 dark:bg-amber-900 px-1 py-0.5 rounded text-[10px]">제품명-팀명</code> (예: 클래스팅AI-서울A팀)
             </div>
           </div>
         </div>
 
-
-        <!-- 인증 번호 입력 (비밀번호 분실 시 노출) -->
-        <div class="auth-input-group" id="group-code" style="display: none;">
-          <label for="auth-code">이메일 인증 번호 (6자리)</label>
-          <input type="text" id="auth-code" class="auth-input" placeholder="000000" maxlength="6">
+        <!-- 이메일 인증 번호 입력 (비밀번호 분실 시 노출) -->
+        <div class="space-y-1.5" id="group-code" style="display: none;">
+          <label for="auth-code" class="block text-xs font-bold text-slate-500 dark:text-slate-400">이메일 인증 번호 (6자리)</label>
+          <input type="text" id="auth-code" class="w-full text-center tracking-[0.4em] text-lg font-black rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="000000" maxlength="6">
         </div>
 
         <!-- 새 비밀번호 입력 (비밀번호 분실 시 노출) -->
-        <div class="auth-input-group" id="group-new-password" style="display: none;">
-          <label for="auth-new-password">새 비밀번호 설정</label>
-          <div style="position: relative; width: 100%;">
-            <input type="password" id="auth-new-password" class="auth-input" style="padding-right: 40px;" placeholder="••••••••">
-            <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('auth-new-password', this)" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; padding: 0; outline: none; z-index: 10;" title="비밀번호 보이기">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 20px; height: 20px; pointer-events: none;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+        <div class="space-y-1.5" id="group-new-password" style="display: none;">
+          <label for="auth-new-password" class="block text-xs font-bold text-slate-500 dark:text-slate-400">새 비밀번호 설정</label>
+          <div class="relative w-full">
+            <input type="password" id="auth-new-password" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 pr-10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="••••••••">
+            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none" onclick="togglePasswordVisibility('auth-new-password', this)" title="비밀번호 보이기">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
             </button>
           </div>
         </div>
 
         <!-- 비밀번호 잊음 링크 -->
-        <div class="auth-input-group" id="group-forgot-link" style="text-align: right; margin-top: -6px;">
-          <span class="auth-switch-link" id="link-forgot-password" style="font-size: 0.78rem; color: var(--text-secondary); cursor: pointer;">비밀번호를 잊으셨나요?</span>
+        <div class="text-right" id="group-forgot-link">
+          <span class="text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 cursor-pointer transition-colors" id="link-forgot-password">비밀번호를 잊으셨나요?</span>
         </div>
 
-        <button type="button" id="btn-auth-submit" class="auth-btn">로그인</button>
+        <button type="button" id="btn-auth-submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200 transform active:scale-95">로그인</button>
       </div>
 
-      <div class="auth-switch-text" id="auth-switch-box">
+      <div class="text-center text-xs text-slate-500 dark:text-slate-400 mt-5" id="auth-switch-box">
         아직 계정이 없으신가요? 
-        <span class="auth-switch-link" id="link-switch-auth">회원 가입</span>
+        <span class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer ml-1" id="link-switch-auth">회원 가입</span>
       </div>
 
       <!-- 🔗 로그인 하단 정보 링크 영역 -->
-      <div style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; justify-content: center; gap: 10px; font-size: 0.72rem; color: var(--text-tertiary);">
-        <span onclick="openInfoModal('intro')" style="cursor: pointer; text-decoration: underline;" title="서비스 소개 확인">🏫 서비스 소개</span>
+      <div class="mt-6 border-t border-slate-100 dark:border-slate-800/60 pt-4 flex justify-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+        <span onclick="openInfoModal('intro')" class="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 underline" title="서비스 소개 확인">🏫 서비스 소개</span>
         <span>|</span>
-        <span onclick="openInfoModal('privacy')" style="cursor: pointer; text-decoration: underline;" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
+        <span onclick="openInfoModal('privacy')" class="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 underline" title="개인정보 처리방침 확인">🔒 개인정보 처리방침</span>
       </div>
     </div>
   </div>
@@ -391,44 +410,135 @@
 
           </div>
 
-          <!-- 실증 개별 시트 입력 격자판 -->
-          <div id="checklist-editor-container">
-            <div class="checklist-control-bar" style="padding:8px 12px; margin-bottom:10px;">
-              <div class="checklist-filter-group">
-                <select id="editor-filter-select" class="table-select" style="width:180px; padding:5px 8px;">
-                  <option value="전체">🔍 모든 요소 필터</option>
-                </select>
-                <button id="btn-add-row" class="btn" style="padding:5px 12px; font-size:0.78rem;">➕ 신규 점검 평가 추가</button>
+          <!-- 실증 개별 시트 입력 영역 (스플릿 뷰 개편) -->
+          <div id="checklist-editor-container" class="flex flex-col lg:flex-row gap-6 min-h-[600px] lg:h-[calc(100vh-280px)] overflow-hidden">
+            <!-- 좌측: 실증 항목 카드 목록 -->
+            <div class="w-full lg:w-2/5 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden h-full">
+              <!-- 상단 필터 및 추가 바 -->
+              <div class="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-3">
+                <div class="flex items-center justify-between gap-3">
+                  <select id="editor-filter-select" class="form-select text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2 w-full max-w-[200px] text-slate-800 dark:text-slate-100">
+                    <option value="전체">🔍 모든 요소 필터</option>
+                  </select>
+                  <button id="btn-add-row" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shadow-sm transition-all duration-200">
+                    <span>➕ 항목 추가</span>
+                  </button>
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                  💡 분석할 실증 항목을 왼쪽에서 선택하거나 추가한 뒤, 우측 상세 폼에서 기입해 주세요.
+                </div>
               </div>
-              <div style="font-size:0.74rem; color:var(--text-secondary); font-weight:500;">
-                💡 각 행의 <strong>[점검 기준/내용 정의]</strong> 칸을 클릭하여 <u>자기 표현 문장</u>으로 자유롭게 재수정할 수 있습니다.
+              <!-- 카드 목록 영역 -->
+              <div id="checklist-card-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- 동적으로 카드 목록 주입 -->
               </div>
             </div>
 
-            <!-- 격자 테이블 -->
-            <div class="checklist-table-wrapper">
-              <table class="checklist-table">
-                <thead>
-                  <tr>
-                    <th style="width: 3%; min-width: 45px; text-align: center;">인쇄</th>
-                    <th style="width: 8%; min-width: 90px;">대분류(요소)</th>
-                    <th style="width: 9%; min-width: 100px;">중분류(항목)</th>
-                    <th style="width: 22%; min-width: 350px;">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</th>
-                    <th style="width: 5%; min-width: 65px;">구분</th>
-                    <th style="width: 24%; min-width: 380px;">분석 내용 (실제결과/현상)</th>
-                    <th style="width: 5%; min-width: 60px; text-align: center;">심각성</th>
-                    <th style="width: 15%; min-width: 260px;">개선 사항 (기대결과)</th>
-                    <th style="width: 5%; min-width: 60px; text-align: center;">사진</th>
-                    <th style="width: 5%; min-width: 60px; text-align: center;">동영상</th>
-                    <th style="width: 3%; min-width: 40px; text-align: center;">삭제</th>
-                  </tr>
-                </thead>
-                <tbody id="checklist-tbody">
-                  <!-- 동적 작성 행 탑재 영역 -->
-                </tbody>
-              </table>
-            </div>
+            <!-- 우측: 선택된 항목의 상세 편집 폼 (집중 에디터) -->
+            <div id="detail-editor-panel" class="w-full lg:w-3/5 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden h-full">
+              <!-- 선택된 항목이 없을 때의 플레이스홀더 -->
+              <div id="detail-placeholder" class="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-500 min-h-[350px]">
+                <div class="text-5xl mb-4">📝</div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">선택된 실증 항목이 없습니다</h3>
+                <p class="text-sm">왼쪽 목록에서 실증 항목 카드를 선택하시거나,<br>새 항목을 추가하여 기입을 시작하십시오.</p>
+              </div>
+              
+              <!-- 실제 폼 영역 (기본 숨김) -->
+              <div id="detail-editor-form" class="hidden flex-1 flex flex-col overflow-hidden">
+                <!-- 헤더: 요소 및 항목명 -->
+                <div class="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <span id="detail-badge-element" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">요소명</span>
+                    <span id="detail-badge-item" class="text-sm font-bold text-slate-800 dark:text-slate-200">세부 항목명</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-400">
+                      <input type="checkbox" id="detail-checkbox-print" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                      <span>보고서 인쇄 포함</span>
+                    </label>
+                    <button id="btn-detail-delete" class="text-slate-400 hover:text-red-500 transition-colors duration-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="현재 항목 삭제">
+                      🗑️
+                    </button>
+                  </div>
+                </div>
 
+                <!-- 폼 스크롤 바디 -->
+                <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                  <!-- 1. 분류 설정 및 작성자 정보 -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">대분류(요소) 변경</label>
+                      <select id="detail-select-element" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-slate-800 dark:text-slate-100"></select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">중분류(항목) 변경</label>
+                      <select id="detail-select-item" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-slate-800 dark:text-slate-100"></select>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">구분</label>
+                      <select id="detail-select-type" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-slate-800 dark:text-slate-100">
+                        <option value="점검기준">점검기준</option>
+                        <option value="점검결과">점검결과</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- 2. 점검 기준 / 내용 정의 -->
+                  <div>
+                    <div class="flex items-center justify-between mb-2">
+                      <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">점검 기준 / 내용 정의 (자유 편집가능 ✍️)</label>
+                      <select id="detail-select-criterion-preset" class="text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-1 max-w-[280px] text-slate-600 dark:text-slate-300"></select>
+                    </div>
+                    <textarea id="detail-textarea-criterion" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-3 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-20" placeholder="점검 기준을 본인의 교실 상황 언어로 편집 수정하십시오."></textarea>
+                  </div>
+
+                  <!-- 3. 분석 내용 (실제결과/현상) & 심각성 -->
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="md:col-span-3">
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">현장 분석 내용 (실제결과/현상)</label>
+                      <textarea id="detail-textarea-analysis" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-3 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-28" placeholder="교실 속 실증 상황에서 수집된 버그 및 학생의 행동 현상을 기록하세요."></textarea>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">심각성</label>
+                      <select id="detail-select-severity" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 p-2.5 font-bold focus:ring-2 focus:ring-indigo-500">
+                        <option value="하">🟢 하</option>
+                        <option value="중">🟡 중</option>
+                        <option value="상">🔴 상</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- 개발사 조치 피드백 표시 영역 -->
+                  <div id="detail-feedback-block" class="hidden p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">🏢 개발사 피드백 조치 현황</span>
+                      <span id="detail-feedback-status" class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">조치 완료</span>
+                    </div>
+                    <p id="detail-feedback-text" class="text-xs text-slate-600 dark:text-slate-300 italic whitespace-pre-wrap bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm"></p>
+                  </div>
+
+                  <!-- 4. 개선 사항 (기대결과) -->
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">개선 사항 (기대결과)</label>
+                    <textarea id="detail-textarea-improvement" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-3 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-24" placeholder="안전 조치 및 개선되어야 할 규격 요구사항 기재"></textarea>
+                  </div>
+
+                  <!-- 5. 증빙 자료 (사진 & 동영상) -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100 dark:border-slate-700">
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">📸 증빙 사진 스크린샷</label>
+                      <div id="detail-photo-container" class="mt-2">
+                        <!-- 동적으로 파일 업로드 버튼 또는 이미지 썸네일 노출 -->
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">🎥 동영상 증빙 (유튜브 등 링크)</label>
+                      <input type="url" id="detail-input-video" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2.5 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="유튜브 동영상 링크 입력...">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -915,6 +1025,7 @@
         <button id="btn-company-to-admin" class="btn btn-primary" style="display: none; font-size:0.82rem;">🛠️ 관리자 모드 진입</button>
         <button id="btn-company-clear-feedback" class="btn" style="border-color:var(--warning-color); color:var(--warning-color); font-size:0.82rem;" title="이 기업이 등록한 모든 피드백 데이터를 초기화">🧹 피드백 초기화</button>
         <button id="btn-company-change-pw" class="btn" style="border-color:var(--accent-color); color:var(--accent-color); font-size:0.82rem;" title="회원 정보 및 비밀번호 수정">👤 회원정보</button>
+        <button id="btn-company-excel-download" class="btn" style="border-color:var(--success-color); background-color:var(--success-color); color:white; font-size:0.82rem;" title="제출 목록 및 피드백 전체 데이터를 엑셀 호환 CSV 파일로 내보냅니다.">📊 엑셀 다운로드</button>
         <button id="btn-company-logout" class="btn" style="border-color:var(--danger-color); color:var(--danger-color); font-size:0.82rem;">로그아웃</button>
       </div>
     </header>

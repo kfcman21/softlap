@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto'); // 강력한 단방향 암호화를 위해 Node.js 내장 crypto 라이브러리 추가
+const fsPromises = fs.promises; // 로컬 DB 파일 비동기 I/O 처리를 위한 fs.promises 선언
 let oracledb;
 
 try {
@@ -30,6 +32,39 @@ app.use(express.static(__dirname, {
     }
   }
 }));
+
+// ==================== SECURITY & CRYPTOGRAPHY (암호화 모듈) ====================
+
+/**
+ * 비밀번호를 단방향 PBKDF2 방식으로 안전하게 해싱하여 저장합니다.
+ * @param {string} password 평문 비밀번호
+ * @returns {string} salt와 해시값이 콜론(:)으로 결합된 암호화 텍스트
+ */
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+/**
+ * 입력된 평문 비밀번호와 DB에 저장된 솔트+해시 비밀번호가 일치하는지 검증합니다.
+ * 기존에 가입된 사용자의 평문 비밀번호 마이그레이션을 위한 호환 처리도 내장되어 있습니다.
+ * @param {string} password 검증할 평문 비밀번호
+ * @param {string} storedPassword DB에 저장된 비밀번호 (솔트:해시 형태 또는 평문)
+ * @returns {boolean} 비밀번호 일치 여부
+ */
+function verifyPassword(password, storedPassword) {
+  if (!storedPassword) return false;
+  
+  // 마이그레이션 호환성 지원: DB 내 비밀번호가 솔트(:) 구분 기호가 없으면 평문 계정으로 간주하여 직접 비교
+  if (!storedPassword.includes(':')) {
+    return password === storedPassword;
+  }
+  
+  const [salt, hash] = storedPassword.split(':');
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+}
 
 // ==================== ORACLE DATABASE CONFIGURATION ====================
 let pool = null;
@@ -68,7 +103,6 @@ async function initOracleDatabase() {
   try {
     console.log("☁️ 오라클 클라우드 Autonomous DB 커넥션 풀을 초기화합니다...");
     
-    // Node-oracledb v6.0+ is pure JS Thin Mode by default (no wallet/client required for TLS)
     pool = await oracledb.createPool({
       user: dbConfig.user,
       password: dbConfig.password,
@@ -79,13 +113,37 @@ async function initOracleDatabase() {
     });
 
     useOracle = true;
-    console.log("🎉 오라클 클라우드 Autonomous DB 커커넥션 풀 생성 성공!");
+    console.log("🎉 오라클 클라우드 Autonomous DB 커넥션 풀 생성 성공!");
 
     // Create Tables if not exist
     await createOracleTables();
   } catch (err) {
     console.error("❌ 오라클 클라우드 DB 연결 실패:", err.message);
     console.log("⚠️ 로컬 파일 데이터베이스(db.json)로 대체하여 안전하게 시동합니다.");
+  }
+}
+
+// ==================== ORACLE CONNECTION RETRY HELPER (커넥션 재시도) ====================
+
+/**
+ * 일시적인 네트워크 끊김이나 커넥션 대기에 대응하기 위해 지수 백오프 기반으로 커넥션 획득을 재시도합니다.
+ * @param {number} retries 최대 재시도 횟수 (기본 3회)
+ * @param {number} delay 첫 지연 시간 (기본 1000ms)
+ * @returns {Promise<oracledb.Connection>} Oracle Connection 객체
+ */
+async function getConnectionWithRetry(retries = 3, delay = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      if (!pool) {
+        throw new Error("Oracle connection pool이 초기화되지 않았습니다.");
+      }
+      return await pool.getConnection();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      const currentDelay = delay * Math.pow(2, i);
+      console.warn(`⚠️ Oracle DB 커넥션 획득 실패. ${currentDelay}ms 후 재시도합니다... (시도 ${i + 1}/${retries})`);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
+    }
   }
 }
 
@@ -173,6 +231,26 @@ async function createOracleTables() {
       if (e.message.indexOf("ORA-00955") === -1) throw e;
     }
 
+    // 5. Index for Projects Table (PROJECT_ID 검색 최적화)
+    try {
+      await conn.execute(`CREATE INDEX IDX_PROJECTS_ID ON SOFTLAP_PROJECTS(PROJECT_ID)`);
+      console.log("📊 [DB] IDX_PROJECTS_ID 인덱스 생성 완료!");
+    } catch (e) {
+      if (e.message.indexOf("ORA-00955") === -1 && e.message.indexOf("ORA-01408") === -1) {
+        console.error("IDX_PROJECTS_ID 인덱스 생성 오류:", e);
+      }
+    }
+
+    // 6. Index for Submitted Table (EMAIL 검색 최적화)
+    try {
+      await conn.execute(`CREATE INDEX IDX_SUBMITTED_EMAIL ON SOFTLAP_SUBMITTED(EMAIL)`);
+      console.log("📊 [DB] IDX_SUBMITTED_EMAIL 인덱스 생성 완료!");
+    } catch (e) {
+      if (e.message.indexOf("ORA-00955") === -1 && e.message.indexOf("ORA-01408") === -1) {
+        console.error("IDX_SUBMITTED_EMAIL 인덱스 생성 오류:", e);
+      }
+    }
+
   } catch (err) {
     console.error("❌ 테이블 스키마 초기화 실패:", err);
   } finally {
@@ -213,11 +291,12 @@ async function seedDefaultOracleRegistry(conn) {
 }
 
 async function seedDefaultOracleAccounts(conn) {
-  // Seed admin
+  // Seed admin (비밀번호 단방향 해싱 후 인서트)
+  const hashedAdminPw = hashPassword('admin123');
   await conn.execute(`
     INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
-    VALUES ('admin', 'admin123', '관리자', '에듀테크소프트랩', '에듀테크소프트랩', 'admin', 0)
-  `);
+    VALUES ('admin', :pwd, '관리자', '에듀테크소프트랩', '에듀테크소프트랩', 'admin', 0)
+  `, [hashedAdminPw]);
 
   // Seed default companies
   const defaultRegistry = [
@@ -239,12 +318,14 @@ async function seedDefaultOracleAccounts(conn) {
     { name: "투닝", company: "(주)툰스퀘어" }
   ];
 
+  const hashedCompanyPw = hashPassword('1234');
   for (const item of defaultRegistry) {
     await conn.execute(`
       INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE) 
-      VALUES (:email, '1234', :name, :school, :team, 'enterprise', 1)
+      VALUES (:email, :password, :name, :school, :team, 'enterprise', 1)
     `, {
       email: item.name,
+      password: hashedCompanyPw,
       name: item.name,
       school: item.company,
       team: item.company
@@ -254,13 +335,19 @@ async function seedDefaultOracleAccounts(conn) {
   console.log("🌱 [DB] 오라클 DB에 관리자 및 기본 기업 로그인 계정 Seeding 완료!");
 }
 
-// ==================== LOCAL FILE DB SYSTEM (FALLBACK) ====================
-function readLocalDb() {
+// ==================== LOCAL FILE DB SYSTEM (FALLBACK - ASYNC) ====================
+
+/**
+ * 로컬 JSON DB(db.json) 파일을 비동기적으로 안전하게 조회합니다.
+ * 파일이 없는 경우, 초기 데이터를 빌드하고 관리자 및 기본 가입 계정들의 비밀번호를 암호화하여 Seeding합니다.
+ * @returns {Promise<object>} 데이터베이스 객체
+ */
+async function readLocalDbAsync() {
   if (!fs.existsSync(DB_FILE)) {
     const initialDb = { users: {}, projects: {}, submitted: [], registry: [] };
     
-    // Seed locally
-    initialDb.users["admin"] = { password: "admin123", name: "관리자", school: "에듀테크소프트랩", role: "admin", isAdmin: true };
+    // Seed locally (관리자 비밀번호 해싱 적용)
+    initialDb.users["admin"] = { password: hashPassword("admin123"), name: "관리자", school: "에듀테크소프트랩", role: "admin", isAdmin: true };
     const defaultRegistry = [
       { name: "엔트리봇 코딩 마스터 AI v2.0", company: "에듀크리에이티브 주식회사" },
       { name: "클래스팅 AI", company: "클래스팅" },
@@ -281,23 +368,33 @@ function readLocalDb() {
     ];
     initialDb.registry = defaultRegistry;
     defaultRegistry.forEach(item => {
-      initialDb.users[item.name] = { password: "1234", name: item.name, school: item.company, role: "enterprise", isEnterprise: true };
+      initialDb.users[item.name] = { password: hashPassword("1234"), name: item.name, school: item.company, role: "enterprise", isEnterprise: true };
     });
     
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf8');
+    await fsPromises.writeFile(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf8');
     return initialDb;
   }
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const data = await fsPromises.readFile(DB_FILE, 'utf8');
+    return JSON.parse(data);
   } catch (err) {
     return { users: {}, projects: {}, submitted: [], registry: [] };
   }
 }
 
-function writeLocalDb(data) {
+/**
+ * 로컬 JSON DB(db.json) 파일을 비동기적 원자 쓰기(Atomic Write) 기법으로 저장합니다.
+ * 임시 임시파일(.tmp)에 비동기로 우선 쓰고 완료된 후 rename함으로써 동시 요청 시의 파일 손상을 방지합니다.
+ * @param {object} data 쓸 데이터 객체
+ */
+async function writeLocalDbAsync(data) {
+  const tempFile = DB_FILE + '.tmp';
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch (e) {}
+    await fsPromises.writeFile(tempFile, JSON.stringify(data, null, 2), 'utf8');
+    await fsPromises.rename(tempFile, DB_FILE);
+  } catch (e) {
+    console.error("❌ 로컬 JSON DB 비동기 쓰기 오류:", e);
+  }
 }
 
 // ==================== REST API ENDPOINTS (DUAL SYSTEM) ====================
@@ -316,11 +413,12 @@ app.post('/api/auth/register', async (req, res) => {
 
   const lowerEmail = email.toLowerCase();
   const isEnt = role === "enterprise" ? 1 : 0;
+  const hashedPw = hashPassword(password); // 가입 비밀번호 단방향 암호화
 
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry(); // 커넥션 재시도 헬퍼 사용
       
       // Check exists
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email`, [lowerEmail]);
@@ -331,7 +429,7 @@ app.post('/api/auth/register', async (req, res) => {
       await conn.execute(`
         INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE)
         VALUES (:email, :password, :name, :school, :team, :role, :is_ent)
-      `, [lowerEmail, password, name, school || "", team || "", role || "teacher", isEnt]);
+      `, [lowerEmail, hashedPw, name, school || "", team || "", role || "teacher", isEnt]);
       
       await conn.commit();
       res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
@@ -341,13 +439,13 @@ app.post('/api/auth/register', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    // Fallback Local JSON DB
-    const dbData = readLocalDb();
+    // Fallback Local JSON DB - 비동기 조회 및 저장 처리
+    const dbData = await readLocalDbAsync();
     if (dbData.users[lowerEmail] || lowerEmail === "admin") {
       return res.status(400).json({ error: "이미 가입되어 있는 계정입니다." });
     }
-    dbData.users[lowerEmail] = { password, name, school: school || "", team: team || "", role: role || "teacher", isEnterprise: role === "enterprise" };
-    writeLocalDb(dbData);
+    dbData.users[lowerEmail] = { password: hashedPw, name, school: school || "", team: team || "", role: role || "teacher", isEnterprise: role === "enterprise" };
+    await writeLocalDbAsync(dbData);
     res.json({ success: true, user: { email: lowerEmail, name, school, team, role } });
   }
 });
@@ -363,7 +461,7 @@ app.post('/api/auth/login', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry(); // 커넥션 재시도 헬퍼 사용
       // Match direct and lower
       const result = await conn.execute(
         `SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
@@ -375,7 +473,9 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       const user = result.rows[0];
-      if (user.PASSWORD !== password) {
+      
+      // 암호화된 비밀번호 검증 헬퍼 연동 (하위 평문 계정 로그인도 자동 지원)
+      if (!verifyPassword(password, user.PASSWORD)) {
         return res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
       }
 
@@ -398,10 +498,10 @@ app.post('/api/auth/login', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    // Local JSON
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 조회 및 검증 연동
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[lowerEmail] || dbData.users[email];
-    if (!user || user.password !== password) {
+    if (!user || !verifyPassword(password, user.password)) {
       return res.status(401).json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." });
     }
     res.json({
@@ -426,16 +526,18 @@ app.post('/api/auth/change-password', async (req, res) => {
     return res.status(400).json({ error: "정보가 누락되었습니다." });
   }
 
+  const hashedNewPw = hashPassword(newPassword); // 신규 패스워드 해싱
+
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
       if (check.rows.length === 0) {
         return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
       }
       const actualEmail = check.rows[0].EMAIL;
-      await conn.execute(`UPDATE SOFTLAP_USERS SET PASSWORD = :pwd WHERE EMAIL = :email`, [newPassword, actualEmail]);
+      await conn.execute(`UPDATE SOFTLAP_USERS SET PASSWORD = :pwd WHERE EMAIL = :email`, [hashedNewPw, actualEmail]);
       await conn.commit();
       res.json({ success: true });
     } catch (err) {
@@ -444,11 +546,12 @@ app.post('/api/auth/change-password', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 패스워드 변경
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
-    user.password = newPassword;
-    writeLocalDb(dbData);
+    user.password = hashedNewPw;
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -459,20 +562,22 @@ app.post('/api/auth/update-profile', async (req, res) => {
     return res.status(400).json({ error: "아이디가 누락되었습니다." });
   }
 
+  const hashedNewPw = newPassword ? hashPassword(newPassword) : null;
+
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
       if (check.rows.length === 0) {
         return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
       }
       const actualEmail = check.rows[0].EMAIL;
       
-      if (newPassword) {
+      if (hashedNewPw) {
         await conn.execute(
           `UPDATE SOFTLAP_USERS SET SCHOOL = :school, TEAM = :team, PASSWORD = :pwd WHERE EMAIL = :email`,
-          [school || "", team || "", newPassword, actualEmail]
+          [school || "", team || "", hashedNewPw, actualEmail]
         );
       } else {
         await conn.execute(
@@ -488,16 +593,17 @@ app.post('/api/auth/update-profile', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 회원정보 변경
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
     
     user.school = school || "";
     user.team = team || "";
-    if (newPassword) {
-      user.password = newPassword;
+    if (hashedNewPw) {
+      user.password = hashedNewPw;
     }
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -512,7 +618,7 @@ app.get('/api/projects', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const result = await conn.execute(
         `SELECT PROJECT_DATA FROM SOFTLAP_PROJECTS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`,
         [lowerEmail, email]
@@ -536,7 +642,8 @@ app.get('/api/projects', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 프로젝트 조회
+    const dbData = await readLocalDbAsync();
     res.json(dbData.projects[lowerEmail] || dbData.projects[email] || []);
   }
 });
@@ -552,7 +659,7 @@ app.post('/api/projects', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       
       // Delete old projects for this user
       await conn.execute(`DELETE FROM SOFTLAP_PROJECTS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw_email`, [lowerEmail, email]);
@@ -572,9 +679,10 @@ app.post('/api/projects', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 프로젝트 저장
+    const dbData = await readLocalDbAsync();
     dbData.projects[lowerEmail] = projects;
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -584,7 +692,7 @@ app.get('/api/registry', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const result = await conn.execute(`SELECT NAME, COMPANY FROM SOFTLAP_REGISTRY`);
       const list = result.rows.map(row => ({ name: row.NAME, company: row.COMPANY }));
       res.json(list);
@@ -594,7 +702,8 @@ app.get('/api/registry', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 레지스트리 조회
+    const dbData = await readLocalDbAsync();
     res.json(dbData.registry || []);
   }
 });
@@ -606,10 +715,11 @@ app.post('/api/registry', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       // Reset registry table
       await conn.execute(`DELETE FROM SOFTLAP_REGISTRY`);
       
+      const hashedCompanyPw = hashPassword('1234');
       for (const item of newRegistry) {
         await conn.execute(
           `INSERT INTO SOFTLAP_REGISTRY (NAME, COMPANY) VALUES (:name, :company)`,
@@ -622,8 +732,8 @@ app.post('/api/registry', async (req, res) => {
         if (check.rows.length === 0) {
           await conn.execute(`
             INSERT INTO SOFTLAP_USERS (EMAIL, PASSWORD, NAME, SCHOOL, ROLE, IS_ENTERPRISE) 
-            VALUES (:email, '1234', :name, :school, 'enterprise', 1)
-          `, [item.name, item.name, item.company]);
+            VALUES (:email, :pwd, :name, :school, 'enterprise', 1)
+          `, [item.name, hashedCompanyPw, item.name, item.company]);
         }
       }
       await conn.commit();
@@ -634,14 +744,17 @@ app.post('/api/registry', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 레지스트리 등록 및 신규 기업 계정 암호화 Seeding
+    const dbData = await readLocalDbAsync();
     dbData.registry = newRegistry;
+    
+    const hashedCompanyPw = hashPassword('1234');
     newRegistry.forEach(item => {
       if (!dbData.users[item.name]) {
-        dbData.users[item.name] = { password: "1234", name: item.name, school: item.company, role: "enterprise", isEnterprise: true };
+        dbData.users[item.name] = { password: hashedCompanyPw, name: item.name, school: item.company, role: "enterprise", isEnterprise: true };
       }
     });
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -651,7 +764,7 @@ app.get('/api/submitted', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const result = await conn.execute(`SELECT PROJECT_ID, EMAIL, STATUS, TEACHER_NAME, SCHOOL_NAME, SUBMIT_DATE, PROJECT_DATA, FEEDBACK FROM SOFTLAP_SUBMITTED`);
       
       const submitted = [];
@@ -688,7 +801,8 @@ app.get('/api/submitted', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 제출 목록 조회
+    const dbData = await readLocalDbAsync();
     res.json(dbData.submitted || []);
   }
 });
@@ -700,7 +814,7 @@ app.post('/api/submitted', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       
       // Wipe old submitted and insert new ones
       await conn.execute(`DELETE FROM SOFTLAP_SUBMITTED`);
@@ -728,9 +842,10 @@ app.post('/api/submitted', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 제출 등록
+    const dbData = await readLocalDbAsync();
     dbData.submitted = submittedList;
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -742,7 +857,7 @@ app.post('/api/feedback', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       
       // 1. Get submission
       const check = await conn.execute(`SELECT EMAIL, PROJECT_DATA FROM SOFTLAP_SUBMITTED WHERE PROJECT_ID = :id`, [projectId]);
@@ -797,8 +912,8 @@ app.post('/api/feedback', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    // Local JSON
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 피드백 반영
+    const dbData = await readLocalDbAsync();
     const item = dbData.submitted.find(p => p.id === projectId);
     if (!item) return res.status(404).json({ error: "제출 내역 없음" });
 
@@ -815,7 +930,7 @@ app.post('/api/feedback', async (req, res) => {
         if (items) proj.items = items;
       }
     }
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -827,7 +942,7 @@ app.post('/api/feedback/cancel', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_SUBMITTED WHERE PROJECT_ID = :id`, [projectId]);
       if (check.rows.length === 0) return res.status(404).json({ error: "제출물을 찾을 수 없습니다." });
@@ -872,7 +987,8 @@ app.post('/api/feedback/cancel', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 피드백 취소
+    const dbData = await readLocalDbAsync();
     const item = dbData.submitted.find(p => p.id === projectId);
     if (!item) return res.status(404).json({ error: "제출 내역 없음" });
 
@@ -887,7 +1003,7 @@ app.post('/api/feedback/cancel', async (req, res) => {
         delete proj.feedback;
       }
     }
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -901,7 +1017,7 @@ app.post('/api/feedback/clear-all', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       
       const submissionsResult = await conn.execute(`SELECT PROJECT_ID, EMAIL, PROJECT_DATA FROM SOFTLAP_SUBMITTED`);
       const rows = submissionsResult.rows;
@@ -958,7 +1074,8 @@ app.post('/api/feedback/clear-all', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 피드백 전체 초기화
+    const dbData = await readLocalDbAsync();
     let modifiedCount = 0;
     
     dbData.submitted.forEach(p => {
@@ -979,18 +1096,17 @@ app.post('/api/feedback/clear-all', async (req, res) => {
       }
     });
 
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true, count: modifiedCount });
   }
 });
-
 
 // F. Admin Dashboard API
 app.get('/api/admin/users', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const result = await conn.execute(`SELECT EMAIL, PASSWORD, NAME, SCHOOL, TEAM, ROLE, IS_ENTERPRISE FROM SOFTLAP_USERS`);
       
       // Query project counts per user
@@ -1022,7 +1138,8 @@ app.get('/api/admin/users', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 사용자 조회
+    const dbData = await readLocalDbAsync();
     const usersList = {};
     Object.keys(dbData.users).forEach(key => {
       const u = dbData.users[key];
@@ -1047,15 +1164,17 @@ app.post('/api/admin/change-password', async (req, res) => {
   const { email, newPassword } = req.body;
   if (!email || !newPassword) return res.status(400).json({ error: "누락" });
 
+  const hashedNewPw = hashPassword(newPassword); // 새 패스워드 암호화
+
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
       if (check.rows.length === 0) return res.status(404).json({ error: "유저 없음" });
 
       const actualEmail = check.rows[0].EMAIL;
-      await conn.execute(`UPDATE SOFTLAP_USERS SET PASSWORD = :pwd WHERE EMAIL = :email`, [newPassword, actualEmail]);
+      await conn.execute(`UPDATE SOFTLAP_USERS SET PASSWORD = :pwd WHERE EMAIL = :email`, [hashedNewPw, actualEmail]);
       await conn.commit();
       res.json({ success: true });
     } catch (err) {
@@ -1064,11 +1183,12 @@ app.post('/api/admin/change-password', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 관리자 비밀번호 변경
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "유저 없음" });
-    user.password = newPassword;
-    writeLocalDb(dbData);
+    user.password = hashedNewPw;
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -1088,7 +1208,7 @@ app.post('/api/admin/change-role', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(
         `SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`,
         [email, email.toLowerCase()]
@@ -1108,7 +1228,8 @@ app.post('/api/admin/change-role', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 역할 변경
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
 
@@ -1116,7 +1237,7 @@ app.post('/api/admin/change-role', async (req, res) => {
     user.isEnterprise = newRole === "enterprise";
     user.isLeader = newRole === "team_leader";
     user.isAdmin = newRole === "admin";
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -1129,7 +1250,7 @@ app.post('/api/admin/change-team', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(
         `SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`,
         [email, email.toLowerCase()]
@@ -1149,16 +1270,16 @@ app.post('/api/admin/change-team', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 팀명 변경
+    const dbData = await readLocalDbAsync();
     const user = dbData.users[email] || dbData.users[email.toLowerCase()];
     if (!user) return res.status(404).json({ error: "해당 사용자를 찾을 수 없습니다." });
 
     user.team = newTeam || "";
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
-
 
 app.delete('/api/admin/users/:email', async (req, res) => {
   const email = req.params.email;
@@ -1167,7 +1288,7 @@ app.delete('/api/admin/users/:email', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       const check = await conn.execute(`SELECT EMAIL FROM SOFTLAP_USERS WHERE EMAIL = :email OR LOWER(EMAIL) = :lower`, [email, email.toLowerCase()]);
       if (check.rows.length === 0) return res.status(404).json({ error: "유저 없음" });
 
@@ -1181,12 +1302,13 @@ app.delete('/api/admin/users/:email', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 회원 삭제
+    const dbData = await readLocalDbAsync();
     const lowerEmail = email.toLowerCase();
     if (dbData.users[lowerEmail]) delete dbData.users[lowerEmail];
     else if (dbData.users[email]) delete dbData.users[email];
     else return res.status(404).json({ error: "유저 없음" });
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });
@@ -1203,7 +1325,7 @@ app.get('/api/team/members', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       // 팀장 본인 확인
       const leaderCheck = await conn.execute(
         `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
@@ -1233,7 +1355,8 @@ app.get('/api/team/members', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 팀원 목록 조회
+    const dbData = await readLocalDbAsync();
     // 팀장 권한 확인 - 키로 먼저 찾고, 없으면 email 속성으로 검색
     let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
     if (!leader) {
@@ -1282,7 +1405,7 @@ app.post('/api/team/kick', async (req, res) => {
   if (useOracle) {
     let conn;
     try {
-      conn = await pool.getConnection();
+      conn = await getConnectionWithRetry();
       // 팀장 권한 확인
       const leaderCheck = await conn.execute(
         `SELECT ROLE, TEAM FROM SOFTLAP_USERS WHERE LOWER(EMAIL) = :email OR EMAIL = :raw`,
@@ -1317,7 +1440,8 @@ app.post('/api/team/kick', async (req, res) => {
       if (conn) await conn.close();
     }
   } else {
-    const dbData = readLocalDb();
+    // Local JSON - 비동기 팀원 강퇴
+    const dbData = await readLocalDbAsync();
     // 팀장 권한 확인 (키 또는 email 속성)
     let leader = dbData.users[leaderEmail] || dbData.users[leaderEmail.toLowerCase()];
     if (!leader) {
@@ -1340,7 +1464,7 @@ app.post('/api/team/kick', async (req, res) => {
       return res.status(400).json({ error: "관리자, 기업, 팀장 계정은 내보낼 수 없습니다." });
     }
     target.team = '';
-    writeLocalDb(dbData);
+    await writeLocalDbAsync(dbData);
     res.json({ success: true });
   }
 });

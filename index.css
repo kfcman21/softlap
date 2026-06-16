@@ -1406,22 +1406,9 @@ body {
     align-items: center;
   }
 
-  /* 상단 탭을 모바일에서도 아이콘으로 노출 */
+  /* 모바일에서는 하단 탭 바가 있으므로 상단 탑바의 탭 그룹은 완벽히 숨겨 가로폭 공간 확보 */
   #topbar .tab-group {
-    display: flex !important;
-    gap: 4px;
-    background-color: var(--bg-tertiary);
-    padding: 3px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    margin: 0 4px;
-  }
-
-  #topbar .tab-btn {
-    padding: 6px 8px !important;
-    font-size: 1rem !important;
-    min-width: 32px;
-    height: 32px;
+    display: none !important;
   }
 
   /* 사이드바 토글 버튼 -> 아이콘 변환 (열렸을 때 ✕, 닫혔을 때 ☰) */
@@ -1530,6 +1517,7 @@ body {
     opacity: 1 !important;
     pointer-events: auto !important;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    overflow-y: auto !important; /* 보관함 목록이 길어질 경우 대비 스크롤 허용 */
   }
 
   #sidebar:not(.collapsed) {
@@ -1806,10 +1794,21 @@ body {
   .checklist-table td textarea.table-textarea,
   .checklist-table td input.input-control {
     width: 100% !important;
-    font-size: 0.85rem !important;
-    padding: 8px 10px !important;
-    border-radius: var(--radius-sm) !important;
+    font-size: 16px !important; /* iOS 자동 줌(Auto-zoom) 버그 방지를 위해 16px(1rem) 이상 지정 */
+    padding: 10px 12px !important; /* 터치가 원활하도록 세로/가로 패딩 확대 */
+    border-radius: var(--radius-md) !important;
     box-sizing: border-box !important;
+    border: 1px solid var(--border-color) !important;
+    background-color: var(--bg-tertiary) !important;
+    transition: all 0.2s ease !important;
+  }
+  .checklist-table td select.table-select:focus,
+  .checklist-table td textarea.table-textarea:focus,
+  .checklist-table td input.input-control:focus {
+    border-color: var(--accent-color) !important;
+    background-color: var(--bg-primary) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.15) !important;
   }
 
   /* 이미지/동영상 업로드 필드 가로 정렬 */
@@ -1897,8 +1896,7 @@ body {
     width: 210mm !important;
     height: 297mm !important;
     transform-origin: top center !important;
-    transform: scale(0.44) !important; /* 표준 모바일폰(390px 내외)에서 한눈에 종이가 들어오도록 자동 축소 */
-    margin-bottom: -160mm !important; /* 스케일 축소로 인해 발생하는 빈 공간 보정 */
+    /* transform 및 margin-bottom은 JS(adjustPreviewScale)가 동적으로 제어합니다 */
   }
 
   /* 9. 관리자 및 기업 모드 테이블 스크롤/카드화 */
