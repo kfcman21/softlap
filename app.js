@@ -3124,10 +3124,10 @@ function renderA4Preview() {
           <th style="width: 10%">대분류 (요소)</th>
           <th style="width: 12%">중분류 (실증항목)</th>
           <th style="width: 10%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
-          <th style="width: 5%">구분</th>
+          <th style="width: 3%">구분</th>
           <th style="width: 15%">실제 교실 분석내용 및 현상</th>
           <th style="width: 5%">심각성</th>
-          <th style="width: 22%">개선 요청사항</th>
+          <th style="width: 24%">개선 요청사항</th>
           <th style="width: 11%">상황설명 사진</th>
           <th style="width: 10%">유튜브 동영상</th>
         </tr>
