@@ -951,9 +951,9 @@ body {
     visibility: visible !important;
   }
 
-  /* ④ preview-container를 화면 최상단 왼쪽에 고정 배치 */
+  /* ④ preview-container를 화면 최상단 왼쪽에 절대 배치 (fixed X → 다음 페이지 인쇄 불가) */
   #preview-container {
-    position: fixed !important;
+    position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 297mm !important;
