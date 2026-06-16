@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -1812,11 +1812,7 @@ function setupEventListeners() {
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
   safeBindClick("btn-export-csv", exportCSV);
-  safeBindClick("btn-print", () => {
-    // 인쇄 전 반드시 A4 미리보기를 렌더링하여 preview-container 채우기
-    renderA4Preview();
-    setTimeout(() => window.print(), 300); // 렌더링 완료 후 인쇄
-  });
+  safeBindClick("btn-print", () => printReportInNewWindow());
 
   safeBindClick("btn-theme-switch", toggleTheme);
   safeBindClick("btn-close-ai-assistant", closeAiAssistant);
@@ -2762,257 +2758,146 @@ function switchTab(tabId) {
     if (teamArea) teamArea.style.display = "none";
     renderA4Preview();
   } else if (tabId === "dashboard") {
-    editorArea.style.display = "none";
-    previewArea.style.display = "none";
-    if (dashboardArea) {
-      dashboardArea.style.display = "block";
-      renderDashboard();
+// ─── 보고서 새 창 인쇄 함수 ───
+// CSS 충돌 없이 A4 페이지를 정확히 인쇄하는 가장 안정적인 방법
+function printReportInNewWindow() {
+  // 1. 미리보기 렌더링 (최신 데이터 반영)
+  renderA4Preview();
+
+  // 2. 짧은 지연 후 새 창 열기 (렌더링 완료 대기)
+  setTimeout(() => {
+    const container = document.getElementById("preview-container");
+    if (!container || !container.innerHTML.trim()) {
+      alert("보고서 내용이 없습니다. 데이터를 먼저 입력해 주세요.");
+      return;
     }
-    if (teamArea) teamArea.style.display = "none";
-  } else if (tabId === "team") {
-    editorArea.style.display = "none";
-    previewArea.style.display = "none";
-    if (dashboardArea) dashboardArea.style.display = "none";
-    if (teamArea) {
-      teamArea.style.display = "block";
-      renderTeamWorkspace();
+
+    // 3. 새 창에 보고서 HTML+CSS 삽입
+    const printWin = window.open("", "_blank");
+    if (!printWin) {
+      alert("팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.");
+      return;
     }
-  }
+
+    printWin.document.write(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>보고서 인쇄</title>
+  <style>
+    /* ── 인쇄 기본 설정 ── */
+    @page { size: 297mm 210mm; margin: 0; }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+
+    /* ── A4 페이지 ── */
+    .report-a4-page {
+      width: 297mm;
+      height: 210mm;
+      overflow: hidden;
+      padding: 12mm 15mm;
+      margin: 0;
+      background: #ffffff;
+      page-break-after: always;
+      break-after: page;
+      display: block;
+    }
+    .report-a4-page:last-child { page-break-after: avoid; break-after: avoid; }
+
+    /* ── 타이틀 배지 ── */
+    .report-title-badge {
+      display: inline-block;
+      background: #fef9c3; color: #854d0e;
+      border: 1px solid #fde68a;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.72rem; font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    /* ── H1 제목 ── */
+    .report-h1 {
+      font-size: 1.3rem; font-weight: 800;
+      color: #1e293b; margin: 0 0 10px 0;
+      border-bottom: 3px solid #f59e0b;
+      padding-bottom: 6px; line-height: 1.3;
+    }
+
+    /* ── 메타 정보 테이블 ── */
+    .report-meta-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .report-meta-table td { padding: 4px 7px; border: 1px solid #cbd5e1; font-size: 0.73rem; }
+    .report-meta-table td.label-td { background: #f1f5f9; font-weight: 700; width: 14%; }
+
+    /* ── 섹션 제목 ── */
+    .report-section-title {
+      font-size: 0.88rem; font-weight: 700;
+      border-left: 4px solid #f59e0b;
+      padding-left: 8px; margin: 6px 0;
+    }
+
+    /* ── 체크리스트 그리드 ── */
+    .report-checklist-grid { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .report-checklist-grid th {
+      background: #1e293b; color: #fff;
+      padding: 5px 4px; text-align: center;
+      border: 1px solid #334155; font-size: 0.68rem;
+    }
+    .report-checklist-grid td {
+      padding: 4px 5px; border: 1px solid #e2e8f0;
+      vertical-align: top; font-size: 0.71rem;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .report-checklist-grid tr:nth-child(even) td { background: #f8fafc; }
+
+    /* ── 요소 배지 ── */
+    .report-element-badge {
+      display: inline-block; padding: 2px 5px;
+      border-radius: 4px; font-size: 0.65rem; font-weight: 700;
+    }
+
+    /* ── 심각성 배지 ── */
+    .severity-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 2px 7px; border-radius: 9999px;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .severity-badge.high { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .severity-badge.mid  { background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; }
+    .severity-badge.low  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+
+    /* ── 미니 헤더 (2페이지~) ── */
+    .print-mini-header {
+      display: flex; justify-content: space-between;
+      font-size: 0.74rem; color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 6px; margin-bottom: 10px;
+    }
+
+    /* ── 사진 박스 ── */
+    .print-evidence-img-box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px; display: inline-block; }
+    .print-evidence-img { max-width: 50px; max-height: 50px; display: block; border-radius: 2px; }
+
+    /* ── 인쇄 시 링크 색상 ── */
+    a { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <div id="preview-container">
+    ${container.innerHTML}
+  </div>
+  <script>
+    // 렌더링 완료 후 자동 인쇄
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 200);
+    };
+  </script>
+</body>
+</html>`);
+    printWin.document.close();
+  }, 300);
 }
 
-// 모바일 드로어 사이드바 닫기 헬퍼
-function closeMobileSidebarIfOpen() {
-  const sidebar = document.getElementById("sidebar");
-  const backdrop = document.getElementById("sidebar-backdrop");
-  const toggleIcon = document.getElementById("sidebar-toggle-icon");
-  const toggleText = document.getElementById("sidebar-toggle-text");
-  
-  if (window.innerWidth <= 768) {
-    if (sidebar) {
-      sidebar.classList.add("collapsed");
-      if (toggleIcon) toggleIcon.textContent = "▶";
-      if (toggleText) toggleText.textContent = "사이드바 펼치기";
-    }
-    if (backdrop) {
-      backdrop.classList.remove("active");
-    }
-  }
-}
-
-// 📊 [신규] 실증 분석 종합 대시보드 렌더러
-
-function renderDashboard() {
-  const meta = state.activeProject?.meta || {};
-  const allItems = state.activeProject?.items || [];
-
-  // 대상 제품명 표시
-  const dbProductName = document.getElementById("db-product-name");
-  if (dbProductName) {
-    dbProductName.textContent = meta.targetProduct || "제품명 미기재";
-  }
-
-  // 1. KPI 통계 계산
-  const totalCount = allItems.length;
-  // 실증항목 선택율: 선택된 항목 개수 비율 (selected !== false)
-  const selectedItems = allItems.filter(r => r.selected !== false);
-  const selectedCount = selectedItems.length;
-  const selectionRate = totalCount > 0 ? Math.round((selectedCount / totalCount) * 100) : 0;
-
-  const highCount = selectedItems.filter(r => r.severity === "상").length;
-  const midCount = selectedItems.filter(r => r.severity === "중").length;
-  const lowCount = selectedItems.filter(r => r.severity === "하").length;
-
-  // KPI UI 매핑
-  document.getElementById("db-stat-total").textContent = `${selectedCount}개`;
-  document.getElementById("db-stat-completion").textContent = `${selectionRate}% (${selectedCount}/${totalCount})`;
-  document.getElementById("db-stat-high").textContent = `${highCount}건`;
-  document.getElementById("db-stat-mid").textContent = `${midCount}건`;
-
-  // 2. SVG 도넛 차트 그리기 (상, 중, 하 비율)
-  const donutSegments = document.getElementById("donut-segments");
-  const donutLegend = document.getElementById("donut-legend");
-  
-  if (donutSegments && donutLegend) {
-    donutSegments.innerHTML = "";
-    donutLegend.innerHTML = "";
-
-    if (selectedCount === 0) {
-      // 데이터 없음 표시
-      donutSegments.innerHTML = `<text x="18" y="20.5" font-size="3" text-anchor="middle" fill="var(--text-tertiary)">데이터 없음</text>`;
-      donutLegend.innerHTML = `<div class="legend-item"><span class="legend-color" style="background-color: var(--bg-tertiary);"></span> 선택된 문항 없음</div>`;
-    } else {
-      const pHigh = (highCount / selectedCount) * 100;
-      const pMid = (midCount / selectedCount) * 100;
-      const pLow = (lowCount / selectedCount) * 100;
-
-      let currentOffset = 0;
-
-      const segmentsData = [
-        { percentage: pHigh, color: "#ef4444", label: "🚨 개선 시급 (상)", count: highCount },
-        { percentage: pMid, color: "#f59e0b", label: "⚠️ 개선 권고 (중)", count: midCount },
-        { percentage: pLow, color: "#10b981", label: "✅ 양호/개선완료 (하)", count: lowCount }
-      ];
-
-      segmentsData.forEach(seg => {
-        if (seg.percentage > 0) {
-          // SVG circle 생성
-          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          circle.setAttribute("class", "donut-segment");
-          circle.setAttribute("cx", "18");
-          circle.setAttribute("cy", "18");
-          circle.setAttribute("r", "15.915");
-          circle.setAttribute("fill", "transparent");
-          circle.setAttribute("stroke", seg.color);
-          circle.setAttribute("stroke-width", "3");
-          // 처음 로딩 시 부드럽게 채워지는 애니메이션 기법 응용 (CSS transition 바인딩)
-          circle.style.transition = "stroke-width 0.25s ease, transform 0.25s ease, stroke-dasharray 0.5s ease-out";
-          circle.style.transformOrigin = "center";
-          circle.setAttribute("stroke-dasharray", `0 100`);
-          
-          setTimeout(() => {
-            circle.setAttribute("stroke-dasharray", `${seg.percentage} 100`);
-          }, 50);
-          
-          circle.setAttribute("stroke-dashoffset", `${currentOffset}`);
-          circle.style.cursor = "pointer";
-
-          // 마우스 호버 시 입체적 확대 피드백
-          circle.addEventListener("mouseenter", () => {
-            circle.setAttribute("stroke-width", "4.5");
-            circle.style.transform = "scale(1.03)";
-          });
-          circle.addEventListener("mouseleave", () => {
-            circle.setAttribute("stroke-width", "3");
-            circle.style.transform = "scale(1)";
-          });
-
-          // 클릭 시 해당 위험도만 편집 시트에서 필터링해서 집중 조치하도록 UX 브릿지 연결
-          circle.addEventListener("click", () => {
-            const severityVal = seg.label.includes("상") ? "상" : seg.label.includes("중") ? "중" : "하";
-            switchTab("edit");
-            state.filterElement = "전체";
-            renderChecklistGrid();
-            
-            // DOM 행 직접 필터링 조작
-            const tbody = document.getElementById("checklist-tbody");
-            if (tbody) {
-              const rows = tbody.querySelectorAll("tr");
-              rows.forEach(tr => {
-                const rowId = tr.dataset.id;
-                const rowData = state.activeProject.items.find(item => item.id == rowId);
-                if (rowData && rowData.severity !== severityVal) {
-                  tr.style.display = "none";
-                } else {
-                  tr.style.display = "";
-                }
-              });
-            }
-            showToast(`대시보드 스마트 필터: 심각도 [${severityVal}] 항목만 표시 중입니다. (대분류 변경 시 초기화)`);
-          });
-
-          // SVG 툴팁 추가
-          const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-          title.textContent = `${seg.label}: ${seg.count}건 (${percentStr}) - 클릭 시 이 등급만 필터링`;
-          circle.appendChild(title);
-
-          donutSegments.appendChild(circle);
-          
-          currentOffset -= seg.percentage;
-        }
-
-        // 범례 HTML 조립
-        const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
-        donutLegend.innerHTML += `
-          <div class="legend-item" style="cursor: pointer;" title="클릭 시 이 등급만 필터링" onclick="const sevVal = '${seg.label.includes("상") ? "상" : seg.label.includes("중") ? "중" : "하"}'; switchTab('edit'); state.filterElement = '전체'; renderChecklistGrid(); const tbody = document.getElementById('checklist-tbody'); if(tbody){ tbody.querySelectorAll('tr').forEach(tr => { const rowData = state.activeProject.items.find(item => item.id == tr.dataset.id); if (rowData && rowData.severity !== sevVal) { tr.style.display = 'none'; } else { tr.style.display = ''; } }); } showToast('심각도 ['+sevVal+'] 항목으로 필터링되었습니다.');">
-            <span class="legend-color" style="background-color: ${seg.color};"></span>
-            <span style="font-weight:700; text-decoration: underline;">${seg.label}:</span> 
-            <span>${seg.count}건 (${percentStr})</span>
-          </div>
-        `;
-      });
-    }
-  }
-
-  // 3. 6대 실증 요소별 항목 수 (수평 바 차트)
-  const barChartElements = document.getElementById("bar-chart-elements");
-  if (barChartElements) {
-    barChartElements.innerHTML = "";
-
-    // EMPIRICAL_STANDARDS의 대분류 목록 순회
-    Object.keys(EMPIRICAL_STANDARDS).forEach(elName => {
-      const elItems = allItems.filter(r => r.element === elName);
-      const totalEl = elItems.length;
-      
-      const selectedElItems = elItems.filter(r => r.selected !== false);
-      const selectedEl = selectedElItems.length;
-      const rateEl = totalEl > 0 ? Math.round((selectedEl / totalEl) * 100) : 0;
-
-      // 바 로우 HTML 구성 및 클릭 시 해당 대분류 즉시 필터 이동 인터랙션 구현
-      const rowDiv = document.createElement("div");
-      rowDiv.className = "bar-row";
-      rowDiv.style.cursor = "pointer";
-      rowDiv.title = `클릭 시 [${elName}] 실증지만 필터링하여 작성판으로 이동합니다.`;
-      
-      rowDiv.innerHTML = `
-        <div class="bar-label-box" style="transition: color 0.2s ease;">
-          <span style="font-weight:700;">🛡️ ${elName}</span>
-          <span style="color: var(--text-secondary); font-size:0.74rem;">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
-        </div>
-        <div class="bar-bg" style="border-radius:9999px; overflow:hidden; background-color: var(--bg-tertiary); height: 8px;">
-          <div class="bar-fill" style="width: 0%; height: 100%; border-radius:9999px; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%)); transition: width 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
-        </div>
-      `;
-      
-      // 애니메이션 효과
-      setTimeout(() => {
-        const fill = rowDiv.querySelector(".bar-fill");
-        if (fill) fill.style.width = `${rateEl}%`;
-      }, 80);
-
-      rowDiv.addEventListener("click", () => {
-        state.filterElement = elName;
-        localStorage.setItem("softlap_filter_element", elName);
-        switchTab("edit");
-        renderChecklistGrid();
-        showToast(`필터 연동 완료: [${elName}] 항목만 편집판에 노출됩니다.`);
-      });
-      
-      barChartElements.appendChild(rowDiv);
-    });
-  }
-
-  // 4. 우선 개선 필요 항목(상) 목록 요약 렌더링
-  const urgentTbody = document.getElementById("db-urgent-tbody");
-  const urgentBadge = document.getElementById("db-urgent-badge");
-  
-  if (urgentTbody && urgentBadge) {
-    urgentTbody.innerHTML = "";
-    const urgentItems = selectedItems.filter(r => r.severity === "상");
-    urgentBadge.textContent = urgentItems.length;
-
-    if (urgentItems.length === 0) {
-      urgentTbody.innerHTML = `
-        <tr>
-          <td colspan="4" style="text-align:center; padding:30px; color:var(--text-tertiary);">
-            🎉 심각도 '상'인 취약점이 발견되지 않았습니다. 매우 양호한 실증 상태입니다.
-          </td>
-        </tr>
-      `;
-    } else {
-      urgentItems.forEach(r => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td style="font-weight:700; color:var(--danger-color);">${r.element}</td>
-          <td style="font-weight:700;">${r.item}</td>
-          <td style="white-space: pre-wrap;">${r.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
-          <td style="white-space: pre-wrap;">${r.improvement || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
-        `;
-        urgentTbody.appendChild(tr);
-      });
-    }
-  }
-}
-
+// A4 실시간 인쇄용 프리뷰 렌더러 (다중 페이지 완벽 분할 페이징 처리 엔진 - 동적 높이 기반 자동 절분 도입)
 // A4 실시간 인쇄용 프리뷰 렌더러 (다중 페이지 완벽 분할 페이징 처리 엔진 - 동적 높이 기반 자동 절분 도입)
 function renderA4Preview() {
   const container = document.getElementById("preview-container");
