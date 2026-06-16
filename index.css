@@ -770,7 +770,7 @@ body {
   flex-direction: column;
   align-items: center;
   width: 100%;
-  gap: 20px; /* 페이지 간 간격 (40px→20px 축소) */
+  gap: 4px; /* 페이지 간 최소 구분선만 남김 */
 }
 
 /* 전역 스크롤바 최적화 (크롬 웹킷 변수 해석 무작위 오류를 원천 차단하기 위해 단독 HEX 컬러로 전면 튜닝) */
