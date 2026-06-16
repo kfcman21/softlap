@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -3123,11 +3123,11 @@ function renderA4Preview() {
         <tr>
           <th style="width: 10%">대분류 (요소)</th>
           <th style="width: 12%">중분류 (실증항목)</th>
-          <th style="width: 22%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
+          <th style="width: 14%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
           <th style="width: 6%">구분</th>
           <th style="width: 20%">실제 교실 분석내용 및 현상</th>
           <th style="width: 6%">심각성</th>
-          <th style="width: 10%">개선 요청사항</th>
+          <th style="width: 18%">개선 요청사항</th>
           <th style="width: 7%">상황설명 사진</th>
           <th style="width: 7%">유튜브 동영상</th>
         </tr>
