@@ -806,64 +806,65 @@ body {
   background: #475569 !important; /* 마우스 호버 시 더욱 명확하게 인지 가능 */
 }
 
+/* A4 가로(Landscape) 모드 설정 */
 .report-a4-page {
-  width: 210mm;
-  height: 297mm;
+  width: 297mm;   /* A4 가로 폭 */
+  height: 210mm;  /* A4 가로 높이 */
   box-sizing: border-box;
   overflow: hidden;
   position: relative;
   background-color: #ffffff;
   color: #0f172a;
   box-shadow: var(--shadow-lg);
-  padding: 20mm 15mm;
+  padding: 12mm 15mm;  /* 상하 여백을 12mm로 줄여 내용공간 확보 */
   border-radius: 4px;
   font-family: 'Noto Sans KR', sans-serif;
 }
 
 .report-title-badge {
   display: inline-block;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--accent-color);
   border: 1px solid var(--accent-color);
-  padding: 3px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
-  margin-bottom: 12px;
+  margin-bottom: 8px;  /* 가로 모드에서 줄간격 축소 */
 }
 
 .report-h1 {
-  font-size: 1.6rem;
+  font-size: 1.35rem;  /* 가로 모드에서 조금 작게 */
   font-weight: 800;
   border-bottom: 3px solid var(--accent-color);
-  padding-bottom: 12px;
-  margin-bottom: 24px;
+  padding-bottom: 8px;
+  margin-bottom: 14px;  /* 가로 모드에서 줄간격 축소 */
   line-height: 1.3;
 }
 
 .report-meta-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 24px;
+  margin-bottom: 10px;  /* 가로 모드에서 여백 축소 */
 }
 
 .report-meta-table td {
-  padding: 8px 10px;
+  padding: 5px 8px;  /* 가로 모드에서 패딩 축소 */
   border: 1px solid #cbd5e1;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
 .report-meta-table td.label-td {
   background-color: #f1f5f9;
   font-weight: 700;
-  width: 16%;
+  width: 14%;
 }
 
 .report-section-title {
-  font-size: 1.05rem;
+  font-size: 0.95rem;  /* 가로 모드에서 조절 */
   font-weight: 700;
   border-left: 4px solid var(--accent-color);
   padding-left: 10px;
-  margin: 24px 0 12px 0;
+  margin: 10px 0 8px 0;  /* 가로 모드에서 여백 축소 */
 }
 
 .report-checklist-grid {
@@ -923,10 +924,10 @@ body {
   opacity: 1;
 }
 
-/* 인쇄용 매핑 */
+/* 인쇄용 매핑 (가로 A4 모드) */
 @media print {
   @page {
-    size: A4 portrait;
+    size: A4 landscape;  /* ⭐ 가로 모드 패이지 설정 */
     margin: 0 !important;
   }
   
@@ -957,10 +958,10 @@ body {
   }
   
   .report-a4-page {
-    width: 210mm !important;
-    height: 297mm !important;
+    width: 297mm !important;   /* 가로 A4 폭 */
+    height: 210mm !important;  /* 가로 A4 높이 */
     box-sizing: border-box !important;
-    padding: 20mm 15mm !important;
+    padding: 12mm 15mm !important;
     margin: 0 !important;
     page-break-after: always !important;
     break-after: page !important;
@@ -2168,4 +2169,135 @@ body {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08) !important;
 }
 
+/* ==================== 🚀 입력 편의성 및 현대적 비주얼 고도화 추가 스타일 ==================== */
 
+/* 1. 입력 필드 포커스 시 그라데이션 광채(Gradient Glow) 효과 */
+textarea.input-control,
+select.input-control,
+input.input-control,
+#detail-editor-form textarea,
+#detail-editor-form select,
+#detail-editor-form input {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease !important;
+}
+
+textarea.input-control:focus,
+select.input-control:focus,
+input.input-control:focus,
+#detail-editor-form textarea:focus,
+#detail-editor-form select:focus,
+#detail-editor-form input:focus {
+  border-color: #6366f1 !important; /* Indigo */
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15), 0 4px 12px rgba(99, 102, 241, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+/* 2. 자동 저장 상태 인디케이터 뱃지 */
+.autosave-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 9999px;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: var(--shadow-sm);
+  letter-spacing: -0.01em;
+}
+
+.autosave-badge::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* 작성 중 상태 */
+.autosave-badge.saving {
+  background-color: hsl(215, 100%, 95%);
+  color: hsl(215, 90%, 45%);
+  border: 1px solid hsl(215, 100%, 88%);
+  animation: pulseSaving 1.5s infinite ease-in-out;
+}
+.autosave-badge.saving::before {
+  background-color: hsl(215, 90%, 50%);
+}
+
+/* 임시 저장 완료 상태 */
+.autosave-badge.saved {
+  background-color: hsl(142, 100%, 96%);
+  color: hsl(142, 80%, 30%);
+  border: 1px solid hsl(142, 100%, 88%);
+}
+.autosave-badge.saved::before {
+  background-color: hsl(142, 70%, 45%);
+}
+
+/* 원격 서버 동기화 완료 상태 */
+.autosave-badge.synced {
+  background-color: hsl(262, 100%, 96%);
+  color: hsl(262, 80%, 35%);
+  border: 1px solid hsl(262, 100%, 90%);
+}
+.autosave-badge.synced::before {
+  background-color: hsl(262, 80%, 50%);
+}
+
+@keyframes pulseSaving {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+}
+
+/* 3. 하단 단축키 가이드 바 */
+.shortcut-guide-bar {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.shortcut-guide-bar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcut-key {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-bottom: 2px solid var(--border-color);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 4. AI 제안 카드 호버 시 네온 링 효과 극대화 */
+.ai-suggestion-card {
+  border-left: 3px solid var(--border-color) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+}
+
+.ai-suggestion-card:hover {
+  transform: translateY(-3px) scale(1.01) !important;
+  border-left-color: #8b5cf6 !important; /* Violet */
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 10px 20px rgba(139, 92, 246, 0.08) !important;
+}
+
+/* 활성 카드의 네온 글로우 테두리 */
+.active-row-highlight {
+  position: relative;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.12), inset 4px 0 0 0 #6366f1 !important;
+  border-color: #6366f1 !important;
+}

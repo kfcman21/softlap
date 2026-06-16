@@ -3047,17 +3047,16 @@ function renderA4Preview() {
     return;
   }
 
-  // ─── A4 페이지 높이 계산 상수 (mm → px, 96dpi 기준) ───
-  // A4 = 297mm. 인쇄 여백 상하 각 20mm → 내용 영역 = 257mm
-  // 1mm ≈ 3.7795px → 257mm ≈ 972px
-  // 1페이지: 헤더(배지+제목+메타테이블+섹션제목) 약 260px 차감 → 남은 공간 ≈ 712px
-  // 2페이지~: 미니헤더 약 50px 차감 → 남은 공간 ≈ 922px
-  const PAGE_HEIGHT_PX   = 972;  // A4 내용 영역 전체 높이(px)
-  const PAGE1_HEADER_PX  = 285;  // 1페이지 상단 헤더 영역 높이
-  const PAGE_REST_HDR_PX = 55;   // 2페이지~ 미니 헤더 높이
+  // ─── A4 가로(Landscape) 페이지 높이 계산 상수 ───
+  // A4 Landscape: 297mm(가로) × 210mm(세로)
+  // 상하 여백 각 15mm → 내용 세로 = 180mm ≈ 680px
+  // 좌우 여백 각 15mm → 내용 가로 = 267mm (열 폭 여유 충분)
+  const PAGE_HEIGHT_PX   = 650;  // A4 가로 모드 내용 영역 세로 높이(px, 여유 있게 설정)
+  const PAGE1_HEADER_PX  = 245;  // 1페이지 상단 헤더 영역 높이 (가로 모드에서 메타테이블이 낮아짐)
+  const PAGE_REST_HDR_PX = 50;   // 2페이지~ 미니 헤더 높이
   const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
-  const ROW_MIN_PX       = 60;   // 행 최소 높이
-  const CHARS_PER_LINE   = 18;   // 분석내용 셀 한 줄 글자 수 기준
+  const ROW_MIN_PX       = 55;   // 행 최소 높이
+  const CHARS_PER_LINE   = 24;   // 분석내용 셀 한 줄 글자 수 기준 (가로 모드에서 열이 넓어져 더 많이 들어감)
   const LINE_HEIGHT_PX   = 14;   // 한 줄 높이(px)
   const CELL_PADDING_PX  = 16;   // 셀 상하 패딩 합계
 
@@ -3209,34 +3208,6 @@ function renderA4Preview() {
 
   adjustPreviewScale(); // 모바일 크기에 맞춰 A4 미리보기 동적 축소/스케일링 처리
 }
-    
-    const badge = document.createElement("span");
-    badge.className = "report-title-badge";
-    badge.textContent = `에듀테크 소프트랩 교사 실증 결과 리포트`;
-    page.appendChild(badge);
-
-    const h1 = document.createElement("h1");
-    h1.className = "report-h1";
-    h1.textContent = `${meta.targetProduct || "미지정 에듀테크"} 공교육 적합성 개별 실증 평가서`;
-    page.appendChild(h1);
-
-    const metaTable = createMetaTableA4(meta);
-    page.appendChild(metaTable);
-
-    const sectionTitle = document.createElement("h3");
-    sectionTitle.className = "report-section-title";
-    sectionTitle.textContent = "6대 요소별 공교육 적합성 개별 실증 기입 평가 격자";
-    page.appendChild(sectionTitle);
-
-    page.innerHTML += `
-      <p class="report-para" style="text-align:center; padding:60px; border:1px dashed #cbd5e1; margin-top:20px; font-weight:500; color:#94a3b8;">
-        기록된 분석 문항이 없습니다. 에디터 탭에서 실증 평가 행을 기록해 주세요.
-      </p>
-    `;
-    container.appendChild(page);
-    return;
-  }
-
 
 
 // 메타 테이블 HTML 헬퍼
@@ -5919,14 +5890,14 @@ function adjustPreviewScale() {
   
   if (window.innerWidth <= 768) {
     const containerWidth = container.clientWidth;
-    const a4PixelWidth = 794; // 96dpi 기준 A4 210mm 폭 픽셀 변환
+    const a4PixelWidth = 1123; // 96dpi 기준 A4 가로(297mm) 폭 픽셀 변환
     const scale = containerWidth / a4PixelWidth;
     
     pages.forEach(page => {
       page.style.transform = `scale(${scale})`;
       page.style.transformOrigin = "top center";
       
-      const a4PixelHeight = 1123; // 96dpi 기준 A4 297mm 높이 픽셀 변환
+      const a4PixelHeight = 794; // 96dpi 기준 A4 가로(210mm) 높이 픽셀 변환
       const scaledHeight = a4PixelHeight * scale;
       const negativeMargin = a4PixelHeight - scaledHeight;
       page.style.marginBottom = `-${negativeMargin}px`;
