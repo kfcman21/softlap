@@ -897,8 +897,8 @@ body {
   border-radius: 4px;
   font-size: 0.7rem;
   font-weight: 700;
-  text-align: center;       /* 줄바꿈 시 각 줄 가운데 정렬 */
-  word-break: keep-all;     /* 한국어 단어 중간에서 끊기지 않도록 */
+  text-align: center;
+  word-break: keep-all !important;  /* td의 break-word보다 강제 우선 적용 */
   line-height: 1.4;
 }
 
