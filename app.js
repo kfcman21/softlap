@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -2795,6 +2795,7 @@ function closeMobileSidebarIfOpen() {
 }
 
 // 📊 [신규] 실증 분석 종합 대시보드 렌더러
+
 function renderDashboard() {
   const meta = state.activeProject?.meta || {};
   const allItems = state.activeProject?.items || [];
@@ -3051,11 +3052,12 @@ function renderA4Preview() {
   // A4 Landscape: 297mm(가로) × 210mm(세로)
   // 상하 여백 각 15mm → 내용 세로 = 180mm ≈ 680px
   // 좌우 여백 각 15mm → 내용 가로 = 267mm (열 폭 여유 충분)
-  const PAGE_HEIGHT_PX   = 560;  // 보수적: 일찍 다음 페이지로 분리해 내용 잘림 방지
+  const PAGE_HEIGHT_PX   = 640;  // 실제 A4 내용영역(703px)에 가깝게 설정
   const PAGE1_HEADER_PX  = 230;  // 1페이지 헤더(배지+제목+메타테이블+섹션제목) 높이
   const PAGE_REST_HDR_PX = 50;   // 2페이지~ 미니 헤더 높이
   const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
   const ROW_MIN_PX       = 55;   // 행 최소 높이
+  const ROW_MAX_PX       = 200;  // 행 최대 높이 상한선 (어떤 행도 1페이지에 반드시 배치)
   const CHARS_PER_LINE   = 13;   // 보수적 13자 기준(열이 좁아 줄바꿈 많음)
   const LINE_HEIGHT_PX   = 16;   // 한 줄 높이(px)
   const CELL_PADDING_PX  = 22;   // 셀 상하 패딩 + 여백 합계
@@ -3064,12 +3066,13 @@ function renderA4Preview() {
   function estimateRowHeight(r) {
     const criterionLines = Math.ceil((r.criterion || "").length / 22) || 1;
     const analysisLines  = Math.ceil((r.analysis  || "").length / CHARS_PER_LINE) || 1;
-    const improvLines    = Math.ceil((r.improvement || "").length / 22) || 1;
+    const improvLines    = Math.ceil((r.improvement || "").length / 28) || 1; // 개선요청 칸 넓어졌으므로 28자
     const maxLines = Math.max(criterionLines, analysisLines, improvLines, 2);
     const textHeight = maxLines * LINE_HEIGHT_PX + CELL_PADDING_PX;
     // 사진 첨부 시 추가 높이
     const photoExtra = r.screenshot ? 60 : 0;
-    return Math.max(ROW_MIN_PX, textHeight + photoExtra);
+    // 상한선 적용: 아무리 길어도 최소 1행은 페이지에 배치됨
+    return Math.min(Math.max(ROW_MIN_PX, textHeight + photoExtra), 200);
   }
 
   // 1페이지 메인 컨텐츠 빌더
