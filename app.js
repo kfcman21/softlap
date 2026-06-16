@@ -3180,7 +3180,7 @@ function renderA4Preview() {
     // tr 생성 및 삽입
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>
+      <td style="text-align:center; vertical-align:middle;">
         <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
           ${r.element}
         </span>
