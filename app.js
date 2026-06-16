@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 개별 교사용 에듀테크 실증 평가 보고서 프로그램 - 회원 로그인 및 다중 보관함 격리 코어 로직
  */
 
@@ -1812,7 +1812,12 @@ function setupEventListeners() {
   // 백업
   safeBindClick("btn-copy-markdown", copyMarkdown);
   safeBindClick("btn-export-csv", exportCSV);
-  safeBindClick("btn-print", () => window.print());
+  safeBindClick("btn-print", () => {
+    // 인쇄 전 반드시 A4 미리보기를 렌더링하여 preview-container 채우기
+    renderA4Preview();
+    setTimeout(() => window.print(), 300); // 렌더링 완료 후 인쇄
+  });
+
   safeBindClick("btn-theme-switch", toggleTheme);
   safeBindClick("btn-close-ai-assistant", closeAiAssistant);
 
