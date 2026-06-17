@@ -2896,13 +2896,29 @@ function closeMobileSidebarIfOpen() {
 // 📊 [신규] 실증 분석 종합 대시보드 렌더러
 
 function renderDashboard() {
-  const meta = state.activeProject?.meta || {};
-  const allItems = state.activeProject?.items || [];
+  // ✅ 개별 보고서 1개가 아닌 내 보관함 전체 프로젝트를 합산하여 종합 통계를 생성
+  const allProjects = (state.projects || []);
+  const projectCount = allProjects.length;
 
-  // 대상 제품명 표시
+  // 전체 프로젝트의 모든 항목을 하나의 배열로 병합 (출처 프로젝트명 포함)
+  const allItems = allProjects.flatMap(proj =>
+    (proj.items || []).map(item => ({
+      ...item,
+      _productName: proj.meta?.targetProduct || "제품명 미기재"
+    }))
+  );
+
+  // 헤더: 보관함 전체 요약 표시
   const dbProductName = document.getElementById("db-product-name");
   if (dbProductName) {
-    dbProductName.textContent = meta.targetProduct || "제품명 미기재";
+    const productNames = [...new Set(allProjects.map(p => p.meta?.targetProduct).filter(Boolean))];
+    if (projectCount === 0) {
+      dbProductName.textContent = "보관함이 비어있습니다";
+    } else if (productNames.length === 1) {
+      dbProductName.textContent = `${productNames[0]} — 보고서 ${projectCount}개 종합`;
+    } else {
+      dbProductName.textContent = `내 보관함 전체 ${projectCount}개 보고서 종합`;
+    }
   }
 
   // 1. KPI 통계 계산
@@ -3047,12 +3063,12 @@ function renderDashboard() {
       const rowDiv = document.createElement("div");
       rowDiv.className = "bar-row";
       rowDiv.style.cursor = "pointer";
-      rowDiv.title = `클릭 시 [${elName}] 실증지만 필터링하여 작성판으로 이동합니다.`;
+      rowDiv.title = `[${elName}] 전체 ${projectCount}개 보고서 합산 — 클릭 시 현재 보고서에서 해당 요소만 필터링`;
       
       rowDiv.innerHTML = `
         <div class="bar-label-box" style="transition: color 0.2s ease;">
           <span style="font-weight:700;">🛡️ ${elName}</span>
-          <span style="color: var(--text-secondary); font-size:0.74rem;">${rateEl}% (${selectedEl}/${totalEl}개 실증항목선택)</span>
+          <span style="color: var(--text-secondary); font-size:0.74rem;">${rateEl}% (${selectedEl}/${totalEl}개 전체합산)</span>
         </div>
         <div class="bar-bg" style="border-radius:9999px; overflow:hidden; background-color: var(--bg-tertiary); height: 8px;">
           <div class="bar-fill" style="width: 0%; height: 100%; border-radius:9999px; background: linear-gradient(90deg, var(--accent-color), hsl(210, 100%, 65%)); transition: width 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
@@ -3090,7 +3106,7 @@ function renderDashboard() {
       urgentTbody.innerHTML = `
         <tr>
           <td colspan="4" style="text-align:center; padding:30px; color:var(--text-tertiary);">
-            🎉 심각도 '상'인 취약점이 발견되지 않았습니다. 매우 양호한 실증 상태입니다.
+            🎉 전체 ${projectCount}개 보고서에서 심각도 '상'인 취약점이 발견되지 않았습니다.
           </td>
         </tr>
       `;
@@ -3098,6 +3114,7 @@ function renderDashboard() {
       urgentItems.forEach(r => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
+          <td style="font-size:0.72rem; color:var(--text-secondary); white-space:nowrap;">📄 ${r._productName}</td>
           <td style="font-weight:700; color:var(--danger-color);">${r.element}</td>
           <td style="font-weight:700;">${r.item}</td>
           <td style="white-space: pre-wrap;">${r.analysis || '<span style="color:var(--text-tertiary); font-style:italic;">미기재</span>'}</td>
