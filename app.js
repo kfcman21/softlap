@@ -5487,17 +5487,18 @@ function printTeamReport() {
     return;
   }
   
-  renderTeamA4Preview();
-  
   const editorArea = document.getElementById("editor-area");
   const previewArea = document.getElementById("preview-area");
   const dashboardArea = document.getElementById("dashboard-area");
   const teamArea = document.getElementById("team-area");
   
+  // 브라우저가 scrollHeight(물리적 크기)를 0이 아닌 실제 크기로 측정할 수 있도록 display: block을 먼저 활성화
   editorArea.style.display = "none";
   previewArea.style.display = "block";
   if (dashboardArea) dashboardArea.style.display = "none";
   if (teamArea) teamArea.style.display = "none";
+  
+  renderTeamA4Preview();
   
   setTimeout(() => {
     window.print();
