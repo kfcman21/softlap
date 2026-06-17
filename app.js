@@ -3239,7 +3239,9 @@ function renderA4Preview() {
     return table;
   };
 
-  // ─── 페이지 분할 + rowspan 실측(scrollHeight) 기반 로직 ───
+  // ─── 페이지 분할 + rowspan 로직 ───
+  const PAGE1_HEADER_REAL = 276;
+
   let currentPageNum = 1;
   let currentPage   = createPageOne();
   container.appendChild(currentPage);
@@ -3248,12 +3250,38 @@ function renderA4Preview() {
   currentPage.appendChild(currentTable);
   let currentTbody = currentTable.querySelector("tbody");
 
+  let usedHeight = PAGE1_HEADER_REAL + TABLE_HEADER_PX;
+  let availableHeight = PAGE_HEIGHT_PX;
+
+  // rowspan을 위해: 같은 element 그룹의 크기를 미리 계산
+  // 단, 페이지 경계를 넘으면 새 그룹으로 처리
   let lastElementOnPage = null; // 현재 페이지에서 마지막으로 출력된 element 이름
   let elementTdRef = null;      // 현재 rowspan 중인 td 참조
   let elementRowspan = 0;       // 현재 rowspan td의 카운터
 
   for (let i = 0; i < items.length; i++) {
     const r = items[i];
+    const rowH = estimateRowHeight(r);
+
+    // 현재 페이지에 행이 들어가지 않으면 새 페이지 생성
+    if (usedHeight + rowH > availableHeight) {
+      currentPageNum++;
+      currentPage = createPageRest(currentPageNum);
+      container.appendChild(currentPage);
+
+      currentTable = createTableWrapper();
+      currentPage.appendChild(currentTable);
+      currentTbody = currentTable.querySelector("tbody");
+
+      usedHeight = PAGE_REST_HDR_PX + TABLE_HEADER_PX;
+      availableHeight = PAGE_HEIGHT_PX;
+
+      // 페이지 바뀌면 element 그룹 리셋 (새 페이지에서 배지 다시 표시)
+      lastElementOnPage = null;
+      elementTdRef = null;
+      elementRowspan = 0;
+    }
+
     const tr = document.createElement("tr");
 
     // 같은 element가 연속으로 나오면 rowspan 증가, 아니면 새 배지 td 생성
@@ -3301,67 +3329,8 @@ function renderA4Preview() {
       tr.appendChild(restCells.content.firstChild);
     }
 
-    // 임시 측정 스타일 부여
-    currentPage.style.height = "auto";
-    currentPage.style.minHeight = "0";
-    currentPage.style.overflow = "visible";
     currentTbody.appendChild(tr);
-
-    // 개별 보고서 A4 가로 한계치인 640px 적용
-    if (currentPage.scrollHeight > 640) {
-      // 1. 현재 추가한 tr 제거 및 rowspan 복구
-      currentTbody.removeChild(tr);
-      if (!isNewGroup) {
-        elementRowspan--;
-        elementTdRef.rowSpan = elementRowspan;
-      }
-
-      // 2. 현재 페이지 스타일 원복
-      currentPage.style.height = "";
-      currentPage.style.minHeight = "";
-      currentPage.style.overflow = "";
-
-      // 3. 새 페이지 생성 및 리셋
-      currentPageNum++;
-      currentPage = createPageRest(currentPageNum);
-      container.appendChild(currentPage);
-
-      currentTable = createTableWrapper();
-      currentPage.appendChild(currentTable);
-      currentTbody = currentTable.querySelector("tbody");
-
-      lastElementOnPage = null;
-      elementTdRef = null;
-      elementRowspan = 0;
-
-      // 4. 새 페이지에서 tr 재삽입 및 rowspan td prepending
-      currentPage.style.height = "auto";
-      currentPage.style.minHeight = "0";
-      currentPage.style.overflow = "visible";
-
-      const isNewGroupRetry = (r.element !== lastElementOnPage);
-      if (isNewGroupRetry) {
-        const elementTd = document.createElement("td");
-        elementTd.style.cssText = "text-align:center; vertical-align:middle; border:1px solid #e2e8f0;";
-        elementTd.rowSpan = 1;
-        const std = EMPIRICAL_STANDARDS[r.element] || {};
-        elementTd.innerHTML = `<span class="report-element-badge" style="background-color:${std.bg||'#f1f5f9'};color:${std.color||'#334155'};border:1px solid ${std.borderColor||'#cbd5e1'}">${r.element}</span>`;
-        
-        tr.insertBefore(elementTd, tr.firstChild);
-
-        elementTdRef = elementTd;
-        elementRowspan = 1;
-        lastElementOnPage = r.element;
-      }
-
-      currentTbody.appendChild(tr);
-    }
-  }
-
-  if (currentPage) {
-    currentPage.style.height = "";
-    currentPage.style.minHeight = "";
-    currentPage.style.overflow = "";
+    usedHeight += rowH;
   }
 
   adjustPreviewScale(); // 모바일 크기에 맞춰 A4 미리보기 동적 축소/스케일링 처리
@@ -6276,15 +6245,7 @@ function setupShortcutKeys() {
 
 // ─── 보고서 새 창 인쇄 함수 ───
 function printReportInNewWindow() {
-  const previewArea = document.getElementById("preview-area");
-  const originalDisplay = previewArea ? previewArea.style.display : "none";
-  if (previewArea) {
-    previewArea.style.display = "block"; // 실측 계산을 위해 강제 활성화
-  }
   renderA4Preview();
-  if (previewArea) {
-    previewArea.style.display = originalDisplay; // 원복
-  }
   setTimeout(function() {
     var container = document.getElementById("preview-container");
     if (!container || !container.innerHTML.trim()) {
