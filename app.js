@@ -5603,8 +5603,8 @@ function renderTeamA4Preview() {
       currentPage.style.overflow = "visible";
       currentTbody.appendChild(tr);
       
-      // 가로 A4 여백 제외 실질 콘텐츠 영역 한계선 700px 적용
-      if (currentPage.scrollHeight > 700) {
+      // 가로 A4 여백 제외 실질 콘텐츠 영역 한계선 640px 적용
+      if (currentPage.scrollHeight > 640) {
         currentTbody.removeChild(tr);
         currentPage.style.height = "";
         currentPage.style.minHeight = "";
@@ -5632,7 +5632,7 @@ function renderTeamA4Preview() {
     currentPage.style.overflow = "";
   }
   
-  // 9. 기업 피드백 내역 페이지 동적 렌더링 및 페이지 쪼개기 (700px 한계선 및 min-height 해제 적용)
+  // 9. 기업 피드백 내역 페이지 동적 렌더링 및 페이지 쪼개기 (640px 한계선 및 min-height 해제 적용)
   let feedbackPageNum = currentPageNum + 1;
   let feedbackPage = createTeamFeedbackPage(feedbackPageNum, productName, teamName);
   container.appendChild(feedbackPage);
@@ -5660,8 +5660,8 @@ function renderTeamA4Preview() {
     
     feedbackContainer.appendChild(card);
     
-    // 기업 피드백 영역이 700px를 초과할 경우 새로운 페이지로 쪼개기
-    if (feedbackPage.scrollHeight > 700) {
+    // 기업 피드백 영역이 640px를 초과할 경우 새로운 페이지로 쪼개기
+    if (feedbackPage.scrollHeight > 640) {
       feedbackContainer.removeChild(card);
       feedbackPage.style.height = "";
       feedbackPage.style.minHeight = "";
