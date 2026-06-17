@@ -46,32 +46,37 @@
     <div class="relative w-full max-w-[460px] mx-4 bg-white/90 dark:bg-slate-900/90 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl shadow-2xl backdrop-blur-lg p-8 transition-transform duration-300 transform hover:scale-[1.01]" id="auth-card">
       <div class="text-center mb-6">
         <div class="text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1.5">🏫 서울에듀테크소프트랩</div>
-        <h2 id="auth-title" class="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">교사 회원 로그인</h2>
-        <p id="auth-desc" class="text-xs text-slate-400 dark:text-slate-500 mt-1 uppercase font-semibold tracking-wider">EdTech Pilot Report System</p>
+        <h2 id="auth-title" class="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">회원 로그인</h2>
+        <p id="auth-desc" class="text-xs text-slate-400 dark:text-slate-500 mt-1 font-semibold tracking-wider">서울에듀테크소프트랩 개별 실증지</p>
         <div id="auth-db-status" class="mt-3 text-[10px] font-bold px-3 py-1 rounded-full inline-block"></div>
       </div>
 
-      <div class="space-y-4" id="auth-form">
+      <div style="display: flex; flex-direction: column; gap: 16px;" id="auth-form">
         <!-- 이메일 입력 -->
-        <div class="space-y-1.5" id="group-email">
-          <label for="auth-email" class="block text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">이메일 주소</label>
-          <input type="email" id="auth-email" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="teacher@school.edu">
+        <div style="display: flex; flex-direction: column; gap: 6px;" id="group-email">
+          <label for="auth-email" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">이메일 주소</label>
+          <input type="email" id="auth-email" style="width: 100%; padding: 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="teacher@school.edu"
+            onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+            onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
         </div>
 
         <!-- 비밀번호 입력 -->
-        <div class="space-y-1.5" id="group-password">
-          <label for="auth-password" class="block text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">비밀번호</label>
-          <div class="relative w-full">
-            <input type="password" id="auth-password" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 pr-10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="••••••••">
-            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none" onclick="togglePasswordVisibility('auth-password', this)" title="비밀번호 보이기">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+        <div style="display: flex; flex-direction: column; gap: 6px;" id="group-password">
+          <label for="auth-password" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">비밀번호</label>
+          <div style="position: relative; width: 100%;">
+            <input type="password" id="auth-password" style="width: 100%; padding: 11px 44px 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="••••••••"
+              onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+              onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
+            <button type="button" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px; transition: color 0.2s;" onclick="togglePasswordVisibility('auth-password', this)" title="비밀번호 보이기"
+              onmouseover="this.style.color='#475569';" onmouseout="this.style.color='#94a3b8';">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
             </button>
           </div>
         </div>
 
         <!-- 회원 역할 구분 (회원가입 시 노출) -->
-        <div class="space-y-1.5" id="group-role" style="display: none;">
-          <label class="block text-xs font-bold text-slate-500 dark:text-slate-400">회원 역할 구분</label>
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-role">
+          <label style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">회원 역할 구분</label>
           <div class="flex gap-2 w-full flex-wrap">
             <label class="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 p-2.5 border rounded-lg cursor-pointer text-xs font-bold transition-all duration-200" id="label-role-teacher">
               <input type="radio" name="auth-role" value="teacher" checked class="cursor-pointer text-indigo-600 focus:ring-indigo-500"> 👨‍🏫 실증 교사
@@ -86,21 +91,27 @@
         </div>
 
         <!-- 실증 수행 교사명 입력 (회원가입 시 노출) -->
-        <div class="space-y-1.5" id="group-auth-name" style="display: none;">
-          <label for="auth-name" class="block text-xs font-bold text-slate-500 dark:text-slate-400">실증 수행 교사명 / 대표명</label>
-          <input type="text" id="auth-name" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="예: 박찬규">
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-auth-name">
+          <label for="auth-name" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">실증 수행 교사명 / 대표명</label>
+          <input type="text" id="auth-name" style="width: 100%; padding: 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="예: 박찬규"
+            onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+            onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
         </div>
 
         <!-- 소속 학교명 입력 (회원가입 시 노출) -->
-        <div class="space-y-1.5" id="group-auth-school" style="display: none;">
-          <label for="auth-school" class="block text-xs font-bold text-slate-500 dark:text-slate-400">소속 학교명 / 기관명</label>
-          <input type="text" id="auth-school" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="예: 서울미래초등학교">
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-auth-school">
+          <label for="auth-school" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">소속 학교명 / 기관명</label>
+          <input type="text" id="auth-school" style="width: 100%; padding: 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="예: 서울미래초등학교"
+            onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+            onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
         </div>
 
         <!-- 소속 팀명 직접 입력 (회원가입 시 노출) -->
-        <div class="space-y-1.5" id="group-auth-team" style="display: none;">
-          <label for="auth-team" class="block text-xs font-bold text-slate-500 dark:text-slate-400">소속 팀명 설정</label>
-          <input type="text" id="auth-team" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="소속 팀명 또는 학교명을 입력하십시오.">
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-auth-team">
+          <label for="auth-team" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">소속 팀명 설정</label>
+          <input type="text" id="auth-team" style="width: 100%; padding: 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="소속 팀명 또는 학교명을 입력하십시오."
+            onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+            onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
           <!-- 팀장 전용 안내 박스 -->
           <div id="leader-team-guide" style="display: none;" class="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
             <div class="font-extrabold flex items-center gap-1">👑 팀장 가입 안내</div>
@@ -113,28 +124,35 @@
         </div>
 
         <!-- 이메일 인증 번호 입력 (비밀번호 분실 시 노출) -->
-        <div class="space-y-1.5" id="group-code" style="display: none;">
-          <label for="auth-code" class="block text-xs font-bold text-slate-500 dark:text-slate-400">이메일 인증 번호 (6자리)</label>
-          <input type="text" id="auth-code" class="w-full text-center tracking-[0.4em] text-lg font-black rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="000000" maxlength="6">
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-code">
+          <label for="auth-code" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">이메일 인증 번호 (6자리)</label>
+          <input type="text" id="auth-code" style="width: 100%; padding: 11px 14px; font-size: 1.1rem; letter-spacing: 0.4em; text-align: center; font-weight: 800; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="000000" maxlength="6"
+            onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+            onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
         </div>
 
         <!-- 새 비밀번호 입력 (비밀번호 분실 시 노출) -->
-        <div class="space-y-1.5" id="group-new-password" style="display: none;">
-          <label for="auth-new-password" class="block text-xs font-bold text-slate-500 dark:text-slate-400">새 비밀번호 설정</label>
-          <div class="relative w-full">
-            <input type="password" id="auth-new-password" class="w-full text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 p-2.5 pr-10 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-200" placeholder="••••••••">
-            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none" onclick="togglePasswordVisibility('auth-new-password', this)" title="비밀번호 보이기">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+        <div style="display: none; flex-direction: column; gap: 6px;" id="group-new-password">
+          <label for="auth-new-password" style="font-size: 0.75rem; font-weight: 700; color: #64748b; letter-spacing: 0.03em;">새 비밀번호 설정</label>
+          <div style="position: relative; width: 100%;">
+            <input type="password" id="auth-new-password" style="width: 100%; padding: 11px 44px 11px 14px; font-size: 0.88rem; border: 1.5px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; outline: none; font-family: inherit; transition: border-color 0.2s, box-shadow 0.2s;" placeholder="••••••••"
+              onfocus="this.style.borderColor='#6366f1'; this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.12)'; this.style.background='#fff';"
+              onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'; this.style.background='#f8fafc';">
+            <button type="button" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px;" onclick="togglePasswordVisibility('auth-new-password', this)" title="비밀번호 보이기">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
             </button>
           </div>
         </div>
 
         <!-- 비밀번호 잊음 링크 -->
-        <div class="text-right" id="group-forgot-link">
-          <span class="text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 cursor-pointer transition-colors" id="link-forgot-password">비밀번호를 잊으셨나요?</span>
+        <div style="text-align: right;" id="group-forgot-link">
+          <span style="font-size: 0.75rem; color: #94a3b8; cursor: pointer; transition: color 0.2s;" id="link-forgot-password"
+            onmouseover="this.style.color='#6366f1';" onmouseout="this.style.color='#94a3b8';">비밀번호를 잊으셨나요?</span>
         </div>
 
-        <button type="button" id="btn-auth-submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-extrabold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-200 transform active:scale-95">로그인</button>
+        <button type="button" id="btn-auth-submit" style="width: 100%; padding: 13px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #fff; border: none; border-radius: 12px; font-size: 0.92rem; font-weight: 800; cursor: pointer; box-shadow: 0 6px 20px rgba(99,102,241,0.35); transition: all 0.2s; font-family: inherit; letter-spacing: 0.02em;"
+          onmouseover="this.style.boxShadow='0 8px 25px rgba(99,102,241,0.5)'; this.style.transform='translateY(-1px)';"
+          onmouseout="this.style.boxShadow='0 6px 20px rgba(99,102,241,0.35)'; this.style.transform='translateY(0)';">로그인</button>
       </div>
 
       <div class="text-center text-xs text-slate-500 dark:text-slate-400 mt-5" id="auth-switch-box">
