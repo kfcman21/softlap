@@ -3157,15 +3157,15 @@ function renderA4Preview() {
   const TABLE_HEADER_PX  = 34;   // 테이블 thead 높이
   const ROW_MIN_PX       = 55;   // 행 최소 높이
   const ROW_MAX_PX       = 120;  // 행 최대 높이 상한선 (낮을수록 한 페이지에 더 많은 행 배치)
-  const CHARS_PER_LINE   = 18;   // 실제 열 폭 기준 18자 (개선요청사항 칸 넓어진 것 반영)
+  const CHARS_PER_LINE   = 8;    // 실제 열 폭 기준 8자 (분석내용 칸 7%로 줄어든 것 반영)
   const LINE_HEIGHT_PX   = 16;   // 한 줄 높이(px)
   const CELL_PADDING_PX  = 22;   // 셀 상하 패딩 + 여백 합계
 
   // 한 행의 예상 높이 계산 (텍스트 양 기반)
   function estimateRowHeight(r) {
-    const criterionLines = Math.ceil((r.criterion || "").length / 22) || 1;
+    const criterionLines = Math.ceil((r.criterion || "").length / 11) || 1; // 점검 기준 칸 5%로 줄어든 것 반영
     const analysisLines  = Math.ceil((r.analysis  || "").length / CHARS_PER_LINE) || 1;
-    const improvLines    = Math.ceil((r.improvement || "").length / 28) || 1; // 개선요청 칸 넓어졌으므로 28자
+    const improvLines    = Math.ceil((r.improvement || "").length / 43) || 1; // 개선요청 칸 37%로 넓어진 것 반영
     const maxLines = Math.max(criterionLines, analysisLines, improvLines, 2);
     const textHeight = maxLines * LINE_HEIGHT_PX + CELL_PADDING_PX;
     // 사진 첨부 시 추가 높이
@@ -3225,11 +3225,11 @@ function renderA4Preview() {
         <tr>
           <th style="width: 10%">대분류 (요소)</th>
           <th style="width: 12%">중분류 (실증항목)</th>
-          <th style="width: 10%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
+          <th style="width: 5%">점검 기준 (교사 커스텀 재수정 ✍️)</th>
           <th style="width: 3%">구분</th>
-          <th style="width: 15%">실제 교실 분석내용 및 현상</th>
+          <th style="width: 7%">실제 교실 분석내용 및 현상</th>
           <th style="width: 5%">심각성</th>
-          <th style="width: 24%">개선 요청사항</th>
+          <th style="width: 37%">개선 요청사항</th>
           <th style="width: 11%">상황설명 사진</th>
           <th style="width: 10%">유튜브 동영상</th>
         </tr>
@@ -5602,7 +5602,8 @@ function renderTeamA4Preview() {
       currentPage.style.overflow = "visible";
       currentTbody.appendChild(tr);
       
-      if (currentPage.scrollHeight > 1115) {
+      // A4 가로(Landscape) 실질 한계선인 780px 기준으로 페이지 분할
+      if (currentPage.scrollHeight > 780) {
         currentTbody.removeChild(tr);
         currentPage.style.height = "";
         currentPage.style.overflow = "";
@@ -5627,29 +5628,54 @@ function renderTeamA4Preview() {
     currentPage.style.overflow = "";
   }
   
-  const feedbackPage = document.createElement("div");
-  feedbackPage.className = "report-a4-page";
-  feedbackPage.innerHTML = `
-    <span class="report-title-badge">수신 기업 피드백 내역</span>
-    <h3 class="report-section-title" style="margin-top:10px;">🏢 기업 공식 조치계획 및 피드백</h3>
-    <div style="display:flex; flex-direction:column; gap:16px; margin-top:20px;">
-      ${matchingProjects.map(p => {
-        const fb = p.feedback;
-        return `
-          <div style="border:1px solid #cbd5e1; border-radius:6px; padding:12px; background-color:#f8fafc;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:6px; margin-bottom:8px;">
-              <span style="font-weight:800; font-size:0.8rem; color:#0f172a;">🏢 ${fb ? fb.company : "제조기업"} (${p.teacherName} 교사 제출 대상)</span>
-              <span style="font-size:0.7rem; color:#64748b;">${fb ? fb.date : "-"}</span>
-            </div>
-            <p style="font-size:0.78rem; line-height:1.5; color:#334155; white-space:pre-wrap; margin:0;">
-              ${fb ? fb.text : "⏳ 피드백이 아직 등록되지 않았습니다."}
-            </p>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
+  // 9. 기업 피드백 내역 페이지 동적 렌더링 및 페이지 쪼개기 (780px 한계선 적용)
+  let feedbackPageNum = currentPageNum + 1;
+  let feedbackPage = createTeamFeedbackPage(feedbackPageNum, productName, teamName);
   container.appendChild(feedbackPage);
+  let feedbackContainer = feedbackPage.querySelector(".feedback-list-container");
+  
+  feedbackPage.style.height = "auto";
+  feedbackPage.style.overflow = "visible";
+
+  for (let i = 0; i < matchingProjects.length; i++) {
+    const p = matchingProjects[i];
+    const fb = p.feedback;
+    
+    const card = document.createElement("div");
+    card.style.cssText = "border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; background-color: #f8fafc;";
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px;">
+        <span style="font-weight: 800; font-size: 0.8rem; color: #0f172a;">🏢 ${fb ? fb.company : "제조기업"} (${p.teacherName} 교사 제출 대상)</span>
+        <span style="font-size: 0.7rem; color: #64748b;">${fb ? fb.date : "-"}</span>
+      </div>
+      <p style="font-size: 0.78rem; line-height: 1.5; color: #334155; white-space: pre-wrap; margin: 0;">
+        ${fb ? fb.text : "⏳ 피드백이 아직 등록되지 않았습니다."}
+      </p>
+    `;
+    
+    feedbackContainer.appendChild(card);
+    
+    // 기업 피드백 영역이 780px를 초과할 경우 새로운 페이지로 쪼개기
+    if (feedbackPage.scrollHeight > 780) {
+      feedbackContainer.removeChild(card);
+      feedbackPage.style.height = "";
+      feedbackPage.style.overflow = "";
+      
+      feedbackPageNum++;
+      feedbackPage = createTeamFeedbackPage(feedbackPageNum, productName, teamName);
+      container.appendChild(feedbackPage);
+      feedbackContainer = feedbackPage.querySelector(".feedback-list-container");
+      
+      feedbackPage.style.height = "auto";
+      feedbackPage.style.overflow = "visible";
+      feedbackContainer.appendChild(card);
+    }
+  }
+  
+  if (feedbackPage) {
+    feedbackPage.style.height = "";
+    feedbackPage.style.overflow = "";
+  }
 }
 
 function createTeamPageRest(pageNum, productName, teamName) {
@@ -5673,6 +5699,39 @@ function createTeamPageRest(pageNum, productName, teamName) {
   return page;
 }
 
+function createTeamFeedbackPage(pageNum, productName, teamName) {
+  const page = document.createElement("div");
+  page.className = "report-a4-page";
+  
+  const miniHeader = document.createElement("div");
+  miniHeader.style.display = "flex";
+  miniHeader.style.justifyContent = "space-between";
+  miniHeader.style.alignItems = "center";
+  miniHeader.style.fontSize = "0.74rem";
+  miniHeader.style.color = "#64748b";
+  miniHeader.style.borderBottom = "1px solid #e2e8f0";
+  miniHeader.style.paddingBottom = "8px";
+  miniHeader.style.marginBottom = "20px";
+  miniHeader.innerHTML = `
+    <span><strong>${productName || "에듀테크"}</strong> 수신 기업 피드백 내역 (계속)</span>
+    <span>${pageNum} 페이지</span>
+  `;
+  page.appendChild(miniHeader);
+  
+  const title = document.createElement("h3");
+  title.className = "report-section-title";
+  title.style.marginTop = "10px";
+  title.innerHTML = "🏢 기업 공식 조치계획 및 피드백";
+  page.appendChild(title);
+  
+  const listContainer = document.createElement("div");
+  listContainer.className = "feedback-list-container";
+  listContainer.style.cssText = "display: flex; flex-direction: column; gap: 16px; margin-top: 20px;";
+  page.appendChild(listContainer);
+  
+  return page;
+}
+
 function createTeamTableWrapper() {
   const table = document.createElement("table");
   table.className = "report-checklist-grid";
@@ -5681,11 +5740,11 @@ function createTeamTableWrapper() {
       <tr>
         <th style="width: 10%">대분류</th>
         <th style="width: 12%">중분류</th>
-        <th style="width: 20%">점검 기준</th>
+        <th style="width: 10%">점검 기준</th>
         <th style="width: 10%">작성자</th>
-        <th style="width: 22%">분석 내용 (현상)</th>
+        <th style="width: 11%">분석 내용 (현상)</th>
         <th style="width: 8%">심각성</th>
-        <th style="width: 18%">개선 요청사항</th>
+        <th style="width: 39%">개선 요청사항</th>
       </tr>
     </thead>
     <tbody></tbody>
