@@ -2948,6 +2948,9 @@ function renderDashboard() {
       ];
 
       segmentsData.forEach(seg => {
+        // ✅ percentStr을 루프 최상단에서 먼저 선언하여 하단의 SVG 툴팁과 범례 양쪽에서 모두 사용 가능하게 수정
+        const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
+
         if (seg.percentage > 0) {
           // SVG circle 생성
           const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -3004,7 +3007,7 @@ function renderDashboard() {
             showToast(`대시보드 스마트 필터: 심각도 [${severityVal}] 항목만 표시 중입니다. (대분류 변경 시 초기화)`);
           });
 
-          // SVG 툴팁 추가
+          // SVG 툴팁 추가 (percentStr이 이제 루프 상단에서 선언되어 정상 참조 가능)
           const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
           title.textContent = `${seg.label}: ${seg.count}건 (${percentStr}) - 클릭 시 이 등급만 필터링`;
           circle.appendChild(title);
@@ -3014,8 +3017,7 @@ function renderDashboard() {
           currentOffset -= seg.percentage;
         }
 
-        // 범례 HTML 조립
-        const percentStr = seg.percentage > 0 ? `${Math.round(seg.percentage)}%` : "0%";
+        // 범례 HTML 조립 (percentStr은 위 루프 상단에서 이미 선언됨)
         donutLegend.innerHTML += `
           <div class="legend-item" style="cursor: pointer;" title="클릭 시 이 등급만 필터링" onclick="const sevVal = '${seg.label.includes("상") ? "상" : seg.label.includes("중") ? "중" : "하"}'; switchTab('edit'); state.filterElement = '전체'; renderChecklistGrid(); const tbody = document.getElementById('checklist-tbody'); if(tbody){ tbody.querySelectorAll('tr').forEach(tr => { const rowData = state.activeProject.items.find(item => item.id == tr.dataset.id); if (rowData && rowData.severity !== sevVal) { tr.style.display = 'none'; } else { tr.style.display = ''; } }); } showToast('심각도 ['+sevVal+'] 항목으로 필터링되었습니다.');">
             <span class="legend-color" style="background-color: ${seg.color};"></span>
