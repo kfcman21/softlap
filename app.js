@@ -4849,17 +4849,16 @@ async function fetchTeamReportData(silent = false) {
       if (isAdmin) {
         state.submittedList = allList;
       } else {
-        const myTeam = (state.currentUser?.team || state.currentUser?.school || '').trim().toLowerCase();
-        if (myTeam) {
-          state.submittedList = allList.filter(function(p) {
-            return p.schoolName && p.schoolName.trim().toLowerCase().includes(myTeam);
-          });
-        } else {
-          const myEmail = (state.currentUser?.email || '').toLowerCase();
-          state.submittedList = allList.filter(function(p) {
-            return (p.email || '').toLowerCase() === myEmail;
-          });
-        }
+        // ✅ [수정] schoolName 단독 비교 → 이메일(본인) OR 팀명 방식으로 변경
+        // 이유: team 미설정 시 school('서울문백초등학교')로 폴백되어
+        // schoolName('헬로우업!샘!')과 불일치 → 본인 제출 보고서가 누락되는 버그 수정
+        const myEmail = (state.currentUser?.email || '').toLowerCase();
+        const myTeam = (state.currentUser?.team || '').trim().toLowerCase(); // school은 폴백 제거
+        state.submittedList = allList.filter(function(p) {
+          const emailMatch = (p.email || '').toLowerCase() === myEmail; // 본인 이메일 = 항상 포함
+          const teamMatch = myTeam && p.schoolName && p.schoolName.trim().toLowerCase().includes(myTeam);
+          return emailMatch || teamMatch; // 본인 보고서 OR 같은 팀 보고서
+        });
       }
 
       if (!silent) showToast('🔄 원격 서버로부터 제출 목록 데이터를 동기화했습니다.');
@@ -4946,11 +4945,14 @@ async function renderLeaderSubmissionTracker() {
     console.warn("팀원 목록 로드 실패 (관리자 API 미접근):", e);
   }
 
-  // 제출된 목록에서 이 팀 소속 보고서 추출
+  // ✅ [수정] 팀명 일치 OR 본인 이메일 방식으로 수정하여 팀장 본인 제출물 누락 방지
   const teamLower = teamName.toLowerCase();
-  let submittedInTeam = (state.submittedList || []).filter(p =>
-    p.schoolName && p.schoolName.toLowerCase().includes(teamLower)
-  );
+  const myEmailLower = (state.currentUser?.email || '').toLowerCase();
+  let submittedInTeam = (state.submittedList || []).filter(function(p) {
+    const emailMatch = (p.email || '').toLowerCase() === myEmailLower; // 본인 이메일은 항상 포함
+    const teamMatch = teamLower && p.schoolName && p.schoolName.toLowerCase().includes(teamLower);
+    return emailMatch || teamMatch;
+  });
 
   if (productFilter) {
     submittedInTeam = submittedInTeam.filter(p => p.meta?.targetProduct === productFilter);
