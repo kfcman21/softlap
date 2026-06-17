@@ -372,7 +372,7 @@ async function renderAdminUsersList() {
   const filterSchool = document.getElementById("admin-filter-school") ? document.getElementById("admin-filter-school").value.trim().toLowerCase() : "";
   const filterTeam = document.getElementById("admin-filter-team") ? document.getElementById("admin-filter-team").value : "all";
   const filterRole = document.getElementById("admin-filter-role") ? document.getElementById("admin-filter-role").value : "all";
-  const filterPassword = document.getElementById("admin-filter-password") ? document.getElementById("admin-filter-password").value.trim().toLowerCase() : "";
+  // admin-filter-password 입력란은 암호화 적용으로 인해 제거됨
 
   let usersDB = {};
   let userEmails = [];
@@ -484,9 +484,7 @@ async function renderAdminUsersList() {
       matchesRole = role === filterRole;
     }
 
-    const matchesPassword = !filterPassword || (user.password && String(user.password).toLowerCase().includes(filterPassword));
-    
-    return matchesSearch && matchesEmail && matchesName && matchesSchool && matchesTeam && matchesRole && matchesPassword;
+    return matchesSearch && matchesEmail && matchesName && matchesSchool && matchesTeam && matchesRole;
   });
 
   // 정렬 적용
@@ -603,16 +601,23 @@ async function renderAdminUsersList() {
         style="width: 100%; padding: 4px 8px; font-size: 0.72rem; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-secondary); color: var(--text-primary); font-weight: 500;">
     `;
 
+    // 비밀번호 보안 상태 배지: 해시 원문 대신 암호화 여부만 표시 (보안 강화)
+    const pwStr = String(user.password || '');
+    const isHashed = pwStr.includes(':') && pwStr.length > 30;
+    const pwStatusBadge = isHashed
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;background:hsl(142,70%,15%);color:hsl(142,70%,55%);padding:4px 9px;border-radius:6px;font-weight:800;border:1px solid hsl(142,50%,30%);">🔐 PBKDF2 암호화됨</span>`
+      : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;background:hsl(0,70%,15%);color:hsl(0,70%,65%);padding:4px 9px;border-radius:6px;font-weight:800;border:1px solid hsl(0,50%,30%);">⚠️ 평문 (미암호화)</span>`;
+
     tr.innerHTML = `
       <td data-label="이메일 계정"><strong style="color:var(--accent-color); font-size:0.85rem;">${email}</strong></td>
       <td data-label="대표명 (교사명 / 기업명)"><strong>${user.name || "-"}</strong>${roleBadge}</td>
       <td data-label="소속 학교/기관/업체">${user.school || "서울에듀테크소프트랩"}</td>
       <td data-label="실증 팀명">${teamInput}</td>
       <td data-label="역할 변경">${roleSelect}</td>
-      <td data-label="비밀번호 (보안 확인)"><code style="background-color:var(--bg-tertiary); padding:3px 8px; border-radius:4px; font-weight:700; color:var(--danger-color); font-size:0.8rem;">${user.password}</code></td>
-      <td data-label="관리 조치">
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--accent-color); color:var(--accent-color); margin-right:4px; font-weight:700;" onclick="adminChangePassword('${safeEmail}')">🔑 비번변경</button>
-        <button class="btn" style="padding:4px 8px; font-size:0.72rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700;" onclick="adminDeleteUser('${safeEmail}')">🗑️ 계정삭제</button>
+      <td data-label="비밀번호 보안 상태" style="text-align:center;">${pwStatusBadge}</td>
+      <td data-label="관리 조치" style="display:flex; flex-direction:row; gap:4px; flex-wrap:nowrap; align-items:center; justify-content:center;">
+        <button class="btn" style="padding:4px 7px; font-size:0.7rem; border-color:var(--accent-color); color:var(--accent-color); font-weight:700; white-space:nowrap; flex-shrink:0;" onclick="adminChangePassword('${safeEmail}')">🔑 비번</button>
+        <button class="btn" style="padding:4px 7px; font-size:0.7rem; border-color:var(--danger-color); color:var(--danger-color); font-weight:700; white-space:nowrap; flex-shrink:0;" onclick="adminDeleteUser('${safeEmail}')">🗑️ 삭제</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -700,30 +705,123 @@ async function adminChangeRole(email, selectEl) {
 }
 window.adminChangeRole = adminChangeRole;
 
-async function adminChangePassword(email) {
-  const newPw = prompt(`[관리자 비밀번호 강제 변경]\n\n회원 계정 (${email})의 변경할 신규 비밀번호를 설정하십시오:`);
-  if (newPw === null) return;
-  const pwTrimmed = newPw.trim();
-  if (pwTrimmed.length < 4) {
-    alert("안전을 위해 비밀번호는 최소 4자리 이상으로 설정해 주십시오.");
-    return;
+// 관리자 전용: 비밀번호 강제 변경 - 커스텀 모달 방식으로 개선
+function adminChangePassword(email) {
+  // 모달 생성 (이미 존재하면 재사용)
+  let modal = document.getElementById('admin-pw-reset-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'admin-pw-reset-modal';
+    modal.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.65); z-index: 9999;
+      display: flex; justify-content: center; align-items: center;
+      backdrop-filter: blur(6px);
+    `;
+    document.body.appendChild(modal);
   }
-  
-  try {
-    const response = await fetch(`${centralDbUrl}/api/admin/change-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, newPassword: pwTrimmed })
-    });
-    if (response.ok) {
-      await renderAdminUsersList();
-      showToast(`회원 (${email})의 비밀번호가 성공적으로 강제 재설정되었습니다.`);
-    } else {
-      alert("원격 서버 비밀번호 변경 실패");
+
+  // 임시 비밀번호 자동 생성 함수 (8자리 영숫자)
+  const genTempPw = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    return Array.from({length: 8}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  };
+  const tempPw = genTempPw();
+
+  modal.innerHTML = `
+    <div style="
+      background: var(--bg-secondary); border: 1px solid var(--accent-color);
+      border-radius: 16px; padding: 28px 32px; width: 90%; max-width: 440px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 18px;
+    ">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="font-size:1.1rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; margin:0;">
+          🔑 비밀번호 강제 재설정
+        </h3>
+        <button onclick="document.getElementById('admin-pw-reset-modal').style.display='none';"
+          style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-secondary); line-height:1;">✕</button>
+      </div>
+
+      <div style="background:var(--bg-tertiary); border-radius:8px; padding:12px 14px; font-size:0.8rem; color:var(--text-secondary); border-left:3px solid var(--accent-color);">
+        대상 계정: <strong style="color:var(--accent-color);">${email}</strong>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <label style="font-size:0.78rem; font-weight:700; color:var(--text-secondary);">새 비밀번호 입력 (최소 4자리)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="admin-pw-input" value="${tempPw}"
+            style="flex:1; padding:10px 14px; font-size:0.95rem; font-weight:700; letter-spacing:0.08em;
+            background:var(--bg-primary); border:1.5px solid var(--accent-color); border-radius:8px;
+            color:var(--text-primary); outline:none;"
+            placeholder="새 비밀번호 직접 입력..."
+          />
+          <button onclick="document.getElementById('admin-pw-input').value=(()=>{const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';return Array.from({length:8},()=>c[Math.floor(Math.random()*c.length)]).join('');})();"
+            style="padding:9px 12px; font-size:0.75rem; font-weight:800; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; color:var(--text-secondary); white-space:nowrap;"
+            title="새 임시 비밀번호 자동 생성">🎲 자동생성
+          </button>
+        </div>
+        <p style="font-size:0.72rem; color:var(--text-tertiary); margin:0;">💡 위 임시 비밀번호를 그대로 사용하거나, 직접 입력하세요.</p>
+      </div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border-color); padding-top:14px;">
+        <button onclick="document.getElementById('admin-pw-reset-modal').style.display='none';"
+          style="padding:10px 20px; font-size:0.82rem; font-weight:700; border:1px solid var(--border-color); border-radius:8px; background:transparent; color:var(--text-secondary); cursor:pointer;">
+          취소
+        </button>
+        <button id="admin-pw-confirm-btn"
+          style="padding:10px 24px; font-size:0.82rem; font-weight:800; border:none; border-radius:8px;
+          background:linear-gradient(135deg, var(--accent-color), hsl(210,100%,35%)); color:white; cursor:pointer;
+          display:flex; align-items:center; gap:6px;">
+          🔑 비밀번호 변경 확정
+        </button>
+      </div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+
+  // 확정 버튼 클릭 이벤트
+  document.getElementById('admin-pw-confirm-btn').onclick = async () => {
+    const pwTrimmed = (document.getElementById('admin-pw-input').value || '').trim();
+    if (pwTrimmed.length < 4) {
+      document.getElementById('admin-pw-input').style.borderColor = 'var(--danger-color)';
+      document.getElementById('admin-pw-input').style.animation = 'shake 0.3s ease';
+      showToast('⚠️ 비밀번호는 최소 4자리 이상으로 설정해 주십시오.');
+      return;
     }
-  } catch (err) {
-    alert("서버 연결 실패: " + err.message);
-  }
+
+    const confirmBtn = document.getElementById('admin-pw-confirm-btn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '⏳ 처리 중...';
+
+    try {
+      const response = await fetch(`${centralDbUrl}/api/admin/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword: pwTrimmed })
+      });
+      if (response.ok) {
+        modal.style.display = 'none';
+        await renderAdminUsersList();
+        showToast(`✅ [${email}] 계정 비밀번호가 성공적으로 재설정되었습니다. 새 비밀번호: ${pwTrimmed}`);
+      } else {
+        const errData = await response.json();
+        showToast('❌ 비밀번호 변경 실패: ' + (errData.error || '알 수 없는 오류'));
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '🔑 비밀번호 변경 확정';
+      }
+    } catch (err) {
+      showToast('❌ 서버 연결 실패: ' + err.message);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '🔑 비밀번호 변경 확정';
+    }
+  };
+
+  // 모달 배경 클릭 시 닫기
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.style.display = 'none';
+  };
 }
 window.adminChangePassword = adminChangePassword;
 

@@ -1,4 +1,4 @@
-﻿/* 
+/* 
  * 개별 교사 실증 보고서 작성기 - 프리미엄 CSS 테마 시스템 (인증 및 보관함 추가)
  */
 
@@ -2339,4 +2339,52 @@ input.input-control:focus,
   position: relative;
   box-shadow: 0 4px 20px rgba(99, 102, 241, 0.12), inset 4px 0 0 0 #6366f1 !important;
   border-color: #6366f1 !important;
+}
+
+/* =====================================================
+   🛠️ 관리자 대시보드 전용 테이블 레이아웃 재정의
+   전역 .checklist-table의 min-width:1650px를 덮어씌워
+   admin 화면에서 테이블이 비정상적으로 넓어지는 현상 해결
+   ===================================================== */
+#admin-container .checklist-table {
+  min-width: unset !important;   /* 전역 1650px 강제 해제 */
+  width: 100% !important;
+  table-layout: fixed !important;/* colgroup 너비 지시를 정확히 따르도록 */
+}
+
+/* admin 테이블 헤더 패딩 축소 */
+#admin-container .checklist-table th {
+  padding: 9px 10px !important;
+  font-size: 0.78rem !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* admin 테이블 셀 패딩 축소 */
+#admin-container .checklist-table td {
+  padding: 8px 10px !important;
+  font-size: 0.8rem !important;
+  vertical-align: middle !important;  /* 세로 중앙 정렬 */
+  overflow: hidden;
+}
+
+/* 관리 조치 버튼 td: 버튼들을 가로로 나란히 배치 */
+#admin-container .checklist-table td[data-label="관리 조치"] {
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* 이메일 컬럼 텍스트 오버플로우 처리 */
+#admin-container .checklist-table td[data-label="이메일 계정"] strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem !important;
+}
+
+/* 보안 상태 배지 셀 중앙 정렬 */
+#admin-container .checklist-table td[data-label="비밀번호 보안 상태"] {
+  text-align: center;
 }

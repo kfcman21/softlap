@@ -397,6 +397,42 @@ async function writeLocalDbAsync(data) {
   }
 }
 
+// ==================== LOCAL DB 평문 비밀번호 자동 암호화 마이그레이션 ====================
+
+/**
+ * 서버 시작 시 로컬 db.json 내의 평문(암호화 안 된) 비밀번호를 자동으로 PBKDF2 방식으로 암호화합니다.
+ * ':' 구분자가 없는 비밀번호는 평문으로 간주하여 hashPassword()를 적용한 뒤 db.json을 업데이트합니다.
+ * 이미 암호화된 계정은 그대로 유지됩니다 (멱등성 보장).
+ */
+async function migrateLocalDbPasswords() {
+  if (!fs.existsSync(DB_FILE)) return; // db.json 없으면 스킵 (최초 기동 시 Seeding이 암호화 포함)
+  
+  try {
+    const dbData = await readLocalDbAsync();
+    let migrated = 0;
+
+    Object.keys(dbData.users).forEach(key => {
+      const user = dbData.users[key];
+      if (user.password && !String(user.password).includes(':')) {
+        // ':' 구분자가 없으면 평문 비밀번호 → 암호화 적용
+        const plainPw = String(user.password);
+        user.password = hashPassword(plainPw);
+        migrated++;
+        console.log(`🔐 [마이그레이션] '${key}' 계정 비밀번호 암호화 완료`);
+      }
+    });
+
+    if (migrated > 0) {
+      await writeLocalDbAsync(dbData);
+      console.log(`✅ [마이그레이션] 총 ${migrated}개 계정의 평문 비밀번호가 안전하게 암호화되었습니다.`);
+    } else {
+      console.log(`✅ [마이그레이션] 모든 계정의 비밀번호가 이미 암호화 상태입니다.`);
+    }
+  } catch (e) {
+    console.error('❌ [마이그레이션] 비밀번호 암호화 중 오류 발생:', e);
+  }
+}
+
 // ==================== REST API ENDPOINTS (DUAL SYSTEM) ====================
 
 // A. Health check
@@ -1518,5 +1554,9 @@ app.listen(PORT, async () => {
   console.log(`🚀 Seoul Edutech Softlap Central API Server Active!`);
   console.log(`🔊 Listening at: http://localhost:${PORT}`);
   await initOracleDatabase();
+  // 로컬 JSON DB 모드일 때: 평문 비밀번호 자동 암호화 마이그레이션 실행
+  if (!useOracle) {
+    await migrateLocalDbPasswords();
+  }
   console.log(`==================================================`);
 });
