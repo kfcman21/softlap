@@ -5264,8 +5264,11 @@ function populateTeamProducts() {
     return;
   }
   
-  const filtered = (state.submittedList || []).filter(p => 
-    p.schoolName && p.schoolName.toLowerCase().includes(teamNameLower)
+  // ✅ [수정] schoolName includes OR 본인 이메일 모두 포함
+  const myEmailForFilter = (state.currentUser?.email || '').toLowerCase();
+  const filtered = (state.submittedList || []).filter(p =>
+    (p.schoolName && p.schoolName.toLowerCase().includes(teamNameLower)) ||
+    (p.email || '').toLowerCase() === myEmailForFilter
   );
   
   const products = [...new Set(filtered.map(p => p.meta?.targetProduct).filter(Boolean))];
@@ -5310,10 +5313,16 @@ function renderTeamReportCompiled() {
     return;
   }
   
-  const matchingProjects = (state.submittedList || []).filter(p => 
-    p.schoolName === teamName && 
-    p.meta?.targetProduct === productName
-  );
+  // ✅ [수정] schoolName 완전일치(===) → includes OR 이메일 매칭으로 수정
+  // 이유: schoolName이 다르게 저장된 보고서가 teamName과 === 비교 실패로 누락되는 버그 수정
+  const myEmailRT = (state.currentUser?.email || '').toLowerCase();
+  const matchingProjects = (state.submittedList || []).filter(p => {
+    const teamMatch = p.schoolName &&
+      (p.schoolName === teamName || p.schoolName.toLowerCase().includes(teamName.toLowerCase()));
+    const productMatch = p.meta?.targetProduct === productName;
+    const emailMatch = (p.email || '').toLowerCase() === myEmailRT;
+    return (teamMatch || emailMatch) && productMatch;
+  });
   
   const uniqueTeachers = [...new Set(matchingProjects.map(p => p.teacherName).filter(Boolean))];
   if (teachersDisplay) {
