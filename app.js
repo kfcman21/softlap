@@ -5599,13 +5599,15 @@ function renderTeamA4Preview() {
       `;
       
       currentPage.style.height = "auto";
+      currentPage.style.minHeight = "0"; // min-height 일시 해제하여 순수 콘텐츠 높이만 측정
       currentPage.style.overflow = "visible";
       currentTbody.appendChild(tr);
       
-      // A4 가로(Landscape) 실질 한계선인 780px 기준으로 페이지 분할
-      if (currentPage.scrollHeight > 780) {
+      // 가로 A4 여백 제외 실질 콘텐츠 영역 한계선 700px 적용
+      if (currentPage.scrollHeight > 700) {
         currentTbody.removeChild(tr);
         currentPage.style.height = "";
+        currentPage.style.minHeight = "";
         currentPage.style.overflow = "";
         
         currentPageNum++;
@@ -5617,6 +5619,7 @@ function renderTeamA4Preview() {
         currentTbody = currentTable.querySelector("tbody");
         
         currentPage.style.height = "auto";
+        currentPage.style.minHeight = "0";
         currentPage.style.overflow = "visible";
         currentTbody.appendChild(tr);
       }
@@ -5625,16 +5628,18 @@ function renderTeamA4Preview() {
   
   if (currentPage) {
     currentPage.style.height = "";
+    currentPage.style.minHeight = "";
     currentPage.style.overflow = "";
   }
   
-  // 9. 기업 피드백 내역 페이지 동적 렌더링 및 페이지 쪼개기 (780px 한계선 적용)
+  // 9. 기업 피드백 내역 페이지 동적 렌더링 및 페이지 쪼개기 (700px 한계선 및 min-height 해제 적용)
   let feedbackPageNum = currentPageNum + 1;
   let feedbackPage = createTeamFeedbackPage(feedbackPageNum, productName, teamName);
   container.appendChild(feedbackPage);
   let feedbackContainer = feedbackPage.querySelector(".feedback-list-container");
   
   feedbackPage.style.height = "auto";
+  feedbackPage.style.minHeight = "0";
   feedbackPage.style.overflow = "visible";
 
   for (let i = 0; i < matchingProjects.length; i++) {
@@ -5655,10 +5660,11 @@ function renderTeamA4Preview() {
     
     feedbackContainer.appendChild(card);
     
-    // 기업 피드백 영역이 780px를 초과할 경우 새로운 페이지로 쪼개기
-    if (feedbackPage.scrollHeight > 780) {
+    // 기업 피드백 영역이 700px를 초과할 경우 새로운 페이지로 쪼개기
+    if (feedbackPage.scrollHeight > 700) {
       feedbackContainer.removeChild(card);
       feedbackPage.style.height = "";
+      feedbackPage.style.minHeight = "";
       feedbackPage.style.overflow = "";
       
       feedbackPageNum++;
@@ -5667,6 +5673,7 @@ function renderTeamA4Preview() {
       feedbackContainer = feedbackPage.querySelector(".feedback-list-container");
       
       feedbackPage.style.height = "auto";
+      feedbackPage.style.minHeight = "0";
       feedbackPage.style.overflow = "visible";
       feedbackContainer.appendChild(card);
     }
@@ -5674,6 +5681,7 @@ function renderTeamA4Preview() {
   
   if (feedbackPage) {
     feedbackPage.style.height = "";
+    feedbackPage.style.minHeight = "";
     feedbackPage.style.overflow = "";
   }
 }
