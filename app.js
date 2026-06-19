@@ -2106,6 +2106,37 @@ function setupEventListeners() {
   setupShortcutKeys();
 }
 
+// ===== 테마(다크/라이트 모드) 관리 함수들 =====
+
+/**
+ * 저장된 테마 설정을 읽어 HTML에 적용하고 버튼 아이콘도 갱신
+ * - localStorage의 THEME_KEY 값("light" 또는 "dark")을 기준으로 처리
+ */
+function applyTheme() {
+  const currentTheme = localStorage.getItem(THEME_KEY) || "light";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  document.documentElement.classList.toggle("dark", currentTheme === "dark");
+
+  // 테마 전환 버튼 아이콘 변경
+  const icon = document.querySelector("#btn-theme-switch span");
+  if (icon) {
+    icon.textContent = currentTheme === "dark" ? "☀️" : "🌙";
+  }
+}
+
+/**
+ * 현재 테마를 반전시켜 다크↔라이트 전환하고 저장
+ */
+function toggleTheme() {
+  const activeTheme = document.documentElement.getAttribute("data-theme");
+  const nextTheme = activeTheme === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, nextTheme);
+  applyTheme();
+  showToast(`${nextTheme === "dark" ? "🌙 다크" : "☀️ 라이트"} 모드로 전환되었습니다.`);
+}
+
+// ===== 사이드바 트리 가이드 구성 =====
+
 // 사이드바 트리 가이드 구성
 function renderPresetGuideTree() {
   const container = document.getElementById("preset-tree-nav");
@@ -2113,6 +2144,12 @@ function renderPresetGuideTree() {
 
   Object.keys(EMPIRICAL_STANDARDS).forEach(elementName => {
     const details = document.createElement("details");
+    // 요소별 색상으로 좌측 테두리 강조 (시각적 구분)
+    details.style.marginBottom = "6px";
+    details.style.border = "1px solid var(--border-color)";
+    details.style.borderRadius = "var(--radius-sm)";
+    details.style.backgroundColor = "var(--bg-secondary)";
+    details.style.borderLeft = `4px solid ${EMPIRICAL_STANDARDS[elementName].color}`;
 
     const summary = document.createElement("summary");
     summary.style.fontWeight = "700";
