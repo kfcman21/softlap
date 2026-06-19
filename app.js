@@ -2106,6 +2106,15 @@ function setupEventListeners() {
   setupShortcutKeys();
 }
 
+// 사이드바 트리 가이드 구성
+function renderPresetGuideTree() {
+  const container = document.getElementById("preset-tree-nav");
+  container.innerHTML = "";
+
+  Object.keys(EMPIRICAL_STANDARDS).forEach(elementName => {
+    const details = document.createElement("details");
+
+    const summary = document.createElement("summary");
     summary.style.fontWeight = "700";
     summary.style.cursor = "pointer";
     summary.style.color = "var(--text-primary)";
