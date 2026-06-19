@@ -2242,6 +2242,12 @@ function renderChecklistGrid() {
     btnAddRow.style.display = isSubmitted ? "none" : "inline-flex";
   }
 
+  // 전체선택 버튼: 제출 완료가 아닐 때만 표시
+  const btnSelectAll = document.getElementById("btn-select-all");
+  if (btnSelectAll) {
+    btnSelectAll.style.display = isSubmitted ? "none" : "inline-flex";
+  }
+
   // 필터 드롭다운 UI 값과 글로벌 상태 동기화
   const filterSelect = document.getElementById("editor-filter-select");
   if (filterSelect && filterSelect.value !== state.filterElement) {
@@ -2382,9 +2388,33 @@ function renderChecklistGrid() {
   // 상세 에디터 뷰 동기화
   updateDetailEditorView();
   
+  // 전체선택 버튼 텍스트 상태 업데이트 (전체선택됨 ↔ 전체해제)
+  _updateSelectAllButtonState(filtered);
+
   checkTeamDuplication();
   if (state.currentTab === "dashboard") {
     renderDashboard();
+  }
+}
+
+// 전체선택 버튼 텍스트/색상 상태를 현재 체크 상태에 맞게 갱신하는 내부 헬퍼
+function _updateSelectAllButtonState(filtered) {
+  const btnSelectAll = document.getElementById("btn-select-all");
+  if (!btnSelectAll) return;
+  const checkedIds = state.checkedCardIds || new Set();
+  // 현재 필터된 항목 중 하나라도 미체크가 있으면 '전체선택' 모드
+  const allChecked = filtered && filtered.length > 0 &&
+    filtered.every(r => checkedIds.has(r.id));
+  if (allChecked) {
+    // 전체 선택된 상태 → "전체해제" 버튼으로 전환
+    btnSelectAll.textContent = "☑️ 전체해제";
+    btnSelectAll.classList.remove("bg-slate-600", "hover:bg-slate-700");
+    btnSelectAll.classList.add("bg-indigo-600", "hover:bg-indigo-700");
+  } else {
+    // 일부 또는 미선택 상태 → "전체선택" 버튼
+    btnSelectAll.textContent = "☑️ 전체선택";
+    btnSelectAll.classList.remove("bg-indigo-600", "hover:bg-indigo-700");
+    btnSelectAll.classList.add("bg-slate-600", "hover:bg-slate-700");
   }
 }
 
@@ -2843,6 +2873,61 @@ function deleteBulkCheckedRows() {
   saveActiveProject();
   renderChecklistGrid();
   showUndoToast(count);
+}
+
+/**
+ * 전체선택 / 전체해제 토글 함수
+ * - 현재 필터된 항목이 모두 체크된 상태이면 → 전체 체크 해제
+ * - 그렇지 않으면 → 현재 필터된 항목 모두 체크
+ */
+function toggleSelectAll() {
+  if (!state.activeProject || !state.activeProject.items) return;
+  if (!state.checkedCardIds) state.checkedCardIds = new Set();
+
+  // 현재 필터된 항목 목록 계산 (renderChecklistGrid와 동일한 기준)
+  const rows = state.activeProject.items || [];
+  const filtered = state.filterElement === "전체"
+    ? rows
+    : rows.filter(r => r.element === state.filterElement);
+
+  if (filtered.length === 0) return;
+
+  // 현재 필터된 항목이 모두 체크되어 있는지 확인
+  const allChecked = filtered.every(r => state.checkedCardIds.has(r.id));
+
+  if (allChecked) {
+    // ✅ 전체 해제: 필터된 항목 ID를 모두 체크에서 제거
+    filtered.forEach(r => state.checkedCardIds.delete(r.id));
+    showToast("전체 선택이 해제되었습니다.");
+  } else {
+    // ✅ 전체 선택: 필터된 항목 ID를 모두 체크에 추가
+    filtered.forEach(r => state.checkedCardIds.add(r.id));
+    showToast(`${filtered.length}개 항목이 모두 선택되었습니다. 🗑️ 선택 삭제로 한 번에 지울 수 있습니다.`);
+  }
+
+  // 일괄 삭제 버튼 상태도 업데이트 (전체 재렌더 없이)
+  const btnBulkDelete = document.getElementById("btn-bulk-delete");
+  if (btnBulkDelete) {
+    const checkedCount = state.checkedCardIds.size;
+    if (checkedCount > 0) {
+      btnBulkDelete.style.display = "inline-flex";
+      btnBulkDelete.textContent = `🗑️ 선택 ${checkedCount}개 삭제`;
+    } else {
+      btnBulkDelete.style.display = "none";
+    }
+  }
+
+  // 카드 UI의 체크박스 DOM도 동기화 (전체 재렌더 없이 빠르게)
+  const cardList = document.getElementById("checklist-card-list");
+  if (cardList) {
+    cardList.querySelectorAll('.card-check-input').forEach(input => {
+      const cardId = parseFloat(input.dataset.cardId);
+      input.checked = state.checkedCardIds.has(cardId);
+    });
+  }
+
+  // 전체선택 버튼 텍스트 상태 업데이트
+  _updateSelectAllButtonState(filtered);
 }
 
 // 되살리기(Undo) 실행
