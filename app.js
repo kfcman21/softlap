@@ -2106,48 +2106,6 @@ function setupEventListeners() {
   setupShortcutKeys();
 }
 
-// 테마 관리
-function applyTheme() {
-  const currentTheme = localStorage.getItem(THEME_KEY) || "light";
-  document.documentElement.setAttribute("data-theme", currentTheme);
-  document.documentElement.classList.toggle("dark", currentTheme === "dark");
-  
-  const icon = document.querySelector("#btn-theme-switch span");
-  if (icon) {
-    if (currentTheme === "dark") {
-      icon.textContent = "☀️";
-    } else {
-      icon.textContent = "🌙";
-    }
-  }
-}
-
-function toggleTheme() {
-  const activeTheme = document.documentElement.getAttribute("data-theme");
-  const nextTheme = activeTheme === "dark" ? "light" : "dark";
-  localStorage.setItem(THEME_KEY, nextTheme);
-  applyTheme();
-  showToast(`${nextTheme === "dark" ? "다크" : "라이트"} 모드 작동 중`);
-}
-
-
-
-// 사이드바 트리뷰 구성
-function renderPresetGuideTree() {
-  const container = document.getElementById("preset-tree-nav");
-  container.innerHTML = "";
-
-  Object.keys(EMPIRICAL_STANDARDS).forEach(elementName => {
-    const details = document.createElement("details");
-    details.style.marginBottom = "6px";
-    details.style.border = "1px solid var(--border-color)";
-    details.style.borderRadius = "var(--radius-sm)";
-    details.style.backgroundColor = "var(--bg-secondary)";
-    details.style.borderLeft = `4px solid ${EMPIRICAL_STANDARDS[elementName].color}`;
-
-    const summary = document.createElement("summary");
-    summary.style.padding = "6px 10px";
-    summary.style.fontSize = "0.76rem";
     summary.style.fontWeight = "700";
     summary.style.cursor = "pointer";
     summary.style.color = "var(--text-primary)";
@@ -2341,6 +2299,20 @@ function renderChecklistGrid() {
     const photoBadge = rowData.screenshot ? `<span class="text-xs" title="사진 증빙 포함">📷</span>` : "";
     const videoBadge = rowData.videoLink ? `<span class="text-xs" title="동영상 증빙 포함">🎥</span>` : "";
 
+    // 체크박스 선택 여부 확인 (HTML 삽입 전에 미리 준비)
+    const isChecked = state.checkedCardIds && state.checkedCardIds.has(rowData.id);
+    // 제출 완료 여부에 따라 체크박스 HTML 조건부 생성 (심각성 뱃지 옆에 인라인 배치)
+    const checkboxHtml = !isSubmitted
+      ? `<input
+           type="checkbox"
+           class="card-check-input"
+           data-card-id="${rowData.id}"
+           ${isChecked ? 'checked' : ''}
+           title="삭제할 항목 선택"
+           style="accent-color:#ef4444; width:15px; height:15px; cursor:pointer; flex-shrink:0;"
+         >`
+      : '';
+
     card.innerHTML = `
       <div class="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl" style="background-color: ${elementColor};"></div>
       <div class="pl-2 space-y-2">
@@ -2350,6 +2322,7 @@ function renderChecklistGrid() {
             ${photoBadge}
             ${videoBadge}
             ${severityBadge}
+            ${checkboxHtml}
           </div>
         </div>
         <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 line-clamp-1">${rowData.item}</h4>
@@ -2360,23 +2333,6 @@ function renderChecklistGrid() {
         </div>
       </div>
     `;
-
-    // 체크박스 선택 여부 확인
-    const isChecked = state.checkedCardIds && state.checkedCardIds.has(rowData.id);
-    // 카드 우측 상단에 삭제용 체크박스 추가 (제출 완료된 프로젝트는 표시 안 함)
-    if (!isSubmitted) {
-      const checkWrapper = document.createElement('div');
-      checkWrapper.style.cssText = 'position: absolute; top: 8px; right: 8px; z-index: 10;';
-      const checkEl = document.createElement('input');
-      checkEl.type = 'checkbox';
-      checkEl.className = 'card-check-input';
-      checkEl.dataset.cardId = String(rowData.id);
-      checkEl.checked = isChecked;
-      checkEl.title = '삭제할 항목 선택';
-      checkEl.style.cssText = 'accent-color: #ef4444; width: 16px; height: 16px; cursor: pointer;';
-      checkWrapper.appendChild(checkEl);
-      card.appendChild(checkWrapper);
-    }
 
     // 카드 클릭: 선택(상세 에디터 열기)만 수행 - AI 도우미 자동 오픈 제거
     card.addEventListener("click", (e) => {
