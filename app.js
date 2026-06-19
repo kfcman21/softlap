@@ -2304,6 +2304,21 @@ function renderChecklistGrid() {
     state.selectedItemId = filtered[0].id;
   }
 
+  // 선택된(체크된) 카드 ID 목록이 없으면 빈 Set 초기화
+  if (!state.checkedCardIds) state.checkedCardIds = new Set();
+
+  // 일괄 삭제 버튼 표시/숨김 갱신
+  const btnBulkDelete = document.getElementById("btn-bulk-delete");
+  if (btnBulkDelete) {
+    const checkedCount = state.checkedCardIds.size;
+    if (checkedCount > 0 && !isSubmitted) {
+      btnBulkDelete.style.display = "inline-flex";
+      btnBulkDelete.textContent = `🗑️ 선택 ${checkedCount}개 삭제`;
+    } else {
+      btnBulkDelete.style.display = "none";
+    }
+  }
+
   filtered.forEach(rowData => {
     const card = document.createElement("div");
     card.dataset.id = rowData.id;
@@ -2361,11 +2376,55 @@ function renderChecklistGrid() {
       </div>
     `;
 
-    card.addEventListener("click", () => {
+    // 체크박스 선택 여부 확인
+    const isChecked = state.checkedCardIds && state.checkedCardIds.has(rowData.id);
+    // 카드 우측 상단에 삭제용 체크박스 추가
+    if (!isSubmitted) {
+      const checkWrapper = document.createElement('div');
+      checkWrapper.style.cssText = 'position: absolute; top: 8px; right: 8px; z-index: 10;';
+      const checkEl = document.createElement('input');
+      checkEl.type = 'checkbox';
+      checkEl.className = 'card-check-input';
+      checkEl.dataset.cardId = String(rowData.id);
+      checkEl.checked = isChecked;
+      checkEl.title = '삭제할 항목 선택';
+      checkEl.style.cssText = 'accent-color: #ef4444; width: 16px; height: 16px; cursor: pointer;';
+      checkWrapper.appendChild(checkEl);
+      card.appendChild(checkWrapper);
+    }
+
+    // 카드 클릭: 선택(상세 에디터 열기)만 수행 - AI 도우미 자동 오픈 제거
+    card.addEventListener("click", (e) => {
+      // 체크박스 클릭은 카드 선택과 별개로 처리
+      if (e.target.classList.contains('card-check-input')) return;
       state.selectedItemId = rowData.id;
       renderChecklistGrid();
-      openAiAssistant(rowData, card);
     });
+
+    // 카드 내 체크박스 이벤트: 체크 상태를 Set에 저장
+    const checkInput = card.querySelector('.card-check-input');
+    if (checkInput) {
+      checkInput.addEventListener('change', (e) => {
+        e.stopPropagation(); // 카드 클릭 이벤트로 전파 방지
+        if (!state.checkedCardIds) state.checkedCardIds = new Set();
+        if (e.target.checked) {
+          state.checkedCardIds.add(rowData.id);
+        } else {
+          state.checkedCardIds.delete(rowData.id);
+        }
+        // 일괄 삭제 버튼만 갱신 (전체 재렌더링 없이)
+        const btnBulkDelete = document.getElementById("btn-bulk-delete");
+        if (btnBulkDelete) {
+          const checkedCount = state.checkedCardIds.size;
+          if (checkedCount > 0) {
+            btnBulkDelete.style.display = "inline-flex";
+            btnBulkDelete.textContent = `🗑️ 선택 ${checkedCount}개 삭제`;
+          } else {
+            btnBulkDelete.style.display = "none";
+          }
+        }
+      });
+    }
 
     cardList.appendChild(card);
   });
@@ -2784,20 +2843,200 @@ function addNewChecklistRow() {
   showToast("빈 점검 행이 추가되었습니다.");
 }
 
-// 점검 행 지우기
+// ───────────────────────────────────────
+// 삭제 취소(Undo) 버퍼 저장소
+// ───────────────────────────────────────
+let _deletedItemsBuffer = [];  // 삭제된 항목(들) 임시 보관
+let _undoTimer = null;         // Undo 가능 시간 타이머
+
+// 점검 행 지우기 (Undo 지원)
 function deleteChecklistRow(id) {
   // ✅ 제출 완료된 보고서는 항목 삭제 차단
   if (state.activeProject && state.activeProject.submitted) {
     showToast("⛔ 이미 기업에 제출 완료된 보고서입니다. 항목을 삭제할 수 없습니다.");
     return;
   }
+
+  // 삭제할 항목을 Undo 버퍼에 인덱스와 함께 임시 저장
+  const targetIndex = state.activeProject.items.findIndex(r => r.id === id);
+  const targetItem = state.activeProject.items[targetIndex];
+  if (!targetItem) return;
+
+  _deletedItemsBuffer = [{ item: targetItem, index: targetIndex }];
+
+  // 실제 삭제 수행
   state.activeProject.items = state.activeProject.items.filter(r => r.id !== id);
   if (state.selectedItemId === id) {
-    state.selectedItemId = null; // 삭제된 항목의 선택 해제
+    state.selectedItemId = null;
   }
   saveActiveProject();
   renderChecklistGrid();
-  showToast("선택 항목을 삭제했습니다.");
+
+  // Undo 가능 토스트 표시 (7초 내)
+  showUndoToast(`항목 [${targetItem.item}]이 삭제되었습니다.`, 7000);
+
+  // 7초 후 Undo 버퍼 자동 비우기
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(() => {
+    _deletedItemsBuffer = [];
+    _undoTimer = null;
+  }, 7000);
+}
+
+// 선택된 여러 항목 일괄 삭제 (Undo 지원)
+function deleteBulkCheckedRows() {
+  if (!state.checkedCardIds || state.checkedCardIds.size === 0) return;
+
+  if (state.activeProject && state.activeProject.submitted) {
+    showToast("⛔ 이미 기업에 제출 완료된 보고서입니다. 항목을 삭제할 수 없습니다.");
+    return;
+  }
+
+  const checkedCount = state.checkedCardIds.size;
+
+  // 삭제할 항목들을 인덱스와 함께 Undo 버퍼에 임시 저장 (원래 순서 유지를 위해 정렬)
+  _deletedItemsBuffer = [];
+  state.checkedCardIds.forEach(id => {
+    const idx = state.activeProject.items.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      _deletedItemsBuffer.push({ item: state.activeProject.items[idx], index: idx });
+    }
+  });
+  // 인덱스 오름차순 정렬 (나중에 원래 위치로 복원할 때 사용)
+  _deletedItemsBuffer.sort((a, b) => a.index - b.index);
+
+  // 실제 삭제 수행
+  state.activeProject.items = state.activeProject.items.filter(
+    r => !state.checkedCardIds.has(r.id)
+  );
+
+  // 삭제된 항목이 현재 선택된 항목이면 선택 해제
+  if (state.checkedCardIds.has(state.selectedItemId)) {
+    state.selectedItemId = null;
+  }
+
+  // 체크박스 Set 초기화
+  state.checkedCardIds = new Set();
+
+  saveActiveProject();
+  renderChecklistGrid();
+
+  // Undo 가능 토스트 표시 (7초 내)
+  showUndoToast(`선택한 ${checkedCount}개 항목이 삭제되었습니다.`, 7000);
+
+  // 7초 후 Undo 버퍼 자동 비우기
+  if (_undoTimer) clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(() => {
+    _deletedItemsBuffer = [];
+    _undoTimer = null;
+  }, 7000);
+}
+
+// Undo 실행: 삭제된 항목 복원
+function undoDeletedItems() {
+  if (!_deletedItemsBuffer || _deletedItemsBuffer.length === 0) {
+    showToast("⚠️ 되살릴 수 있는 삭제 기록이 없습니다.");
+    return;
+  }
+
+  if (_undoTimer) {
+    clearTimeout(_undoTimer);
+    _undoTimer = null;
+  }
+
+  // 원래 인덱스 위치에 항목 복원 (역순으로 splice해서 정확한 위치에 삽입)
+  _deletedItemsBuffer.forEach(({ item, index }) => {
+    // 현재 배열 길이를 초과하지 않도록 안전하게 삽입
+    const safeIndex = Math.min(index, state.activeProject.items.length);
+    state.activeProject.items.splice(safeIndex, 0, item);
+  });
+
+  const restoredCount = _deletedItemsBuffer.length;
+  _deletedItemsBuffer = [];
+
+  saveActiveProject();
+  renderChecklistGrid();
+  showToast(`✅ ${restoredCount}개 항목이 복원되었습니다!`);
+
+  // Undo 토스트 닫기
+  const undoToast = document.getElementById('undo-toast');
+  if (undoToast) undoToast.remove();
+}
+
+// Undo 가능 토스트 UI 표시
+function showUndoToast(message, durationMs) {
+  // 기존 Undo 토스트가 있으면 제거
+  const existingUndoToast = document.getElementById('undo-toast');
+  if (existingUndoToast) existingUndoToast.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'undo-toast';
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: #f8fafc;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    z-index: 10000;
+    white-space: nowrap;
+    animation: slideUp 0.3s ease;
+    border: 1px solid rgba(255,255,255,0.1);
+  `;
+
+  // 남은 시간 표시바
+  const progressId = 'undo-progress-' + Date.now();
+  toast.innerHTML = `
+    <span>🗑️ ${message}</span>
+    <button
+      onclick="undoDeletedItems()"
+      style="
+        background: #6366f1;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.2s;
+      "
+      onmouseover="this.style.background='#4f46e5'"
+      onmouseout="this.style.background='#6366f1'"
+    >↩ 되살리기</button>
+    <div id="${progressId}" style="
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      background: #6366f1;
+      border-radius: 0 0 12px 12px;
+      width: 100%;
+      transition: width linear ${durationMs}ms;
+    "></div>
+  `;
+
+  document.body.appendChild(toast);
+
+  // 진행바 애니메이션 시작
+  requestAnimationFrame(() => {
+    const bar = document.getElementById(progressId);
+    if (bar) bar.style.width = '0%';
+  });
+
+  // 지정 시간 후 토스트 자동 제거
+  setTimeout(() => {
+    if (toast.parentNode) toast.remove();
+  }, durationMs);
 }
 
 // 보관함 요약 통계 갱신
@@ -5577,62 +5816,25 @@ function renderTeamA4Preview() {
       </tr>
     </table>
     
-    <h3 class="report-section-title" style="margin-top: 30px;">👥 팀 종합 실증 결론 및 제안</h3>
-    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
-      ${conclusion || "기재된 종합 실증 의견이 없습니다."}
-    </p>
-    
-    <h3 class="report-section-title" style="margin-top: 30px;">🔄 기업 피드백에 따른 모니터링 계획</h3>
-    <p style="font-size:0.8rem; line-height:1.6; white-space:pre-wrap; border:1px solid #cbd5e1; padding:12px; border-radius:4px; min-height:150px; background-color:#fafafc; margin-top:10px;">
-      ${monitoring || "기재된 모니터링 계획이 없습니다."}
-    </p>
-  `;
-  container.appendChild(page1);
-  
-  let currentPageNum = 2;
-  let currentPage = createTeamPageRest(currentPageNum, productName, teamName);
-  container.appendChild(currentPage);
-  
-  let currentTable = createTeamTableWrapper();
-  currentPage.appendChild(currentTable);
-  let currentTbody = currentTable.querySelector("tbody");
-  
-  const allAggregatedItems = [];
-  matchingProjects.forEach(p => {
-    (p.items || []).forEach(item => {
-      allAggregatedItems.push({
-        ...item,
-        teacherName: p.teacherName
-      });
-    });
-  });
-  
-  if (allAggregatedItems.length === 0) {
-    currentTbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#94a3b8;">수집된 세부 실증 항목이 없습니다.</td></tr>`;
-  } else {
-    for (let i = 0; i < allAggregatedItems.length; i++) {
-      const r = allAggregatedItems[i];
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>
-          <span class="report-element-badge" style="background-color: ${EMPIRICAL_STANDARDS[r.element]?.bg || '#f1f5f9'}; color: ${EMPIRICAL_STANDARDS[r.element]?.color || '#334155'}; border: 1px solid ${EMPIRICAL_STANDARDS[r.element]?.borderColor || '#cbd5e1'}">
-            ${r.element}
-          </span>
-        </td>
-        <td><strong>${r.item}</strong></td>
-        <td style="font-size:0.7rem; color:#475569; white-space: pre-wrap;">${r.criterion}</td>
-        <td style="font-weight:700;">${r.teacherName || "실증교사"}</td>
-        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.analysis || "분석내용 없음"}</td>
-        <td style="text-align:center;">
-          <span class="severity-badge ${r.severity === '상' ? 'high' : r.severity === '중' ? 'mid' : 'low'}">${r.severity}</span>
-        </td>
-        <td style="white-space: pre-wrap; font-size:0.7rem;">${r.improvement || "개선요청 없음"}</td>
-      `;
-      
-      currentPage.style.height = "auto";
-      currentPage.style.minHeight = "0"; // min-height 일시 해제하여 순수 콘텐츠 높이만 측정
-      currentPage.style.overflow = "visible";
-      currentTbody.appendChild(tr);
+ // ─── 보고서 새 창 인쇄 함수 ───
+function printReportInNewWindow() {
+  renderA4Preview();
+  setTimeout(function() {
+    var container = document.getElementById("preview-container");
+    if (!container || !container.innerHTML.trim()) {
+      alert("보고서 내용이 없습니다. 데이터를 먼저 입력해 주세요.");
+      return;
+    }
+    var printWin = window.open("", "_blank");
+    if (!printWin) {
+      alert("팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.");
+      return;
+    }
+    printWin.document.write('<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>보고서 인쇄</title><style>@page{size:297mm 210mm;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}html,body{margin:0;padding:0;background:#fff;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif}.report-a4-page{display:block;width:297mm;height:210mm;overflow:hidden;padding:12mm 15mm;margin:0;background:#fff;page-break-after:always;break-after:page}.report-a4-page:last-child{page-break-after:avoid;break-after:avoid}.report-title-badge{display:inline-block;background:#fef9c3;color:#854d0e;border:1px solid #fde68a;border-radius:4px;padding:2px 8px;font-size:.72rem;font-weight:600;margin-bottom:6px}.report-h1{font-size:1.3rem;font-weight:800;color:#1e293b;margin:0 0 10px;border-bottom:3px solid #f59e0b;padding-bottom:6px;line-height:1.3}.report-meta-table{width:100%;border-collapse:collapse;margin-bottom:8px}.report-meta-table td{padding:4px 7px;border:1px solid #cbd5e1;font-size:.73rem}.report-meta-table td.label-td{background:#f1f5f9;font-weight:700;width:14%}.report-section-title{font-size:.88rem;font-weight:700;border-left:4px solid #f59e0b;padding-left:8px;margin:6px 0}.report-checklist-grid{width:100%;border-collapse:collapse;font-size:.72rem}.report-checklist-grid th{background:#1e293b;color:#fff;padding:5px 4px;text-align:center;border:1px solid #334155;font-size:.68rem}.report-checklist-grid td{padding:4px 5px;border:1px solid #e2e8f0;vertical-align:top;font-size:.71rem;white-space:pre-wrap;word-break:break-word}.report-checklist-grid tr:nth-child(even) td{background:#f8fafc}.report-element-badge{display:inline-block;padding:3px 7px;border-radius:5px;font-size:.65rem;font-weight:700;text-align:center;word-break:keep-all;line-height:1.4}.severity-badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 7px;border-radius:9999px;font-size:.7rem;font-weight:700}.severity-badge.high{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}.severity-badge.mid{background:#fef9c3;color:#854d0e;border:1px solid #fde68a}.severity-badge.low{background:#dcfce7;color:#166534;border:1px solid #86efac}.print-evidence-img{max-width:50px;max-height:50px;display:block;border-radius:2px}a{color:#dc2626}</style></head><body><div id="preview-container">' + container.innerHTML + '</div><script>window.onload=function(){setTimeout(function(){window.print();},200);};<\/script></body></html>');
+    printWin.document.close();
+  }, 400);
+}
+
       
       // 가로 A4 여백 제외 실질 콘텐츠 영역 한계선 640px 적용
       if (currentPage.scrollHeight > 640) {
@@ -6291,3 +6493,7 @@ function printReportInNewWindow() {
     printWin.document.close();
   }, 400);
 }
+
+// ─── HTML onclick에서 직접 호출할 수 있도록 전역 함수 등록 ───
+window.deleteBulkCheckedRows = deleteBulkCheckedRows;
+window.undoDeletedItems = undoDeletedItems;

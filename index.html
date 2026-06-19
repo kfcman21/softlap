@@ -438,9 +438,19 @@
                   <select id="editor-filter-select" class="form-select text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 p-2 w-full max-w-[200px] text-slate-800 dark:text-slate-100">
                     <option value="전체">🔍 모든 요소 필터</option>
                   </select>
-                  <button id="btn-add-row" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shadow-sm transition-all duration-200">
-                    <span>➕ 항목 추가</span>
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <!-- ✅ 일괄 삭제 버튼: 체크박스 선택 시 표시 -->
+                    <button id="btn-bulk-delete"
+                      class="px-3 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shadow-sm transition-all duration-200"
+                      style="display: none;"
+                      onclick="deleteBulkCheckedRows()"
+                      title="체크 선택된 항목들을 한 번에 삭제합니다">
+                      🗑️ 선택 삭제
+                    </button>
+                    <button id="btn-add-row" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1 shadow-sm transition-all duration-200">
+                      <span>➕ 항목 추가</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="text-xs text-slate-500 dark:text-slate-400">
                   💡 분석할 실증 항목을 왼쪽에서 선택하거나 추가한 뒤, 우측 상세 폼에서 기입해 주세요.
